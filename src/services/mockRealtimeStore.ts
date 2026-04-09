@@ -65,6 +65,12 @@ export function getDrivers(): Driver[] {
   return readJson<Driver[]>(DRIVERS_KEY, []);
 }
 
+export function clearDemoState(): void {
+  localStorage.removeItem(DRIVERS_KEY);
+  localStorage.removeItem(RIDES_KEY);
+}
+
+
 export function getDriverById(driverId: string): Driver | null {
   return getDrivers().find((driver) => driver.id === driverId) ?? null;
 }
