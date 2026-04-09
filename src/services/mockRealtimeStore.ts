@@ -123,13 +123,14 @@ export function assignDriverToRide(rideId: string, driverId: string): Ride | nul
 export function updateRideStatus(rideId: string, status: RideStatus): Ride | null {
   const rides = getRides();
   let updatedRide: Ride | null = null;
+  let completedDriverId: string | null = null;
 
   const updatedRides = rides.map((ride) => {
     if (ride.id !== rideId) {
       return ride;
     }
 
-    updatedRide = {
+    const nextRide: Ride = {
       ...ride,
       status,
       acceptedAt: status === "driver_arriving" ? Date.now() : ride.acceptedAt,
@@ -137,13 +138,19 @@ export function updateRideStatus(rideId: string, status: RideStatus): Ride | nul
       completedAt: status === "completed" ? Date.now() : ride.completedAt,
     };
 
-    return updatedRide;
+    updatedRide = nextRide;
+
+    if (status === "completed" && nextRide.driverId) {
+      completedDriverId = nextRide.driverId;
+    }
+
+    return nextRide;
   });
 
   saveRides(updatedRides);
 
-  if (status === "completed" && updatedRide?.driverId) {
-    releaseDriver(updatedRide.driverId);
+  if (completedDriverId) {
+    releaseDriver(completedDriverId);
   }
 
   return updatedRide;
