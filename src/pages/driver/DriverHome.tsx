@@ -31,20 +31,15 @@ function actionButtonStyle(background: string): React.CSSProperties {
 }
 
 export default function DriverHome() {
-  const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [selectedDriverId, setSelectedDriverId] = useState("");
-  const [ride, setRide] = useState<Ride | null>(null);
-
-  useEffect(() => {
+  const [drivers, setDrivers] = useState<Driver[]>(() => {
     seedDrivers();
-
-    const currentDrivers = getDrivers();
-    setDrivers(currentDrivers);
-
-    if (currentDrivers[0]) {
-      setSelectedDriverId(currentDrivers[0].id);
-    }
-  }, []);
+    return getDrivers();
+  });
+  const [selectedDriverId, setSelectedDriverId] = useState(() => {
+    seedDrivers();
+    return getDrivers()[0]?.id ?? "";
+  });
+  const [ride, setRide] = useState<Ride | null>(null);
 
   useEffect(() => {
     function syncData() {
