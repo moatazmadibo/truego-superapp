@@ -1,16 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { Driver, Ride } from "../../types/ride";
+import RideTimeline from "../../components/RideTimeline";
+import StatusBadge from "../../components/StatusBadge";
 import {
   getActiveRideForDriver,
   getDrivers,
   seedDrivers,
   updateRideStatus,
 } from "../../services/mockRealtimeStore";
+import {
+  clearSelectedDriverId,
+  getSelectedDriverId,
+  setSelectedDriverId,
+} from "../../services/demoSession";
 
 function panelStyle(): React.CSSProperties {
   return {
-    maxWidth: 720,
+    maxWidth: 760,
     margin: "40px auto",
     background: "#ffffff",
     borderRadius: 16,
@@ -27,6 +34,17 @@ function actionButtonStyle(background: string): React.CSSProperties {
     background,
     color: "#ffffff",
     width: "100%",
+    fontWeight: 600,
+  };
+}
+
+function ghostButtonStyle(): React.CSSProperties {
+  return {
+    padding: "10px 14px",
+    borderRadius: 10,
+    border: "1px solid #d1d5db",
+    background: "#ffffff",
+    color: "#111827",
   };
 }
 
@@ -35,25 +53,24 @@ export default function DriverHome() {
     seedDrivers();
     return getDrivers();
   });
-  const [selectedDriverId, setSelectedDriverId] = useState(() => {
+  const [selectedDriverId, setCurrentSelectedDriverId] = useState(() => {
     seedDrivers();
-    return getDrivers()[0]?.id ?? "";
+    return getSelectedDriverId();
   });
   const [ride, setRide] = useState<Ride | null>(null);
 
   useEffect(() => {
     function syncData() {
+      seedDrivers();
       const currentDrivers = getDrivers();
       setDrivers(currentDrivers);
 
-      if (!selectedDriverId && currentDrivers[0]) {
-        setSelectedDriverId(currentDrivers[0].id);
+      if (!selectedDriverId) {
+        setRide(null);
         return;
       }
 
-      if (selectedDriverId) {
-        setRide(getActiveRideForDriver(selectedDriverId));
-      }
+      setRide(getActiveRideForDriver(selectedDriverId));
     }
 
     syncData();
@@ -69,6 +86,17 @@ export default function DriverHome() {
     () => drivers.find((driver) => driver.id === selectedDriverId) ?? null,
     [drivers, selectedDriverId]
   );
+
+  function handleSelectDriver(driverId: string) {
+    setSelectedDriverId(driverId);
+    setCurrentSelectedDriverId(driverId);
+  }
+
+  function handleSwitchDriver() {
+    clearSelectedDriverId();
+    setCurrentSelectedDriverId("");
+    setRide(null);
+  }
 
   function handleAcceptRide() {
     if (!ride) {
@@ -97,64 +125,96 @@ export default function DriverHome() {
     setRide(updatedRide);
   }
 
+  if (!selectedDriver) {
+    return (
+      <div style={{ padding: 20 }}>
+        <div style={panelStyle()}>
+          <h2 style={{ marginTop: 0, marginBottom: 8 }}>TrueGo Driver Console</h2>
+          <p style={{ marginTop: 0, color: "#6b7280" }}>
+            Choose your driver profile once to enter the operational console.
+            This replaces the raw driver dropdown and feels closer to a real
+            driver login flow.
+          </p>
+
+          <div style={{ display: "grid", gap: 12, marginTop: 20 }}>
+            {drivers.map((driver) => (
+              <button
+                key={driver.id}
+                onClick={() => handleSelectDriver(driver.id)}
+                style={{
+                  textAlign: "left",
+                  padding: 16,
+                  borderRadius: 14,
+                  border: "1px solid #e5e7eb",
+                  background: "#f8fafc",
+                }}
+              >
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>{driver.name}</div>
+                <div style={{ color: "#4b5563", marginBottom: 4 }}>
+                  Vehicle: {driver.vehicleType}
+                </div>
+                <div style={{ color: "#4b5563", marginBottom: 4 }}>
+                  Rating: {driver.rating}
+                </div>
+                <div style={{ color: driver.isAvailable ? "#059669" : "#b45309" }}>
+                  {driver.isAvailable ? "Available" : "Busy"}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: 20 }}>
       <div style={panelStyle()}>
-        <h2 style={{ marginTop: 0 }}>TrueGo Driver</h2>
-
-        <div style={{ marginBottom: 16 }}>
-          <label
-            htmlFor="driver-select"
-            style={{ display: "block", marginBottom: 8, fontWeight: 600 }}
-          >
-            Select Driver
-          </label>
-
-          <select
-            id="driver-select"
-            value={selectedDriverId}
-            onChange={(event) => setSelectedDriverId(event.target.value)}
-            style={{
-              width: "100%",
-              padding: 12,
-              borderRadius: 10,
-              border: "1px solid #d1d5db",
-            }}
-          >
-            {drivers.map((driver) => (
-              <option key={driver.id} value={driver.id}>
-                {driver.name} - {driver.vehicleType} -{" "}
-                {driver.isAvailable ? "Available" : "Busy"}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {selectedDriver ? (
-          <div
-            style={{
-              marginBottom: 16,
-              padding: 14,
-              borderRadius: 12,
-              background: "#f8fafc",
-              border: "1px solid #e5e7eb",
-            }}
-          >
-            <div style={{ marginBottom: 6 }}>
-              <strong>Name:</strong> {selectedDriver.name}
-            </div>
-            <div style={{ marginBottom: 6 }}>
-              <strong>Vehicle:</strong> {selectedDriver.vehicleType}
-            </div>
-            <div style={{ marginBottom: 6 }}>
-              <strong>Rating:</strong> {selectedDriver.rating}
-            </div>
-            <div>
-              <strong>Status:</strong>{" "}
-              {selectedDriver.isAvailable ? "Available" : "Busy"}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 12,
+            alignItems: "center",
+            flexWrap: "wrap",
+            marginBottom: 16,
+          }}
+        >
+          <div>
+            <h2 style={{ margin: 0 }}>TrueGo Driver</h2>
+            <div style={{ color: "#6b7280", marginTop: 6 }}>
+              Operational console for the active driver profile.
             </div>
           </div>
-        ) : null}
+
+          <button onClick={handleSwitchDriver} style={ghostButtonStyle()}>
+            Switch driver
+          </button>
+        </div>
+
+        <div
+          style={{
+            marginBottom: 16,
+            padding: 16,
+            borderRadius: 12,
+            background: "#f8fafc",
+            border: "1px solid #e5e7eb",
+          }}
+        >
+          <div style={{ marginBottom: 6 }}>
+            <strong>Name:</strong> {selectedDriver.name}
+          </div>
+          <div style={{ marginBottom: 6 }}>
+            <strong>Vehicle:</strong> {selectedDriver.vehicleType}
+          </div>
+          <div style={{ marginBottom: 6 }}>
+            <strong>Rating:</strong> {selectedDriver.rating}
+          </div>
+          <div>
+            <strong>Status:</strong>{" "}
+            {selectedDriver.isAvailable ? "Available" : "Busy"}
+          </div>
+        </div>
 
         {!ride ? (
           <div
@@ -165,7 +225,10 @@ export default function DriverHome() {
               border: "1px solid #e5e7eb",
             }}
           >
-            No assigned ride yet.
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>No assigned ride yet</div>
+            <div style={{ color: "#6b7280" }}>
+              The driver is ready and waiting for the next matched trip.
+            </div>
           </div>
         ) : (
           <div
@@ -176,6 +239,8 @@ export default function DriverHome() {
               border: "1px solid #e5e7eb",
             }}
           >
+            <StatusBadge status={ride.status} />
+
             <div style={{ marginBottom: 8 }}>
               <strong>Ride ID:</strong> {ride.id}
             </div>
@@ -196,37 +261,24 @@ export default function DriverHome() {
               <strong>Time:</strong> {ride.durationMin} min
             </div>
 
-            <div style={{ marginBottom: 8 }}>
+            <div style={{ marginBottom: 16 }}>
               <strong>Price:</strong> {ride.pricePi} Pi
             </div>
 
-            <div style={{ marginBottom: 16 }}>
-              <strong>Status:</strong> {ride.status}
-            </div>
-
             {ride.status === "driver_assigned" ? (
-              <button
-                onClick={handleAcceptRide}
-                style={actionButtonStyle("#0ea5e9")}
-              >
+              <button onClick={handleAcceptRide} style={actionButtonStyle("#0ea5e9")}>
                 Accept Ride
               </button>
             ) : null}
 
             {ride.status === "driver_arriving" ? (
-              <button
-                onClick={handleStartRide}
-                style={actionButtonStyle("#8b5cf6")}
-              >
+              <button onClick={handleStartRide} style={actionButtonStyle("#8b5cf6")}>
                 Start Ride
               </button>
             ) : null}
 
             {ride.status === "in_progress" ? (
-              <button
-                onClick={handleCompleteRide}
-                style={actionButtonStyle("#10b981")}
-              >
+              <button onClick={handleCompleteRide} style={actionButtonStyle("#10b981")}>
                 Complete Ride
               </button>
             ) : null}
@@ -236,6 +288,8 @@ export default function DriverHome() {
                 Ride completed successfully.
               </div>
             ) : null}
+
+            <RideTimeline ride={ride} />
           </div>
         )}
       </div>

@@ -1,50 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
-import type { RideStatus as RideStatusType, Ride } from "../../types/ride";
+import type { Ride } from "../../types/ride";
+import RideTimeline from "../../components/RideTimeline";
+import StatusBadge from "../../components/StatusBadge";
 import {
   getDriverById,
   getRideById,
   seedDrivers,
 } from "../../services/mockRealtimeStore";
-
-function labelForStatus(status: RideStatusType): string {
-  switch (status) {
-    case "searching":
-      return "Searching for driver";
-    case "driver_assigned":
-      return "Driver assigned";
-    case "driver_arriving":
-      return "Driver is arriving";
-    case "in_progress":
-      return "Ride in progress";
-    case "completed":
-      return "Ride completed";
-    case "cancelled":
-      return "Ride cancelled";
-    default:
-      return status;
-  }
-}
-
-function statusColor(status: RideStatusType): string {
-  switch (status) {
-    case "searching":
-      return "#f59e0b";
-    case "driver_assigned":
-      return "#2563eb";
-    case "driver_arriving":
-      return "#0ea5e9";
-    case "in_progress":
-      return "#8b5cf6";
-    case "completed":
-      return "#10b981";
-    case "cancelled":
-      return "#ef4444";
-    default:
-      return "#6b7280";
-  }
-}
 
 export default function RideStatus() {
   const params = useParams<{ rideId: string }>();
@@ -82,7 +46,7 @@ export default function RideStatus() {
       <div style={{ padding: 20 }}>
         <div
           style={{
-            maxWidth: 620,
+            maxWidth: 700,
             margin: "40px auto",
             background: "#ffffff",
             borderRadius: 16,
@@ -102,7 +66,7 @@ export default function RideStatus() {
     <div style={{ padding: 20 }}>
       <div
         style={{
-          maxWidth: 620,
+          maxWidth: 700,
           margin: "40px auto",
           background: "#ffffff",
           borderRadius: 16,
@@ -120,18 +84,7 @@ export default function RideStatus() {
             border: "1px solid #e5e7eb",
           }}
         >
-          <div
-            style={{
-              display: "inline-block",
-              padding: "6px 12px",
-              borderRadius: 999,
-              background: statusColor(ride.status),
-              color: "#ffffff",
-              marginBottom: 12,
-            }}
-          >
-            {labelForStatus(ride.status)}
-          </div>
+          <StatusBadge status={ride.status} />
 
           <div style={{ marginBottom: 8 }}>
             <strong>Ride ID:</strong> {ride.id}
@@ -164,6 +117,8 @@ export default function RideStatus() {
           <div style={{ marginBottom: 8 }}>
             <strong>Driver:</strong> {driverName || "Not assigned yet"}
           </div>
+
+          <RideTimeline ride={ride} />
         </div>
 
         <div style={{ marginTop: 20 }}>
