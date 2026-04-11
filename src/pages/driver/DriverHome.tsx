@@ -4,24 +4,15 @@ import RideTimeline from "../../components/RideTimeline";
 import StatusBadge from "../../components/StatusBadge";
 import type { Ride } from "../../types/ride";
 import {
-  assignDriverToRide,
+  acceptDemoRide,
+  completeDemoRide,
+  listDemoDrivers,
   listRecentRides,
   subscribeToLatestRides,
   updateRideStage,
+  type DemoDriverRow,
   type RideRow,
 } from "../../services/rideApi";
-
-type DemoDriver = {
-  sessionId: string;
-  displayName: string;
-  vehicleLabel: string;
-};
-
-const DEMO_DRIVERS: DemoDriver[] = [
-  { sessionId: "ahmed", displayName: "Ahmed", vehicleLabel: "Car" },
-  { sessionId: "mohamed", displayName: "Mohamed", vehicleLabel: "Car" },
-  { sessionId: "ali", displayName: "Ali", vehicleLabel: "Motorcycle" },
-];
 
 function mapRideRowToRide(row: RideRow): Ride {
   return {
@@ -51,12 +42,7 @@ function mapRideRowToRide(row: RideRow): Ride {
 }
 
 function getStoredDriverSessionId() {
-  const stored = localStorage.getItem("truego_demo_driver");
-  if (stored && DEMO_DRIVERS.some((driver) => driver.sessionId === stored)) {
-    return stored;
-  }
-
-  return DEMO_DRIVERS[0].sessionId;
+  return localStorage.getItem("truego_demo_driver") ?? "";
 }
 
 function formatRideStatus(status: RideRow["status"]) {
@@ -80,26 +66,37 @@ function formatRideStatus(status: RideRow["status"]) {
 
 export default function DriverHome() {
   const [selectedDriverId, setSelectedDriverId] = useState(getStoredDriverSessionId);
+  const [drivers, setDrivers] = useState<DemoDriverRow[]>([]);
   const [rides, setRides] = useState<RideRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const selectedDriver = useMemo(
-    () =>
-      DEMO_DRIVERS.find((driver) => driver.sessionId === selectedDriverId) ??
-      DEMO_DRIVERS[0],
-    [selectedDriverId]
-  );
-
-  async function loadRides() {
+  async function loadAll() {
     try {
       setErrorMessage("");
-      const data = await listRecentRides(20);
-      setRides(data);
+      const [driversData, ridesData] = await Promise.all([
+        listDemoDrivers(),
+        listRecentRides(20),
+      ]);
+
+      setDrivers(driversData);
+      setRides(ridesData);
+
+      if (!selectedDriverId && driversData.length > 0) {
+        setSelectedDriverId(driversData[0].id);
+      }
+
+      if (
+        selectedDriverId &&
+        driversData.length > 0 &&
+        !driversData.some((driver) => driver.id === selectedDriverId)
+      ) {
+        setSelectedDriverId(driversData[0].id);
+      }
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Failed to load rides.";
+        error instanceof Error ? error.message : "Failed to load driver console.";
       setErrorMessage(message);
     } finally {
       setLoading(false);
@@ -107,38 +104,73 @@ export default function DriverHome() {
   }
 
   useEffect(() => {
-    localStorage.setItem("truego_demo_driver", selectedDriverId);
-  }, [selectedDriverId]);
-
-  useEffect(() => {
-    void loadRides();
+    void loadAll();
 
     const unsubscribe = subscribeToLatestRides(() => {
-      void loadRides();
+      void loadAll();
     });
 
     return unsubscribe;
   }, []);
 
+  useEffect(() => {
+    if (selectedDriverId) {
+      localStorage.setItem("truego_demo_driver", selectedDriverId);
+    }
+  }, [selectedDriverId]);
+
+  const selectedDriver = useMemo(() => {
+    return drivers.find((driver) => driver.id === selectedDriverId) ?? null;
+  }, [drivers, selectedDriverId]);
+
+  const lastCompletedRideAt = useMemo(() => {
+    if (!selectedDriver) {
+      return 0;
+    }
+
+    return rides
+      .filter(
+        (ride) =>
+          ride.driver_name === selectedDriver.display_name && ride.completed_at
+      )
+      .map((ride) => Date.parse(ride.completed_at as string))
+      .reduce((latest, value) => (value > latest ? value : latest), 0);
+  }, [rides, selectedDriver]);
+
   const currentRideRow = useMemo(() => {
+    if (!selectedDriver) {
+      return null;
+    }
+
+    const assignedRide =
+      rides.find((ride) => {
+        return (
+          ride.driver_name === selectedDriver.display_name &&
+          ["driver_assigned", "driver_arriving", "in_progress"].includes(
+            ride.status
+          )
+        );
+      }) ?? null;
+
+    if (assignedRide) {
+      return assignedRide;
+    }
+
+    if (!selectedDriver.is_available) {
+      return null;
+    }
+
     return (
       rides.find((ride) => {
-        const isActive = ["searching", "driver_assigned", "driver_arriving", "in_progress"].includes(
-          ride.status
+        return (
+          ride.status === "searching" &&
+          !ride.driver_name &&
+          ride.vehicle_type === selectedDriver.vehicle_type &&
+          Date.parse(ride.created_at) >= lastCompletedRideAt
         );
-
-        if (!isActive) {
-          return false;
-        }
-
-        if (!ride.driver_name) {
-          return true;
-        }
-
-        return ride.driver_name === selectedDriver.displayName;
       }) ?? null
     );
-  }, [rides, selectedDriver.displayName]);
+  }, [rides, selectedDriver, lastCompletedRideAt]);
 
   const currentRide = useMemo(() => {
     if (!currentRideRow) {
@@ -148,8 +180,10 @@ export default function DriverHome() {
     return mapRideRowToRide(currentRideRow);
   }, [currentRideRow]);
 
+  const selectedDriverIsAvailable = selectedDriver?.is_available ?? false;
+
   async function handleAcceptRide() {
-    if (!currentRideRow) {
+    if (!currentRideRow || !selectedDriver) {
       return;
     }
 
@@ -157,15 +191,11 @@ export default function DriverHome() {
     setErrorMessage("");
 
     try {
-      await assignDriverToRide(currentRideRow.id, {
-        driver_user_id: null,
-        driver_name: selectedDriver.displayName,
-      });
-
-      await updateRideStage(currentRideRow.id, "driver_arriving");
+      await acceptDemoRide(currentRideRow.id, selectedDriver.id);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to accept ride.";
+      console.error("Accept ride failed:", error);
       setErrorMessage(message);
     } finally {
       setActionLoading(false);
@@ -192,7 +222,7 @@ export default function DriverHome() {
   }
 
   async function handleCompleteRide() {
-    if (!currentRideRow) {
+    if (!currentRideRow || !selectedDriver) {
       return;
     }
 
@@ -200,7 +230,7 @@ export default function DriverHome() {
     setErrorMessage("");
 
     try {
-      await updateRideStage(currentRideRow.id, "completed");
+      await completeDemoRide(currentRideRow.id, selectedDriver.id);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to complete ride.";
@@ -237,23 +267,59 @@ export default function DriverHome() {
             border: "1px solid #d1d5db",
             marginBottom: 12,
           }}
+          disabled={drivers.length === 0}
         >
-          {DEMO_DRIVERS.map((driver) => (
-            <option key={driver.sessionId} value={driver.sessionId}>
-              {driver.displayName} - {driver.vehicleLabel}
+          {drivers.length === 0 ? (
+            <option value="">No demo drivers available</option>
+          ) : null}
+
+          {drivers.map((driver) => (
+            <option key={driver.id} value={driver.id}>
+              {driver.display_name} - {driver.vehicle_type} -{" "}
+              {driver.is_available ? "Available" : "Busy"}
             </option>
           ))}
         </select>
 
-        <div style={{ color: "#374151" }}>
-          <strong>Current driver:</strong> {selectedDriver.displayName}
-        </div>
+        {selectedDriver ? (
+          <div style={{ color: "#374151", lineHeight: 1.8 }}>
+            <div>
+              <strong>Current driver:</strong> {selectedDriver.display_name}
+            </div>
+            <div>
+              <strong>Vehicle:</strong> {selectedDriver.vehicle_type}
+            </div>
+            <div>
+              <strong>Rating:</strong> {selectedDriver.rating.toFixed(1)}
+            </div>
+            <div>
+              <strong>Availability:</strong>{" "}
+              {selectedDriver.is_available ? "Available" : "Busy"}
+            </div>
+          </div>
+        ) : (
+          <div style={{ color: "#6b7280" }}>No driver selected.</div>
+        )}
       </div>
 
       {loading ? <p>Loading rides...</p> : null}
       {errorMessage ? <p style={{ color: "crimson" }}>{errorMessage}</p> : null}
 
-      {!loading && !currentRideRow ? (
+      {!loading && !selectedDriver ? (
+        <div
+          style={{
+            border: "1px solid #e5e7eb",
+            borderRadius: 16,
+            padding: 20,
+            background: "#fff",
+          }}
+        >
+          <h2 style={{ marginTop: 0 }}>No drivers found</h2>
+          <p>There are no demo drivers in Supabase yet.</p>
+        </div>
+      ) : null}
+
+      {!loading && selectedDriver && !currentRideRow ? (
         <div
           style={{
             border: "1px solid #e5e7eb",
@@ -263,7 +329,7 @@ export default function DriverHome() {
           }}
         >
           <h2 style={{ marginTop: 0 }}>No assigned ride yet</h2>
-          <p>No active ride is available for this demo driver right now.</p>
+          <p>No active ride is available for this driver right now.</p>
         </div>
       ) : null}
 
@@ -312,7 +378,7 @@ export default function DriverHome() {
             {currentRideRow.status === "searching" ? (
               <button
                 onClick={handleAcceptRide}
-                disabled={actionLoading}
+                disabled={actionLoading || !selectedDriverIsAvailable}
                 style={{
                   padding: "12px 16px",
                   borderRadius: 10,

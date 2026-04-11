@@ -33,6 +33,18 @@ export interface RideRow {
   completed_at: string | null;
 }
 
+export interface DemoDriverRow {
+  id: string;
+  display_name: string;
+  vehicle_type: VehicleType;
+  is_available: boolean;
+  rating: number;
+  lat: number | null;
+  lng: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface CreateRideInput {
   rider_user_id?: string | null;
   rider_name?: string | null;
@@ -171,7 +183,37 @@ export async function assignDriverToRide(
   return data as RideRow;
 }
 
+export async function acceptDemoRide(
+  rideId: string,
+  driverId: string
+): Promise<RideRow> {
+  const { data, error } = await supabase.rpc("accept_demo_ride", {
+    p_ride_id: rideId,
+    p_driver_id: driverId,
+  });
 
+  if (error) {
+    throw error;
+  }
+
+  return data as RideRow;
+}
+
+export async function completeDemoRide(
+  rideId: string,
+  driverId: string
+): Promise<RideRow> {
+  const { data, error } = await supabase.rpc("complete_demo_ride", {
+    p_ride_id: rideId,
+    p_driver_id: driverId,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data as RideRow;
+}
 
 export async function listRecentRides(limit = 20): Promise<RideRow[]> {
   const { data, error } = await supabase
@@ -185,6 +227,37 @@ export async function listRecentRides(limit = 20): Promise<RideRow[]> {
   }
 
   return (data as RideRow[]) ?? [];
+}
+
+export async function listDemoDrivers(): Promise<DemoDriverRow[]> {
+  const { data, error } = await supabase
+    .from("demo_drivers")
+    .select("*")
+    .order("is_available", { ascending: false })
+    .order("display_name", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data as DemoDriverRow[]) ?? [];
+}
+
+export async function setDemoDriverAvailability(
+  driverId: string,
+  isAvailable: boolean
+): Promise<void> {
+  const { error } = await supabase
+    .from("demo_drivers")
+    .update({
+      is_available: isAvailable,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", driverId);
+
+  if (error) {
+    throw error;
+  }
 }
 
 export function subscribeToRide(
