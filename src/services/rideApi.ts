@@ -16,6 +16,7 @@ export interface RideRow {
   rider_name: string | null;
   driver_user_id: string | null;
   driver_name: string | null;
+  demo_driver_id: string | null;
   pickup_text: string;
   destination_text: string;
   pickup_lat: number | null;

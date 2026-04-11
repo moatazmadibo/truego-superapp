@@ -131,7 +131,7 @@ export default function DriverHome() {
     return rides
       .filter(
         (ride) =>
-          ride.driver_name === selectedDriver.display_name && ride.completed_at
+          ride.demo_driver_id === selectedDriver.id && ride.completed_at
       )
       .map((ride) => Date.parse(ride.completed_at as string))
       .reduce((latest, value) => (value > latest ? value : latest), 0);
@@ -145,7 +145,7 @@ export default function DriverHome() {
     const assignedRide =
       rides.find((ride) => {
         return (
-          ride.driver_name === selectedDriver.display_name &&
+          ride.demo_driver_id === selectedDriver.id &&
           ["driver_assigned", "driver_arriving", "in_progress"].includes(
             ride.status
           )
@@ -164,7 +164,7 @@ export default function DriverHome() {
       rides.find((ride) => {
         return (
           ride.status === "searching" &&
-          !ride.driver_name &&
+          !ride.demo_driver_id &&
           ride.vehicle_type === selectedDriver.vehicle_type &&
           Date.parse(ride.created_at) >= lastCompletedRideAt
         );
