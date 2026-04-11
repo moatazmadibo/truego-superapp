@@ -8,6 +8,7 @@ import {
   completeDemoRide,
   listDemoDrivers,
   listRecentRides,
+  setDemoDriverOnlineStatus,
   subscribeToLatestRides,
   updateRideStage,
   type DemoDriverRow,
@@ -119,24 +120,54 @@ export default function DriverHome() {
     }
   }, [selectedDriverId]);
 
+  useEffect(() => {
+    if (!selectedDriverId) {
+      return;
+    }
+
+    const onlineAt = new Date().toISOString();
+
+    setDrivers((current) =>
+      current.map((driver) =>
+        driver.id === selectedDriverId
+          ? { ...driver, is_online: true, last_seen_at: onlineAt }
+          : driver
+      )
+    );
+
+    void (async () => {
+      try {
+        await setDemoDriverOnlineStatus(selectedDriverId, true);
+        await loadAll();
+      } catch (error) {
+        console.error("Failed to set driver online:", error);
+      }
+    })();
+
+    return () => {
+      const offlineAt = new Date().toISOString();
+
+      setDrivers((current) =>
+        current.map((driver) =>
+          driver.id === selectedDriverId
+            ? { ...driver, is_online: false, last_seen_at: offlineAt }
+            : driver
+        )
+      );
+
+      void (async () => {
+        try {
+          await setDemoDriverOnlineStatus(selectedDriverId, false);
+        } catch (error) {
+          console.error("Failed to set driver offline:", error);
+        }
+      })();
+    };
+  }, [selectedDriverId]);
+
   const selectedDriver = useMemo(() => {
     return drivers.find((driver) => driver.id === selectedDriverId) ?? null;
   }, [drivers, selectedDriverId]);
-
-  const lastCompletedRideAt = useMemo(() => {
-    if (!selectedDriver) {
-      return 0;
-    }
-
-    return rides
-      .filter(
-        (ride) =>
-          ride.demo_driver_id === selectedDriver.id && ride.completed_at
-      )
-      .map((ride) => Date.parse(ride.completed_at as string))
-      .reduce((latest, value) => (value > latest ? value : latest), 0);
-  }, [rides, selectedDriver]);
-
   const currentRideRow = useMemo(() => {
     if (!selectedDriver) {
       return null;
@@ -156,9 +187,12 @@ export default function DriverHome() {
       return assignedRide;
     }
 
-    if (!selectedDriver.is_available) {
+    if (!selectedDriver.is_online || !selectedDriver.is_available) {
       return null;
     }
+
+    const freshnessWindowMs = 15 * 60 * 1000;
+    const now = Date.now();
 
     return (
       rides.find((ride) => {
@@ -166,11 +200,11 @@ export default function DriverHome() {
           ride.status === "searching" &&
           !ride.demo_driver_id &&
           ride.vehicle_type === selectedDriver.vehicle_type &&
-          Date.parse(ride.created_at) >= lastCompletedRideAt
+          now - Date.parse(ride.created_at) <= freshnessWindowMs
         );
       }) ?? null
     );
-  }, [rides, selectedDriver, lastCompletedRideAt]);
+  }, [rides, selectedDriver]);
 
   const currentRide = useMemo(() => {
     if (!currentRideRow) {
@@ -276,6 +310,7 @@ export default function DriverHome() {
           {drivers.map((driver) => (
             <option key={driver.id} value={driver.id}>
               {driver.display_name} - {driver.vehicle_type} -{" "}
+              {driver.is_online ? "Online" : "Offline"} -{" "}
               {driver.is_available ? "Available" : "Busy"}
             </option>
           ))}

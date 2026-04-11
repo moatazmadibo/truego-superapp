@@ -39,9 +39,11 @@ export interface DemoDriverRow {
   display_name: string;
   vehicle_type: VehicleType;
   is_available: boolean;
+  is_online: boolean;
   rating: number;
   lat: number | null;
   lng: number | null;
+  last_seen_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -252,6 +254,24 @@ export async function setDemoDriverAvailability(
     .from("demo_drivers")
     .update({
       is_available: isAvailable,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", driverId);
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function setDemoDriverOnlineStatus(
+  driverId: string,
+  isOnline: boolean
+): Promise<void> {
+  const { error } = await supabase
+    .from("demo_drivers")
+    .update({
+      is_online: isOnline,
+      last_seen_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
     .eq("id", driverId);
