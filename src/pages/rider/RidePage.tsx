@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
-import type { Ride, VehicleType } from "../../types/ride";
+import type { VehicleType } from "../../types/ride";
 import {
   calculateRouteEstimateByText,
   type RouteEstimate,
 } from "../../services/rideService";
-import { createRideAndMatch } from "../../services/matchingService";
+import { createRide } from "../../services/rideApi";
 
 function containerStyle(): React.CSSProperties {
   return {
@@ -40,6 +40,7 @@ function vehicleButtonStyle(
     border: isActive ? "1px solid transparent" : "1px solid #d1d5db",
     background: isActive ? background : "#ffffff",
     color: isActive ? "#ffffff" : "#111827",
+    fontWeight: 600,
   };
 }
 
@@ -64,6 +65,7 @@ export default function RidePage() {
   const [vehicleType, setVehicleType] = useState<VehicleType>("car");
   const [estimate, setEstimate] = useState<RouteEstimate | null>(null);
   const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   async function handleEstimate() {
@@ -94,30 +96,41 @@ export default function RidePage() {
     }
   }
 
-  function handleRequestRide() {
+  async function handleRequestRide() {
     if (!estimate) {
       setErrorMessage("Please estimate the route first.");
       return;
     }
 
-    const ride: Ride = {
-      id: `ride-${Date.now()}`,
-      riderId: "rider-1",
-      pickupText,
-      destinationText,
-      pickup: estimate.pickup,
-      destination: estimate.destination,
-      distanceKm: estimate.distanceKm,
-      durationMin: estimate.durationMin,
-      pricePi: estimate.pricePi,
-      vehicleType,
-      status: "searching",
-      createdAt: Date.now(),
-    };
+    setSubmitting(true);
+    setErrorMessage("");
 
-    const result = createRideAndMatch(ride);
+    try {
+      const ride = await createRide({
+        rider_user_id: null,
+        rider_name: "Demo Rider",
+        pickup_text: pickupText,
+        destination_text: destinationText,
+        pickup_lat: estimate.pickup.lat,
+        pickup_lng: estimate.pickup.lng,
+        destination_lat: estimate.destination.lat,
+        destination_lng: estimate.destination.lng,
+        distance_km: estimate.distanceKm,
+        duration_min: estimate.durationMin,
+        price_pi: estimate.pricePi,
+        vehicle_type: vehicleType,
+        status: "searching",
+      });
 
-    navigate(`/rider/status/${result.ride.id}`);
+      navigate(`/rider/status/${ride.id}`);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to create ride.";
+
+      setErrorMessage(message);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -157,7 +170,7 @@ export default function RidePage() {
 
         <button
           onClick={handleEstimate}
-          disabled={loading}
+          disabled={loading || submitting}
           style={{
             width: "100%",
             padding: 12,
@@ -165,6 +178,7 @@ export default function RidePage() {
             borderRadius: 10,
             background: "#111827",
             color: "#ffffff",
+            fontWeight: 600,
           }}
         >
           {loading ? "Calculating..." : "Estimate Ride"}
@@ -199,6 +213,7 @@ export default function RidePage() {
 
             <button
               onClick={handleRequestRide}
+              disabled={submitting}
               style={{
                 width: "100%",
                 padding: 12,
@@ -206,9 +221,10 @@ export default function RidePage() {
                 borderRadius: 10,
                 background: "#0ea5e9",
                 color: "#ffffff",
+                fontWeight: 600,
               }}
             >
-              Confirm Request
+              {submitting ? "Creating Ride..." : "Confirm Request"}
             </button>
           </div>
         ) : null}

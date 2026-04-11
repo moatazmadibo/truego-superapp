@@ -1,210 +1,205 @@
 import { useEffect, useMemo, useState } from "react";
-
-import type { Ride } from "../../types/ride";
-import RideTimeline from "../../components/RideTimeline";
-import StatusBadge from "../../components/StatusBadge";
-import { clearSelectedDriverId } from "../../services/demoSession";
 import {
-  clearDemoState,
-  getDriverById,
-  getRides,
-  seedDrivers,
-} from "../../services/mockRealtimeStore";
+  listRecentRides,
+  subscribeToLatestRides,
+  type RideRow,
+} from "../../services/rideApi";
 
-function containerStyle(): React.CSSProperties {
-  return {
-    maxWidth: 980,
-    margin: "40px auto",
-    background: "#ffffff",
-    borderRadius: 16,
-    padding: 20,
-    boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
-  };
+function formatStatus(status: RideRow["status"]) {
+  switch (status) {
+    case "searching":
+      return "Searching";
+    case "driver_assigned":
+      return "Driver assigned";
+    case "driver_arriving":
+      return "Driver arriving";
+    case "in_progress":
+      return "In progress";
+    case "completed":
+      return "Completed";
+    case "cancelled":
+      return "Cancelled";
+    default:
+      return status;
+  }
 }
 
-function metricCardStyle(): React.CSSProperties {
-  return {
-    padding: 16,
-    borderRadius: 12,
-    background: "#f8fafc",
-    border: "1px solid #e5e7eb",
-  };
+function formatPi(value: number) {
+  return `${value.toFixed(2)} Pi`;
 }
 
 export default function AdminDashboard() {
-  const [rides, setRides] = useState<Ride[]>([]);
+  const [rides, setRides] = useState<RideRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  async function loadRides() {
+    try {
+      setError(null);
+      const data = await listRecentRides(20);
+      setRides(data);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to load rides";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    seedDrivers();
+    void loadRides();
 
-    function syncRides() {
-      setRides(getRides());
-    }
+    const unsubscribe = subscribeToLatestRides(() => {
+      void loadRides();
+    });
 
-    syncRides();
-
-    const timer = window.setInterval(syncRides, 1000);
-
-    return () => {
-      window.clearInterval(timer);
-    };
+    return unsubscribe;
   }, []);
 
-  const summary = useMemo(() => {
-    const completed = rides.filter((ride) => ride.status === "completed").length;
-    const active = rides.filter(
-      (ride) =>
-        ride.status === "driver_assigned" ||
-        ride.status === "driver_arriving" ||
-        ride.status === "in_progress"
+  const stats = useMemo(() => {
+    const total = rides.length;
+    const active = rides.filter((ride) =>
+      ["searching", "driver_assigned", "driver_arriving", "in_progress"].includes(
+        ride.status
+      )
     ).length;
-    const searching = rides.filter((ride) => ride.status === "searching").length;
+    const completed = rides.filter((ride) => ride.status === "completed").length;
     const revenuePi = rides
       .filter((ride) => ride.status === "completed")
-      .reduce((sum, ride) => sum + ride.pricePi, 0);
+      .reduce((sum, ride) => sum + ride.price_pi, 0);
 
     return {
-      total: rides.length,
-      completed,
+      total,
       active,
-      searching,
-      revenuePi: Number(revenuePi.toFixed(2)),
+      completed,
+      revenuePi,
     };
   }, [rides]);
 
-  function handleResetDemo() {
-    clearDemoState();
-    clearSelectedDriverId();
-    seedDrivers();
-    setRides([]);
-  }
-
   return (
-    <div style={{ padding: 20 }}>
-      <div style={containerStyle()}>
+    <div style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
+      <h1 style={{ marginBottom: 20 }}>TrueGo Admin Dashboard</h1>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: 16,
+          marginBottom: 24,
+        }}
+      >
         <div
           style={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            gap: 12,
-            flexWrap: "wrap",
-            marginBottom: 20,
+            border: "1px solid #e5e7eb",
+            borderRadius: 16,
+            padding: 16,
+            background: "#fff",
           }}
         >
-          <div>
-            <h2 style={{ marginTop: 0, marginBottom: 8 }}>TrueGo Admin Dashboard</h2>
-            <div style={{ color: "#6b7280" }}>
-              Operational overview for the current demo fleet and ride activity.
-            </div>
-          </div>
-
-          <button
-            onClick={handleResetDemo}
-            style={{
-              padding: "10px 14px",
-              borderRadius: 10,
-              border: "1px solid #fecaca",
-              background: "#fff1f2",
-              color: "#b91c1c",
-            }}
-          >
-            Reset demo data
-          </button>
+          <div style={{ fontSize: 14, opacity: 0.7 }}>Total rides</div>
+          <div style={{ fontSize: 28, fontWeight: 700 }}>{stats.total}</div>
         </div>
 
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            gap: 12,
-            marginBottom: 20,
+            border: "1px solid #e5e7eb",
+            borderRadius: 16,
+            padding: 16,
+            background: "#fff",
           }}
         >
-          <div style={metricCardStyle()}>
-            <div style={{ color: "#6b7280", marginBottom: 6 }}>Total rides</div>
-            <div style={{ fontSize: 28, fontWeight: 800 }}>{summary.total}</div>
-          </div>
-
-          <div style={metricCardStyle()}>
-            <div style={{ color: "#6b7280", marginBottom: 6 }}>Active rides</div>
-            <div style={{ fontSize: 28, fontWeight: 800 }}>{summary.active}</div>
-          </div>
-
-          <div style={metricCardStyle()}>
-            <div style={{ color: "#6b7280", marginBottom: 6 }}>Searching</div>
-            <div style={{ fontSize: 28, fontWeight: 800 }}>{summary.searching}</div>
-          </div>
-
-          <div style={metricCardStyle()}>
-            <div style={{ color: "#6b7280", marginBottom: 6 }}>Completed</div>
-            <div style={{ fontSize: 28, fontWeight: 800 }}>{summary.completed}</div>
-          </div>
-
-          <div style={metricCardStyle()}>
-            <div style={{ color: "#6b7280", marginBottom: 6 }}>Revenue</div>
-            <div style={{ fontSize: 28, fontWeight: 800 }}>{summary.revenuePi} Pi</div>
-          </div>
+          <div style={{ fontSize: 14, opacity: 0.7 }}>Active rides</div>
+          <div style={{ fontSize: 28, fontWeight: 700 }}>{stats.active}</div>
         </div>
 
-        {rides.length === 0 ? (
-          <div
-            style={{
-              padding: 16,
-              borderRadius: 12,
-              background: "#f8fafc",
-              border: "1px solid #e5e7eb",
-            }}
-          >
-            No rides yet.
+        <div
+          style={{
+            border: "1px solid #e5e7eb",
+            borderRadius: 16,
+            padding: 16,
+            background: "#fff",
+          }}
+        >
+          <div style={{ fontSize: 14, opacity: 0.7 }}>Completed rides</div>
+          <div style={{ fontSize: 28, fontWeight: 700 }}>{stats.completed}</div>
+        </div>
+
+        <div
+          style={{
+            border: "1px solid #e5e7eb",
+            borderRadius: 16,
+            padding: 16,
+            background: "#fff",
+          }}
+        >
+          <div style={{ fontSize: 14, opacity: 0.7 }}>Completed revenue</div>
+          <div style={{ fontSize: 28, fontWeight: 700 }}>
+            {formatPi(stats.revenuePi)}
           </div>
-        ) : (
+        </div>
+      </div>
+
+      <div
+        style={{
+          border: "1px solid #e5e7eb",
+          borderRadius: 16,
+          padding: 20,
+          background: "#fff",
+        }}
+      >
+        <h2 style={{ marginTop: 0, marginBottom: 16 }}>Recent rides</h2>
+
+        {loading ? <p>Loading rides...</p> : null}
+        {error ? <p style={{ color: "crimson" }}>{error}</p> : null}
+
+        {!loading && !error && rides.length === 0 ? (
+          <p>No rides found yet.</p>
+        ) : null}
+
+        {!loading && !error && rides.length > 0 ? (
           <div style={{ display: "grid", gap: 12 }}>
-            {rides.map((ride) => {
-              const driverName = ride.driverId
-                ? getDriverById(ride.driverId)?.name ?? "Unknown"
-                : "Not assigned";
-
-              return (
-                <div
-                  key={ride.id}
-                  style={{
-                    padding: 16,
-                    borderRadius: 12,
-                    background: "#f8fafc",
-                    border: "1px solid #e5e7eb",
-                  }}
-                >
-                  <StatusBadge status={ride.status} />
-
-                  <div style={{ marginBottom: 6 }}>
-                    <strong>Ride ID:</strong> {ride.id}
-                  </div>
-                  <div style={{ marginBottom: 6 }}>
-                    <strong>Rider ID:</strong> {ride.riderId}
-                  </div>
-                  <div style={{ marginBottom: 6 }}>
-                    <strong>Driver:</strong> {driverName}
-                  </div>
-                  <div style={{ marginBottom: 6 }}>
-                    <strong>Pickup:</strong> {ride.pickupText}
-                  </div>
-                  <div style={{ marginBottom: 6 }}>
-                    <strong>Destination:</strong> {ride.destinationText}
-                  </div>
-                  <div style={{ marginBottom: 6 }}>
-                    <strong>Fare:</strong> {ride.pricePi} Pi
-                  </div>
-                  <div>
-                    <strong>Distance:</strong> {ride.distanceKm} km
-                  </div>
-
-                  <RideTimeline ride={ride} />
+            {rides.map((ride) => (
+              <div
+                key={ride.id}
+                style={{
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 14,
+                  padding: 16,
+                  background: "#f9fafb",
+                }}
+              >
+                <div style={{ marginBottom: 8 }}>
+                  <strong>Ride ID:</strong> {ride.id}
                 </div>
-              );
-            })}
+                <div style={{ marginBottom: 8 }}>
+                  <strong>Status:</strong> {formatStatus(ride.status)}
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <strong>Rider:</strong> {ride.rider_name ?? "Unknown rider"}
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <strong>Driver:</strong> {ride.driver_name ?? "Not assigned"}
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <strong>Pickup:</strong> {ride.pickup_text}
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <strong>Destination:</strong> {ride.destination_text}
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <strong>Distance:</strong> {ride.distance_km.toFixed(2)} km
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <strong>Time:</strong> {ride.duration_min} min
+                </div>
+                <div>
+                  <strong>Price:</strong> {formatPi(ride.price_pi)}
+                </div>
+              </div>
+            ))}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

@@ -1,298 +1,367 @@
 import { useEffect, useMemo, useState } from "react";
 
-import type { Driver, Ride } from "../../types/ride";
 import RideTimeline from "../../components/RideTimeline";
 import StatusBadge from "../../components/StatusBadge";
+import type { Ride } from "../../types/ride";
 import {
-  getActiveRideForDriver,
-  getDrivers,
-  seedDrivers,
-  updateRideStatus,
-} from "../../services/mockRealtimeStore";
-import {
-  clearSelectedDriverId,
-  getSelectedDriverId,
-  setSelectedDriverId,
-} from "../../services/demoSession";
+  assignDriverToRide,
+  listRecentRides,
+  subscribeToLatestRides,
+  updateRideStage,
+  type RideRow,
+} from "../../services/rideApi";
 
-function panelStyle(): React.CSSProperties {
+type DemoDriver = {
+  sessionId: string;
+  displayName: string;
+  vehicleLabel: string;
+};
+
+const DEMO_DRIVERS: DemoDriver[] = [
+  { sessionId: "ahmed", displayName: "Ahmed", vehicleLabel: "Car" },
+  { sessionId: "mohamed", displayName: "Mohamed", vehicleLabel: "Car" },
+  { sessionId: "ali", displayName: "Ali", vehicleLabel: "Motorcycle" },
+];
+
+function mapRideRowToRide(row: RideRow): Ride {
   return {
-    maxWidth: 760,
-    margin: "40px auto",
-    background: "#ffffff",
-    borderRadius: 16,
-    padding: 20,
-    boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
+    id: row.id,
+    riderId: row.rider_user_id ?? "demo-rider",
+    driverId: row.driver_user_id ?? undefined,
+    pickupText: row.pickup_text,
+    destinationText: row.destination_text,
+    pickup: {
+      lat: row.pickup_lat ?? 0,
+      lng: row.pickup_lng ?? 0,
+    },
+    destination: {
+      lat: row.destination_lat ?? 0,
+      lng: row.destination_lng ?? 0,
+    },
+    distanceKm: row.distance_km,
+    durationMin: row.duration_min,
+    pricePi: row.price_pi,
+    vehicleType: row.vehicle_type,
+    status: row.status,
+    createdAt: Date.parse(row.created_at),
+    acceptedAt: row.accepted_at ? Date.parse(row.accepted_at) : undefined,
+    startedAt: row.started_at ? Date.parse(row.started_at) : undefined,
+    completedAt: row.completed_at ? Date.parse(row.completed_at) : undefined,
   };
 }
 
-function actionButtonStyle(background: string): React.CSSProperties {
-  return {
-    padding: 12,
-    borderRadius: 10,
-    border: "none",
-    background,
-    color: "#ffffff",
-    width: "100%",
-    fontWeight: 600,
-  };
+function getStoredDriverSessionId() {
+  const stored = localStorage.getItem("truego_demo_driver");
+  if (stored && DEMO_DRIVERS.some((driver) => driver.sessionId === stored)) {
+    return stored;
+  }
+
+  return DEMO_DRIVERS[0].sessionId;
 }
 
-function ghostButtonStyle(): React.CSSProperties {
-  return {
-    padding: "10px 14px",
-    borderRadius: 10,
-    border: "1px solid #d1d5db",
-    background: "#ffffff",
-    color: "#111827",
-  };
+function formatRideStatus(status: RideRow["status"]) {
+  switch (status) {
+    case "searching":
+      return "Searching for driver";
+    case "driver_assigned":
+      return "Driver assigned";
+    case "driver_arriving":
+      return "Driver arriving";
+    case "in_progress":
+      return "Ride in progress";
+    case "completed":
+      return "Completed";
+    case "cancelled":
+      return "Cancelled";
+    default:
+      return status;
+  }
 }
 
 export default function DriverHome() {
-  const [drivers, setDrivers] = useState<Driver[]>(() => {
-    seedDrivers();
-    return getDrivers();
-  });
-  const [selectedDriverId, setCurrentSelectedDriverId] = useState(() => {
-    seedDrivers();
-    return getSelectedDriverId();
-  });
-  const [ride, setRide] = useState<Ride | null>(null);
-
-  useEffect(() => {
-    function syncData() {
-      seedDrivers();
-      const currentDrivers = getDrivers();
-      setDrivers(currentDrivers);
-
-      if (!selectedDriverId) {
-        setRide(null);
-        return;
-      }
-
-      setRide(getActiveRideForDriver(selectedDriverId));
-    }
-
-    syncData();
-
-    const timer = window.setInterval(syncData, 1000);
-
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, [selectedDriverId]);
+  const [selectedDriverId, setSelectedDriverId] = useState(getStoredDriverSessionId);
+  const [rides, setRides] = useState<RideRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const selectedDriver = useMemo(
-    () => drivers.find((driver) => driver.id === selectedDriverId) ?? null,
-    [drivers, selectedDriverId]
+    () =>
+      DEMO_DRIVERS.find((driver) => driver.sessionId === selectedDriverId) ??
+      DEMO_DRIVERS[0],
+    [selectedDriverId]
   );
 
-  function handleSelectDriver(driverId: string) {
-    setSelectedDriverId(driverId);
-    setCurrentSelectedDriverId(driverId);
-  }
-
-  function handleSwitchDriver() {
-    clearSelectedDriverId();
-    setCurrentSelectedDriverId("");
-    setRide(null);
-  }
-
-  function handleAcceptRide() {
-    if (!ride) {
-      return;
+  async function loadRides() {
+    try {
+      setErrorMessage("");
+      const data = await listRecentRides(20);
+      setRides(data);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to load rides.";
+      setErrorMessage(message);
+    } finally {
+      setLoading(false);
     }
-
-    const updatedRide = updateRideStatus(ride.id, "driver_arriving");
-    setRide(updatedRide);
   }
 
-  function handleStartRide() {
-    if (!ride) {
-      return;
-    }
+  useEffect(() => {
+    localStorage.setItem("truego_demo_driver", selectedDriverId);
+  }, [selectedDriverId]);
 
-    const updatedRide = updateRideStatus(ride.id, "in_progress");
-    setRide(updatedRide);
-  }
+  useEffect(() => {
+    void loadRides();
 
-  function handleCompleteRide() {
-    if (!ride) {
-      return;
-    }
+    const unsubscribe = subscribeToLatestRides(() => {
+      void loadRides();
+    });
 
-    const updatedRide = updateRideStatus(ride.id, "completed");
-    setRide(updatedRide);
-  }
+    return unsubscribe;
+  }, []);
 
-  if (!selectedDriver) {
+  const currentRideRow = useMemo(() => {
     return (
-      <div style={{ padding: 20 }}>
-        <div style={panelStyle()}>
-          <h2 style={{ marginTop: 0, marginBottom: 8 }}>TrueGo Driver Console</h2>
-          <p style={{ marginTop: 0, color: "#6b7280" }}>
-            Choose your driver profile once to enter the operational console.
-            This replaces the raw driver dropdown and feels closer to a real
-            driver login flow.
-          </p>
+      rides.find((ride) => {
+        const isActive = ["searching", "driver_assigned", "driver_arriving", "in_progress"].includes(
+          ride.status
+        );
 
-          <div style={{ display: "grid", gap: 12, marginTop: 20 }}>
-            {drivers.map((driver) => (
-              <button
-                key={driver.id}
-                onClick={() => handleSelectDriver(driver.id)}
-                style={{
-                  textAlign: "left",
-                  padding: 16,
-                  borderRadius: 14,
-                  border: "1px solid #e5e7eb",
-                  background: "#f8fafc",
-                }}
-              >
-                <div style={{ fontWeight: 700, marginBottom: 6 }}>{driver.name}</div>
-                <div style={{ color: "#4b5563", marginBottom: 4 }}>
-                  Vehicle: {driver.vehicleType}
-                </div>
-                <div style={{ color: "#4b5563", marginBottom: 4 }}>
-                  Rating: {driver.rating}
-                </div>
-                <div style={{ color: driver.isAvailable ? "#059669" : "#b45309" }}>
-                  {driver.isAvailable ? "Available" : "Busy"}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+        if (!isActive) {
+          return false;
+        }
+
+        if (!ride.driver_name) {
+          return true;
+        }
+
+        return ride.driver_name === selectedDriver.displayName;
+      }) ?? null
     );
+  }, [rides, selectedDriver.displayName]);
+
+  const currentRide = useMemo(() => {
+    if (!currentRideRow) {
+      return null;
+    }
+
+    return mapRideRowToRide(currentRideRow);
+  }, [currentRideRow]);
+
+  async function handleAcceptRide() {
+    if (!currentRideRow) {
+      return;
+    }
+
+    setActionLoading(true);
+    setErrorMessage("");
+
+    try {
+      await assignDriverToRide(currentRideRow.id, {
+        driver_user_id: null,
+        driver_name: selectedDriver.displayName,
+      });
+
+      await updateRideStage(currentRideRow.id, "driver_arriving");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to accept ride.";
+      setErrorMessage(message);
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleStartRide() {
+    if (!currentRideRow) {
+      return;
+    }
+
+    setActionLoading(true);
+    setErrorMessage("");
+
+    try {
+      await updateRideStage(currentRideRow.id, "in_progress");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to start ride.";
+      setErrorMessage(message);
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleCompleteRide() {
+    if (!currentRideRow) {
+      return;
+    }
+
+    setActionLoading(true);
+    setErrorMessage("");
+
+    try {
+      await updateRideStage(currentRideRow.id, "completed");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to complete ride.";
+      setErrorMessage(message);
+    } finally {
+      setActionLoading(false);
+    }
   }
 
   return (
-    <div style={{ padding: 20 }}>
-      <div style={panelStyle()}>
-        <div
+    <div style={{ maxWidth: 760, margin: "0 auto", padding: 24 }}>
+      <h1 style={{ marginBottom: 20 }}>TrueGo Driver Console</h1>
+
+      <div
+        style={{
+          border: "1px solid #e5e7eb",
+          borderRadius: 16,
+          padding: 16,
+          background: "#fff",
+          marginBottom: 20,
+        }}
+      >
+        <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>
+          Active demo driver
+        </label>
+
+        <select
+          value={selectedDriverId}
+          onChange={(event) => setSelectedDriverId(event.target.value)}
           style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 12,
-            alignItems: "center",
-            flexWrap: "wrap",
-            marginBottom: 16,
+            width: "100%",
+            padding: 12,
+            borderRadius: 10,
+            border: "1px solid #d1d5db",
+            marginBottom: 12,
           }}
         >
-          <div>
-            <h2 style={{ margin: 0 }}>TrueGo Driver</h2>
-            <div style={{ color: "#6b7280", marginTop: 6 }}>
-              Operational console for the active driver profile.
-            </div>
-          </div>
+          {DEMO_DRIVERS.map((driver) => (
+            <option key={driver.sessionId} value={driver.sessionId}>
+              {driver.displayName} - {driver.vehicleLabel}
+            </option>
+          ))}
+        </select>
 
-          <button onClick={handleSwitchDriver} style={ghostButtonStyle()}>
-            Switch driver
-          </button>
+        <div style={{ color: "#374151" }}>
+          <strong>Current driver:</strong> {selectedDriver.displayName}
         </div>
-
-        <div
-          style={{
-            marginBottom: 16,
-            padding: 16,
-            borderRadius: 12,
-            background: "#f8fafc",
-            border: "1px solid #e5e7eb",
-          }}
-        >
-          <div style={{ marginBottom: 6 }}>
-            <strong>Name:</strong> {selectedDriver.name}
-          </div>
-          <div style={{ marginBottom: 6 }}>
-            <strong>Vehicle:</strong> {selectedDriver.vehicleType}
-          </div>
-          <div style={{ marginBottom: 6 }}>
-            <strong>Rating:</strong> {selectedDriver.rating}
-          </div>
-          <div>
-            <strong>Status:</strong>{" "}
-            {selectedDriver.isAvailable ? "Available" : "Busy"}
-          </div>
-        </div>
-
-        {!ride ? (
-          <div
-            style={{
-              padding: 16,
-              borderRadius: 12,
-              background: "#f8fafc",
-              border: "1px solid #e5e7eb",
-            }}
-          >
-            <div style={{ fontWeight: 700, marginBottom: 6 }}>No assigned ride yet</div>
-            <div style={{ color: "#6b7280" }}>
-              The driver is ready and waiting for the next matched trip.
-            </div>
-          </div>
-        ) : (
-          <div
-            style={{
-              padding: 16,
-              borderRadius: 12,
-              background: "#f8fafc",
-              border: "1px solid #e5e7eb",
-            }}
-          >
-            <StatusBadge status={ride.status} />
-
-            <div style={{ marginBottom: 8 }}>
-              <strong>Ride ID:</strong> {ride.id}
-            </div>
-
-            <div style={{ marginBottom: 8 }}>
-              <strong>Pickup:</strong> {ride.pickupText}
-            </div>
-
-            <div style={{ marginBottom: 8 }}>
-              <strong>Destination:</strong> {ride.destinationText}
-            </div>
-
-            <div style={{ marginBottom: 8 }}>
-              <strong>Distance:</strong> {ride.distanceKm} km
-            </div>
-
-            <div style={{ marginBottom: 8 }}>
-              <strong>Time:</strong> {ride.durationMin} min
-            </div>
-
-            <div style={{ marginBottom: 16 }}>
-              <strong>Price:</strong> {ride.pricePi} Pi
-            </div>
-
-            {ride.status === "driver_assigned" ? (
-              <button onClick={handleAcceptRide} style={actionButtonStyle("#0ea5e9")}>
-                Accept Ride
-              </button>
-            ) : null}
-
-            {ride.status === "driver_arriving" ? (
-              <button onClick={handleStartRide} style={actionButtonStyle("#8b5cf6")}>
-                Start Ride
-              </button>
-            ) : null}
-
-            {ride.status === "in_progress" ? (
-              <button onClick={handleCompleteRide} style={actionButtonStyle("#10b981")}>
-                Complete Ride
-              </button>
-            ) : null}
-
-            {ride.status === "completed" ? (
-              <div style={{ color: "#10b981", fontWeight: 700 }}>
-                Ride completed successfully.
-              </div>
-            ) : null}
-
-            <RideTimeline ride={ride} />
-          </div>
-        )}
       </div>
+
+      {loading ? <p>Loading rides...</p> : null}
+      {errorMessage ? <p style={{ color: "crimson" }}>{errorMessage}</p> : null}
+
+      {!loading && !currentRideRow ? (
+        <div
+          style={{
+            border: "1px solid #e5e7eb",
+            borderRadius: 16,
+            padding: 20,
+            background: "#fff",
+          }}
+        >
+          <h2 style={{ marginTop: 0 }}>No assigned ride yet</h2>
+          <p>No active ride is available for this demo driver right now.</p>
+        </div>
+      ) : null}
+
+      {!loading && currentRideRow && currentRide ? (
+        <div
+          style={{
+            border: "1px solid #e5e7eb",
+            borderRadius: 16,
+            padding: 20,
+            background: "#fff",
+          }}
+        >
+          <h2 style={{ marginTop: 0 }}>Current Ride</h2>
+
+          <div style={{ marginBottom: 12 }}>
+            <StatusBadge status={currentRide.status} />
+          </div>
+
+          <div style={{ marginBottom: 8 }}>
+            <strong>Status:</strong> {formatRideStatus(currentRideRow.status)}
+          </div>
+
+          <div style={{ marginBottom: 8 }}>
+            <strong>Ride ID:</strong> {currentRideRow.id}
+          </div>
+
+          <div style={{ marginBottom: 8 }}>
+            <strong>Pickup:</strong> {currentRideRow.pickup_text}
+          </div>
+
+          <div style={{ marginBottom: 8 }}>
+            <strong>Destination:</strong> {currentRideRow.destination_text}
+          </div>
+
+          <div style={{ marginBottom: 8 }}>
+            <strong>Price:</strong> {currentRideRow.price_pi.toFixed(2)} Pi
+          </div>
+
+          <div style={{ marginBottom: 8 }}>
+            <strong>Driver:</strong> {currentRideRow.driver_name ?? "Not assigned"}
+          </div>
+
+          <RideTimeline ride={currentRide} />
+
+          <div style={{ display: "flex", gap: 12, marginTop: 20, flexWrap: "wrap" }}>
+            {currentRideRow.status === "searching" ? (
+              <button
+                onClick={handleAcceptRide}
+                disabled={actionLoading}
+                style={{
+                  padding: "12px 16px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "#111827",
+                  color: "#fff",
+                  fontWeight: 600,
+                }}
+              >
+                {actionLoading ? "Accepting..." : "Accept Ride"}
+              </button>
+            ) : null}
+
+            {["driver_assigned", "driver_arriving"].includes(currentRideRow.status) ? (
+              <button
+                onClick={handleStartRide}
+                disabled={actionLoading}
+                style={{
+                  padding: "12px 16px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "#0ea5e9",
+                  color: "#fff",
+                  fontWeight: 600,
+                }}
+              >
+                {actionLoading ? "Starting..." : "Start Ride"}
+              </button>
+            ) : null}
+
+            {currentRideRow.status === "in_progress" ? (
+              <button
+                onClick={handleCompleteRide}
+                disabled={actionLoading}
+                style={{
+                  padding: "12px 16px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "#10b981",
+                  color: "#fff",
+                  fontWeight: 600,
+                }}
+              >
+                {actionLoading ? "Completing..." : "Complete Ride"}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
