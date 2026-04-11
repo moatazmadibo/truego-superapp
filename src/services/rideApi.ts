@@ -281,6 +281,20 @@ export async function setDemoDriverOnlineStatus(
   }
 }
 
+export async function touchDemoDriverPresence(driverId: string): Promise<void> {
+  const { error } = await supabase
+    .from("demo_drivers")
+    .update({
+      last_seen_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", driverId);
+
+  if (error) {
+    throw error;
+  }
+}
+
 export function subscribeToRide(
   rideId: string,
   onChange: (ride: RideRow) => void

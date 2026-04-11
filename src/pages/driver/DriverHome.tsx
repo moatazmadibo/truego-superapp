@@ -10,6 +10,7 @@ import {
   listRecentRides,
   setDemoDriverOnlineStatus,
   subscribeToLatestRides,
+  touchDemoDriverPresence,
   updateRideStage,
   type DemoDriverRow,
   type RideRow,
@@ -120,51 +121,6 @@ export default function DriverHome() {
     }
   }, [selectedDriverId]);
 
-  useEffect(() => {
-    if (!selectedDriverId) {
-      return;
-    }
-
-    const onlineAt = new Date().toISOString();
-
-    setDrivers((current) =>
-      current.map((driver) =>
-        driver.id === selectedDriverId
-          ? { ...driver, is_online: true, last_seen_at: onlineAt }
-          : driver
-      )
-    );
-
-    void (async () => {
-      try {
-        await setDemoDriverOnlineStatus(selectedDriverId, true);
-        await loadAll();
-      } catch (error) {
-        console.error("Failed to set driver online:", error);
-      }
-    })();
-
-    return () => {
-      const offlineAt = new Date().toISOString();
-
-      setDrivers((current) =>
-        current.map((driver) =>
-          driver.id === selectedDriverId
-            ? { ...driver, is_online: false, last_seen_at: offlineAt }
-            : driver
-        )
-      );
-
-      void (async () => {
-        try {
-          await setDemoDriverOnlineStatus(selectedDriverId, false);
-        } catch (error) {
-          console.error("Failed to set driver offline:", error);
-        }
-      })();
-    };
-  }, [selectedDriverId]);
-
   const selectedDriver = useMemo(() => {
     return drivers.find((driver) => driver.id === selectedDriverId) ?? null;
   }, [drivers, selectedDriverId]);
@@ -215,6 +171,76 @@ export default function DriverHome() {
   }, [currentRideRow]);
 
   const selectedDriverIsAvailable = selectedDriver?.is_available ?? false;
+  const selectedDriverIsOnline = selectedDriver?.is_online ?? false;
+
+  useEffect(() => {
+    if (!selectedDriverId || !selectedDriverIsOnline) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setDrivers((current) =>
+        current.map((driver) =>
+          driver.id === selectedDriverId
+            ? { ...driver, last_seen_at: new Date().toISOString() }
+            : driver
+        )
+      );
+
+      void touchDemoDriverPresence(selectedDriverId);
+    }, 30000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [selectedDriverId, selectedDriverIsOnline]);
+
+  async function handleToggleOnlineStatus() {
+    if (!selectedDriver) {
+      return;
+    }
+
+    const nextOnline = !selectedDriver.is_online;
+    const timestamp = new Date().toISOString();
+
+    setActionLoading(true);
+    setErrorMessage("");
+
+    setDrivers((current) =>
+      current.map((driver) =>
+        driver.id === selectedDriver.id
+          ? {
+              ...driver,
+              is_online: nextOnline,
+              last_seen_at: timestamp,
+            }
+          : driver
+      )
+    );
+
+    try {
+      await setDemoDriverOnlineStatus(selectedDriver.id, nextOnline);
+      await loadAll();
+    } catch (error) {
+      setDrivers((current) =>
+        current.map((driver) =>
+          driver.id === selectedDriver.id
+            ? {
+                ...driver,
+                is_online: selectedDriver.is_online,
+                last_seen_at: selectedDriver.last_seen_at,
+              }
+            : driver
+        )
+      );
+
+      const message =
+        error instanceof Error ? error.message : "Failed to update driver status.";
+      setErrorMessage(message);
+    } finally {
+      setActionLoading(false);
+    }
+  }
 
   async function handleAcceptRide() {
     if (!currentRideRow || !selectedDriver) {
@@ -301,7 +327,7 @@ export default function DriverHome() {
             border: "1px solid #d1d5db",
             marginBottom: 12,
           }}
-          disabled={drivers.length === 0}
+          disabled={drivers.length === 0 || actionLoading}
         >
           {drivers.length === 0 ? (
             <option value="">No demo drivers available</option>
@@ -315,6 +341,24 @@ export default function DriverHome() {
             </option>
           ))}
         </select>
+
+        <button
+          type="button"
+          onClick={() => void handleToggleOnlineStatus()}
+          disabled={!selectedDriver || actionLoading}
+          style={{
+            padding: "10px 14px",
+            borderRadius: 10,
+            border: "1px solid #d1d5db",
+            background: selectedDriverIsOnline ? "#111827" : "#2563eb",
+            color: "#fff",
+            cursor: !selectedDriver || actionLoading ? "not-allowed" : "pointer",
+            opacity: !selectedDriver || actionLoading ? 0.6 : 1,
+            marginBottom: 12,
+          }}
+        >
+          {selectedDriverIsOnline ? "Go Offline" : "Go Online"}
+        </button>
 
         {selectedDriver ? (
           <div style={{ color: "#374151", lineHeight: 1.8 }}>
