@@ -12,8 +12,10 @@ import {
   initPiSdk,
   isPiSdkAvailable,
   loginWithPi,
+  saveStoredPiSession,
   type StoredPiSession,
 } from "./lib/pi";
+import { syncPiUser } from "./services/piAuthApi";
 
 function landingCardStyle(): React.CSSProperties {
   return {
@@ -52,10 +54,7 @@ function authPanelStyle(): React.CSSProperties {
   };
 }
 
-function authButtonStyle(
-  background: string,
-  disabled = false
-): React.CSSProperties {
+function authButtonStyle(background: string, disabled = false): React.CSSProperties {
   return {
     display: "inline-block",
     padding: "10px 14px",
@@ -81,7 +80,6 @@ function secondaryButtonStyle(): React.CSSProperties {
     cursor: "pointer",
     fontWeight: 600,
     marginTop: 10,
-    marginLeft: 10,
   };
 }
 
@@ -92,6 +90,7 @@ function Landing() {
   const [sdkChecked, setSdkChecked] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
+  const [serverSyncing, setServerSyncing] = useState(false);
   const [authError, setAuthError] = useState("");
 
   useEffect(() => {
@@ -99,13 +98,13 @@ function Landing() {
 
     void (async () => {
       try {
-        await initPiSdk();
+        const ready = await initPiSdk();
 
         if (!isMounted) {
           return;
         }
 
-        setSdkReady(isPiSdkAvailable());
+        setSdkReady(ready && isPiSdkAvailable());
       } catch (error) {
         if (!isMounted) {
           return;
@@ -131,17 +130,35 @@ function Landing() {
 
   async function handlePiLogin() {
     setAuthLoading(true);
+    setServerSyncing(false);
     setAuthError("");
 
     try {
-      const nextSession = await loginWithPi();
-      setSession(nextSession);
+      const loginResult = await loginWithPi();
+
+      setServerSyncing(true);
+
+      const syncedUser = await syncPiUser(loginResult.accessToken);
+
+      const canonicalSession: StoredPiSession = {
+        uid: syncedUser.uid,
+        username: syncedUser.username,
+        authenticatedAt: syncedUser.authenticatedAt,
+      };
+
+      saveStoredPiSession(canonicalSession);
+      setSession(canonicalSession);
     } catch (error) {
+      clearStoredPiSession();
+      setSession(null);
+
       const message =
         error instanceof Error ? error.message : "Pi login failed.";
+
       setAuthError(message);
     } finally {
       setAuthLoading(false);
+      setServerSyncing(false);
     }
   }
 
@@ -185,6 +202,10 @@ function Landing() {
               <div style={{ color: "#4b5563" }}>
                 {!sdkChecked
                   ? "Checking Pi Browser..."
+                  : authLoading
+                  ? "Opening Pi login..."
+                  : serverSyncing
+                  ? "Verifying with TrueGo server..."
                   : sdkReady
                   ? "Sign in with Pi to personalize your TrueGo session."
                   : "Open this page inside Pi Browser to sign in with Pi."}
@@ -192,13 +213,13 @@ function Landing() {
 
               <button
                 type="button"
-                style={authButtonStyle("#111827", !sdkReady || authLoading)}
+                style={authButtonStyle("#111827", !sdkReady || authLoading || serverSyncing)}
                 onClick={() => {
                   void handlePiLogin();
                 }}
-                disabled={!sdkReady || authLoading}
+                disabled={!sdkReady || authLoading || serverSyncing}
               >
-                {authLoading ? "Signing in..." : "Login with Pi"}
+                {authLoading || serverSyncing ? "Signing in..." : "Login with Pi"}
               </button>
             </>
           )}

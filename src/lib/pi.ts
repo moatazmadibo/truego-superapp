@@ -8,6 +8,11 @@ export type StoredPiSession = {
   authenticatedAt: string;
 };
 
+export type PiLoginResult = {
+  session: StoredPiSession;
+  accessToken: string;
+};
+
 let sdkInitialized = false;
 
 function sleep(ms: number) {
@@ -86,6 +91,14 @@ export function getStoredPiSession(): StoredPiSession | null {
   }
 }
 
+export function saveStoredPiSession(session: StoredPiSession): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(PI_SESSION_STORAGE_KEY, JSON.stringify(session));
+}
+
 export function clearStoredPiSession(): void {
   if (typeof window === "undefined") {
     return;
@@ -94,15 +107,7 @@ export function clearStoredPiSession(): void {
   window.localStorage.removeItem(PI_SESSION_STORAGE_KEY);
 }
 
-function persistPiSession(session: StoredPiSession): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(PI_SESSION_STORAGE_KEY, JSON.stringify(session));
-}
-
-export async function loginWithPi(): Promise<StoredPiSession> {
+export async function loginWithPi(): Promise<PiLoginResult> {
   const ready = await initPiSdk();
 
   if (!ready || !window.Pi) {
@@ -124,6 +129,10 @@ export async function loginWithPi(): Promise<StoredPiSession> {
     authenticatedAt: new Date().toISOString(),
   };
 
-  persistPiSession(session);
-  return session;
+  saveStoredPiSession(session);
+
+  return {
+    session,
+    accessToken: authResult.accessToken,
+  };
 }
