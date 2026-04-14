@@ -197,6 +197,36 @@ export async function syncDemoRideOfferState(
   return data as RideRow;
 }
 
+export async function declineOfferedDemoRide(
+  rideId: string,
+  driverId: string
+): Promise<RideRow> {
+  const { data, error } = await supabase.rpc("decline_offered_demo_ride", {
+    p_ride_id: rideId,
+    p_driver_id: driverId,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data as RideRow;
+}
+
+export async function retryDemoRideDispatch(
+  rideId: string
+): Promise<RideRow> {
+  const { data, error } = await supabase.rpc("retry_demo_ride_dispatch", {
+    p_ride_id: rideId,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data as RideRow;
+}
+
 export async function createRideAndAutoDispatch(
   input: CreateRideInput,
   presenceWindowSeconds = 90
