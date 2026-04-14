@@ -15,6 +15,21 @@ import {
   formatInternalRate,
   formatPiAmount,
 } from "../../lib/piPricing";
+import { getStoredPiSession } from "../../lib/pi";
+import { createPiPayment } from "../../services/piPlatform";
+import {
+  approvePiRidePayment,
+  completePiRidePayment,
+} from "../../services/piPaymentApi";
+
+type RidePaymentSnapshot = {
+  payment_status?: "unpaid" | "approved" | "completed" | "cancelled" | "failed" | null;
+  payment_provider?: string | null;
+  payment_id?: string | null;
+  payment_txid?: string | null;
+  payment_amount_pi?: number | null;
+  payment_completed_at?: string | null;
+};
 
 function containerStyle(): React.CSSProperties {
   return {
@@ -136,6 +151,39 @@ function getStatusMessage(status: RideRow["status"]): string {
   }
 }
 
+function getPaymentSnapshot(row: RideRow | null): RidePaymentSnapshot {
+  if (!row) {
+    return {};
+  }
+
+  const extended = row as RideRow & RidePaymentSnapshot;
+
+  return {
+    payment_status: extended.payment_status ?? "unpaid",
+    payment_provider: extended.payment_provider ?? null,
+    payment_id: extended.payment_id ?? null,
+    payment_txid: extended.payment_txid ?? null,
+    payment_amount_pi: extended.payment_amount_pi ?? null,
+    payment_completed_at: extended.payment_completed_at ?? null,
+  };
+}
+
+function formatPaymentStatus(status?: RidePaymentSnapshot["payment_status"]) {
+  switch (status) {
+    case "approved":
+      return "Approved on TrueGo server";
+    case "completed":
+      return "Completed on Pi";
+    case "cancelled":
+      return "Cancelled";
+    case "failed":
+      return "Failed";
+    case "unpaid":
+    default:
+      return "Unpaid";
+  }
+}
+
 export default function RideStatus() {
   const params = useParams<{ rideId: string }>();
   const rideId = params.rideId ?? "";
@@ -143,7 +191,9 @@ export default function RideStatus() {
   const [rideRow, setRideRow] = useState<RideRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [paymentMessage, setPaymentMessage] = useState("");
 
   useEffect(() => {
     if (!rideId) {
@@ -218,6 +268,8 @@ export default function RideStatus() {
     return mapRideRowToRide(rideRow);
   }, [rideRow]);
 
+  const payment = useMemo(() => getPaymentSnapshot(rideRow), [rideRow]);
+
   const payablePi = useMemo(() => {
     if (!ride) {
       return 0;
@@ -226,8 +278,25 @@ export default function RideStatus() {
     return demoFareToPayablePi(ride.pricePi);
   }, [ride]);
 
+  const piSession = useMemo(() => getStoredPiSession(), []);
   const canRetryDispatch =
     rideRow?.status === "no_driver_available" || rideRow?.status === "cancelled";
+
+  const canPayWithPi =
+    Boolean(ride && piSession) &&
+    payablePi > 0 &&
+    rideRow?.status !== "cancelled" &&
+    rideRow?.status !== "no_driver_available" &&
+    payment.payment_status !== "completed";
+
+  async function refreshCurrentRide() {
+    if (!rideId) {
+      return;
+    }
+
+    const data = await getRideById(rideId);
+    setRideRow(data);
+  }
 
   async function handleRetryDispatch() {
     if (!rideId) {
@@ -251,6 +320,71 @@ export default function RideStatus() {
       setErrorMessage(message);
     } finally {
       setActionLoading(false);
+    }
+  }
+
+  function handlePayWithPi() {
+    if (!ride || !piSession) {
+      setErrorMessage("Login with Pi first from the home screen.");
+      return;
+    }
+
+    setPaymentLoading(true);
+    setErrorMessage("");
+    setPaymentMessage("Opening Pi payment flow...");
+
+    try {
+      createPiPayment(
+        {
+          amount: payablePi,
+          memo: `TrueGo ride ${ride.id}`,
+          metadata: {
+            rideId: ride.id,
+            internalFareUsd: ride.pricePi,
+            payablePi,
+            vehicleType: ride.vehicleType,
+            destination: ride.destinationText,
+          },
+          uid: piSession.uid,
+        },
+        {
+          onReadyForServerApproval: async (paymentId) => {
+            setPaymentMessage("Approving payment on TrueGo server...");
+            await approvePiRidePayment({
+              rideId: ride.id,
+              paymentId,
+              amountPi: payablePi,
+            });
+            setPaymentMessage("Payment approved. Waiting for blockchain confirmation...");
+            await refreshCurrentRide();
+          },
+          onReadyForServerCompletion: async (paymentId, txid) => {
+            setPaymentMessage("Completing Pi payment...");
+            await completePiRidePayment({
+              rideId: ride.id,
+              paymentId,
+              txid,
+              amountPi: payablePi,
+            });
+            setPaymentMessage("Payment completed successfully.");
+            await refreshCurrentRide();
+            setPaymentLoading(false);
+          },
+          onCancel: () => {
+            setPaymentMessage("Payment was cancelled.");
+            setPaymentLoading(false);
+          },
+          onError: (error) => {
+            setErrorMessage(error.message || "Pi payment failed.");
+            setPaymentLoading(false);
+          },
+        }
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Pi payment could not start.";
+      setErrorMessage(message);
+      setPaymentLoading(false);
     }
   }
 
@@ -338,6 +472,21 @@ export default function RideStatus() {
             {errorMessage}
           </div>
         ) : null}
+
+        {paymentMessage ? (
+          <div
+            style={{
+              marginTop: 12,
+              padding: 12,
+              borderRadius: 10,
+              background: "#eff6ff",
+              color: "#1d4ed8",
+              border: "1px solid #bfdbfe",
+            }}
+          >
+            {paymentMessage}
+          </div>
+        ) : null}
       </div>
 
       <div style={sectionStyle()}>
@@ -380,6 +529,16 @@ export default function RideStatus() {
           </div>
 
           <div style={detailItemStyle()}>
+            <strong>Payment status</strong>
+            <div style={{ marginTop: 6 }}>{formatPaymentStatus(payment.payment_status)}</div>
+          </div>
+
+          <div style={detailItemStyle()}>
+            <strong>Payment reference</strong>
+            <div style={{ marginTop: 6 }}>{payment.payment_id ?? "Not created yet"}</div>
+          </div>
+
+          <div style={detailItemStyle()}>
             <strong>Vehicle</strong>
             <div style={{ marginTop: 6 }}>{ride.vehicleType}</div>
           </div>
@@ -405,6 +564,23 @@ export default function RideStatus() {
           flexWrap: "wrap",
         }}
       >
+        {canPayWithPi ? (
+          <button
+            type="button"
+            onClick={handlePayWithPi}
+            disabled={paymentLoading}
+            style={actionButtonStyle("#111827", paymentLoading)}
+          >
+            {paymentLoading ? "Processing Pi Payment..." : `Pay ${formatPiAmount(payablePi)}`}
+          </button>
+        ) : null}
+
+        {!piSession ? (
+          <Link to="/" style={secondaryLinkStyle()}>
+            Login with Pi First
+          </Link>
+        ) : null}
+
         {canRetryDispatch ? (
           <button
             type="button"
