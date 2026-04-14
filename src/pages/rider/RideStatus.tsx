@@ -1,20 +1,90 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-
 import type { Ride } from "../../types/ride";
 import RideTimeline from "../../components/RideTimeline";
 import StatusBadge from "../../components/StatusBadge";
 import {
   getRideById,
+  retryDemoRideDispatch,
   subscribeToRide,
   syncDemoRideOfferState,
   type RideRow,
 } from "../../services/rideApi";
 
+function containerStyle(): React.CSSProperties {
+  return {
+    maxWidth: 720,
+    margin: "40px auto",
+    background: "#ffffff",
+    borderRadius: 16,
+    padding: 20,
+    boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
+  };
+}
+
+function sectionStyle(): React.CSSProperties {
+  return {
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 12,
+    background: "#f8fafc",
+    border: "1px solid #e5e7eb",
+  };
+}
+
+function detailGridStyle(): React.CSSProperties {
+  return {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: 12,
+    marginTop: 12,
+  };
+}
+
+function detailItemStyle(): React.CSSProperties {
+  return {
+    padding: 12,
+    borderRadius: 10,
+    background: "#ffffff",
+    border: "1px solid #e5e7eb",
+  };
+}
+
+function actionButtonStyle(
+  background: string,
+  disabled = false
+): React.CSSProperties {
+  return {
+    display: "inline-block",
+    padding: "12px 16px",
+    borderRadius: 10,
+    border: "1px solid transparent",
+    background,
+    color: "#ffffff",
+    fontWeight: 600,
+    textDecoration: "none",
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.6 : 1,
+  };
+}
+
+function secondaryLinkStyle(): React.CSSProperties {
+  return {
+    display: "inline-block",
+    padding: "12px 16px",
+    borderRadius: 10,
+    border: "1px solid #d1d5db",
+    background: "#ffffff",
+    color: "#111827",
+    fontWeight: 600,
+    textDecoration: "none",
+  };
+}
+
 function mapRideRowToRide(row: RideRow): Ride {
   return {
     id: row.id,
-    riderId: row.rider_user_id ?? "rider-1",
+    riderId: row.rider_user_id ?? "demo-rider",
     driverId: row.driver_user_id ?? undefined,
     pickupText: row.pickup_text,
     destinationText: row.destination_text,
@@ -38,26 +108,62 @@ function mapRideRowToRide(row: RideRow): Ride {
   };
 }
 
+function getStatusMessage(status: RideRow["status"]): string {
+  switch (status) {
+    case "searching":
+      return "We are searching for the best nearby driver for your trip.";
+    case "offer_sent":
+      return "A ride offer has been sent to a nearby driver. Waiting for response.";
+    case "driver_assigned":
+      return "Your driver has accepted the ride and is assigned.";
+    case "driver_arriving":
+      return "Your driver is on the way to the pickup point.";
+    case "in_progress":
+      return "Your ride is currently in progress.";
+    case "completed":
+      return "Your trip has been completed successfully.";
+    case "cancelled":
+      return "This ride was cancelled.";
+    case "no_driver_available":
+      return "No driver accepted the trip. You can retry dispatch now.";
+    default:
+      return status;
+  }
+}
+
 export default function RideStatus() {
   const params = useParams<{ rideId: string }>();
   const rideId = params.rideId ?? "";
 
   const [rideRow, setRideRow] = useState<RideRow | null>(null);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
+    if (!rideId) {
+      setRideRow(null);
+      setLoading(false);
+      setErrorMessage("Missing ride ID.");
+      return;
+    }
+
     let isMounted = true;
 
-    async function loadRide() {
+    async function refreshRide(showSpinner: boolean) {
       try {
-        setErrorMessage("");
+        if (showSpinner) {
+          setLoading(true);
+        }
+
+        await syncDemoRideOfferState(rideId);
         const data = await getRideById(rideId);
 
         if (!isMounted) {
           return;
         }
 
+        setErrorMessage("");
         setRideRow(data);
       } catch (error) {
         if (!isMounted) {
@@ -65,24 +171,36 @@ export default function RideStatus() {
         }
 
         const message =
-          error instanceof Error ? error.message : "Failed to load ride status.";
+          error instanceof Error
+            ? error.message
+            : "Failed to load ride status.";
 
         setErrorMessage(message);
       } finally {
-        if (isMounted) {
+        if (isMounted && showSpinner) {
           setLoading(false);
         }
       }
     }
 
-    void loadRide();
+    void refreshRide(true);
 
     const unsubscribe = subscribeToRide(rideId, (nextRide) => {
+      if (!isMounted) {
+        return;
+      }
+
+      setErrorMessage("");
       setRideRow(nextRide);
     });
 
+    const intervalId = window.setInterval(() => {
+      void refreshRide(false);
+    }, 10000);
+
     return () => {
       isMounted = false;
+      window.clearInterval(intervalId);
       unsubscribe();
     };
   }, [rideId]);
@@ -95,151 +213,191 @@ export default function RideStatus() {
     return mapRideRowToRide(rideRow);
   }, [rideRow]);
 
-  useEffect(() => {
-    if (!rideRow || !["searching", "offer_sent"].includes(rideRow.status)) {
+  const canRetryDispatch =
+    rideRow?.status === "no_driver_available" || rideRow?.status === "cancelled";
+
+  async function handleRetryDispatch() {
+    if (!rideId) {
       return;
     }
 
-    const intervalId = window.setInterval(() => {
-      void (async () => {
-        try {
-          const next = await syncDemoRideOfferState(rideRow.id);
-          setRideRow(next);
-        } catch (error) {
-          console.error("Failed to sync ride offer state in rider status:", error);
-        }
-      })();
-    }, 2000);
+    setActionLoading(true);
+    setErrorMessage("");
 
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [rideRow?.id, rideRow?.status]);
+    try {
+      await retryDemoRideDispatch(rideId);
+      await syncDemoRideOfferState(rideId);
+
+      const data = await getRideById(rideId);
+      setRideRow(data);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to retry ride dispatch.";
+      setErrorMessage(message);
+    } finally {
+      setActionLoading(false);
+    }
+  }
 
   if (loading) {
     return (
-      <div style={{ padding: 20 }}>
-        <div
-          style={{
-            maxWidth: 700,
-            margin: "40px auto",
-            background: "#ffffff",
-            borderRadius: 16,
-            padding: 20,
-            boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
-          }}
-        >
-          <h2 style={{ marginTop: 0 }}>Ride Status</h2>
-          <p>Loading ride...</p>
-        </div>
+      <div style={containerStyle()}>
+        <h2 style={{ marginTop: 0 }}>Ride Status</h2>
+        <p style={{ marginBottom: 0 }}>Loading ride...</p>
       </div>
     );
   }
 
-  if (errorMessage) {
+  if (errorMessage && !rideRow) {
     return (
-      <div style={{ padding: 20 }}>
+      <div style={containerStyle()}>
+        <h2 style={{ marginTop: 0 }}>Ride Status</h2>
         <div
           style={{
-            maxWidth: 700,
-            margin: "40px auto",
-            background: "#ffffff",
-            borderRadius: 16,
-            padding: 20,
-            boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
+            padding: 12,
+            borderRadius: 10,
+            background: "#fef2f2",
+            color: "#b91c1c",
+            border: "1px solid #fecaca",
+            marginBottom: 16,
           }}
         >
-          <h2 style={{ marginTop: 0 }}>Ride Status</h2>
-          <p style={{ color: "crimson" }}>{errorMessage}</p>
-          <Link to="/rider">Back to Rider App</Link>
+          {errorMessage}
         </div>
+
+        <Link to="/rider" style={secondaryLinkStyle()}>
+          Back to Rider App
+        </Link>
       </div>
     );
   }
 
-  if (!ride || !rideRow) {
+  if (!rideRow || !ride) {
     return (
-      <div style={{ padding: 20 }}>
-        <div
-          style={{
-            maxWidth: 700,
-            margin: "40px auto",
-            background: "#ffffff",
-            borderRadius: 16,
-            padding: 20,
-            boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
-          }}
-        >
-          <h2 style={{ marginTop: 0 }}>Ride Status</h2>
-          <p>Ride not found.</p>
-          <Link to="/rider">Back to Rider App</Link>
-        </div>
+      <div style={containerStyle()}>
+        <h2 style={{ marginTop: 0 }}>Ride Status</h2>
+        <p>Ride not found.</p>
+
+        <Link to="/rider" style={secondaryLinkStyle()}>
+          Back to Rider App
+        </Link>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: 20 }}>
+    <div style={containerStyle()}>
       <div
         style={{
-          maxWidth: 700,
-          margin: "40px auto",
-          background: "#ffffff",
-          borderRadius: 16,
-          padding: 20,
-          boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          alignItems: "center",
+          flexWrap: "wrap",
         }}
       >
-        <h2 style={{ marginTop: 0 }}>Ride Status</h2>
-
-        <div
-          style={{
-            padding: 14,
-            borderRadius: 12,
-            background: "#f8fafc",
-            border: "1px solid #e5e7eb",
-          }}
-        >
-          <StatusBadge status={ride.status} />
-
-          <div style={{ marginBottom: 8 }}>
-            <strong>Ride ID:</strong> {ride.id}
-          </div>
-
-          <div style={{ marginBottom: 8 }}>
-            <strong>Pickup:</strong> {ride.pickupText}
-          </div>
-
-          <div style={{ marginBottom: 8 }}>
-            <strong>Destination:</strong> {ride.destinationText}
-          </div>
-
-          <div style={{ marginBottom: 8 }}>
-            <strong>Distance:</strong> {ride.distanceKm} km
-          </div>
-
-          <div style={{ marginBottom: 8 }}>
-            <strong>Time:</strong> {ride.durationMin} min
-          </div>
-
-          <div style={{ marginBottom: 8 }}>
-            <strong>Price:</strong> {ride.pricePi} Pi
-          </div>
-
-          <div style={{ marginBottom: 8 }}>
-            <strong>Vehicle:</strong> {ride.vehicleType}
-          </div>
-
-          <div style={{ marginBottom: 8 }}>
-            <strong>Driver:</strong> {rideRow.driver_name ?? "Not assigned yet"}
-          </div>
-
-          <RideTimeline ride={ride} />
+        <div>
+          <h2 style={{ margin: 0 }}>Ride Status</h2>
+          <p style={{ margin: "8px 0 0", color: "#6b7280" }}>
+            Ride ID: {ride.id}
+          </p>
         </div>
 
-        <div style={{ marginTop: 20 }}>
-          <Link to="/rider">Book Another Ride</Link>
+        <StatusBadge status={ride.status} />
+      </div>
+
+      <div style={sectionStyle()}>
+        <p style={{ margin: 0, fontWeight: 600 }}>{getStatusMessage(rideRow.status)}</p>
+
+        {errorMessage ? (
+          <div
+            style={{
+              marginTop: 12,
+              padding: 12,
+              borderRadius: 10,
+              background: "#fef2f2",
+              color: "#b91c1c",
+              border: "1px solid #fecaca",
+            }}
+          >
+            {errorMessage}
+          </div>
+        ) : null}
+      </div>
+
+      <div style={sectionStyle()}>
+        <h3 style={{ marginTop: 0 }}>Trip details</h3>
+
+        <div style={detailGridStyle()}>
+          <div style={detailItemStyle()}>
+            <strong>Pickup</strong>
+            <div style={{ marginTop: 6 }}>{ride.pickupText}</div>
+          </div>
+
+          <div style={detailItemStyle()}>
+            <strong>Destination</strong>
+            <div style={{ marginTop: 6 }}>{ride.destinationText}</div>
+          </div>
+
+          <div style={detailItemStyle()}>
+            <strong>Distance</strong>
+            <div style={{ marginTop: 6 }}>{ride.distanceKm} km</div>
+          </div>
+
+          <div style={detailItemStyle()}>
+            <strong>Estimated time</strong>
+            <div style={{ marginTop: 6 }}>{ride.durationMin} min</div>
+          </div>
+
+          <div style={detailItemStyle()}>
+            <strong>Price</strong>
+            <div style={{ marginTop: 6 }}>{ride.pricePi.toFixed(2)} Pi</div>
+          </div>
+
+          <div style={detailItemStyle()}>
+            <strong>Vehicle</strong>
+            <div style={{ marginTop: 6 }}>{ride.vehicleType}</div>
+          </div>
+
+          <div style={detailItemStyle()}>
+            <strong>Driver</strong>
+            <div style={{ marginTop: 6 }}>
+              {rideRow.driver_name ?? "Not assigned yet"}
+            </div>
+          </div>
         </div>
+      </div>
+
+      <div style={sectionStyle()}>
+        <RideTimeline ride={ride} />
+      </div>
+
+      <div
+        style={{
+          marginTop: 16,
+          display: "flex",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        {canRetryDispatch ? (
+          <button
+            type="button"
+            onClick={() => {
+              void handleRetryDispatch();
+            }}
+            disabled={actionLoading}
+            style={actionButtonStyle("#2563eb", actionLoading)}
+          >
+            {actionLoading ? "Retrying..." : "Retry Finding Driver"}
+          </button>
+        ) : null}
+
+        <Link to="/rider" style={secondaryLinkStyle()}>
+          Book Another Ride
+        </Link>
       </div>
     </div>
   );
