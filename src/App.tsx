@@ -83,6 +83,30 @@ function secondaryButtonStyle(): React.CSSProperties {
   };
 }
 
+function warningBoxStyle(): React.CSSProperties {
+  return {
+    marginTop: 12,
+    padding: 10,
+    borderRadius: 10,
+    background: "#fff7ed",
+    border: "1px solid #fdba74",
+    color: "#9a3412",
+    fontSize: 14,
+  };
+}
+
+function errorBoxStyle(): React.CSSProperties {
+  return {
+    marginTop: 12,
+    padding: 10,
+    borderRadius: 10,
+    background: "#fef2f2",
+    border: "1px solid #fecaca",
+    color: "#b91c1c",
+    fontSize: 14,
+  };
+}
+
 function Landing() {
   const [session, setSession] = useState<StoredPiSession | null>(() =>
     getStoredPiSession()
@@ -92,6 +116,7 @@ function Landing() {
   const [authLoading, setAuthLoading] = useState(false);
   const [serverSyncing, setServerSyncing] = useState(false);
   const [authError, setAuthError] = useState("");
+  const [serverWarning, setServerWarning] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -132,22 +157,44 @@ function Landing() {
     setAuthLoading(true);
     setServerSyncing(false);
     setAuthError("");
+    setServerWarning("");
 
     try {
       const loginResult = await loginWithPi();
 
-      setServerSyncing(true);
-
-      const syncedUser = await syncPiUser(loginResult.accessToken);
-
-      const canonicalSession: StoredPiSession = {
-        uid: syncedUser.uid,
-        username: syncedUser.username,
-        authenticatedAt: syncedUser.authenticatedAt,
+      const localSession: StoredPiSession = {
+        uid: loginResult.session.uid,
+        username: loginResult.session.username,
+        authenticatedAt: loginResult.session.authenticatedAt,
       };
 
-      saveStoredPiSession(canonicalSession);
-      setSession(canonicalSession);
+      saveStoredPiSession(localSession);
+      setSession(localSession);
+
+      setAuthLoading(false);
+      setServerSyncing(true);
+
+      try {
+        const syncedUser = await syncPiUser(loginResult.accessToken);
+
+        const canonicalSession: StoredPiSession = {
+          uid: syncedUser.uid,
+          username: syncedUser.username,
+          authenticatedAt: syncedUser.authenticatedAt,
+        };
+
+        saveStoredPiSession(canonicalSession);
+        setSession(canonicalSession);
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Pi server verification failed.";
+
+        setServerWarning(
+          `Pi login succeeded locally, but server verification is still pending. Details: ${message}`
+        );
+      }
     } catch (error) {
       clearStoredPiSession();
       setSession(null);
@@ -166,6 +213,7 @@ function Landing() {
     clearStoredPiSession();
     setSession(null);
     setAuthError("");
+    setServerWarning("");
   }
 
   return (
@@ -224,21 +272,8 @@ function Landing() {
             </>
           )}
 
-          {authError ? (
-            <div
-              style={{
-                marginTop: 12,
-                padding: 10,
-                borderRadius: 10,
-                background: "#fef2f2",
-                border: "1px solid #fecaca",
-                color: "#b91c1c",
-                fontSize: 14,
-              }}
-            >
-              {authError}
-            </div>
-          ) : null}
+          {serverWarning ? <div style={warningBoxStyle()}>{serverWarning}</div> : null}
+          {authError ? <div style={errorBoxStyle()}>{authError}</div> : null}
         </div>
 
         <div style={{ marginTop: 24 }}>
