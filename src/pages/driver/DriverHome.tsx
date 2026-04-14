@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-
 import RideTimeline from "../../components/RideTimeline";
 import StatusBadge from "../../components/StatusBadge";
 import type { Ride } from "../../types/ride";
 import {
   acceptDemoRide,
   completeDemoRide,
+  declineOfferedDemoRide,
   listDemoDrivers,
   listRecentRides,
   setDemoDriverOnlineStatus,
@@ -64,13 +64,63 @@ function formatRideStatus(status: RideRow["status"]) {
       return "Completed";
     case "cancelled":
       return "Cancelled";
+    case "no_driver_available":
+      return "No driver available";
     default:
       return status;
   }
 }
 
+function isPresenceFresh(lastSeenAt?: string | null) {
+  if (!lastSeenAt) {
+    return false;
+  }
+
+  const ageMs = Date.now() - Date.parse(lastSeenAt);
+  return ageMs <= 90_000;
+}
+
+function cardStyle(): React.CSSProperties {
+  return {
+    maxWidth: 880,
+    margin: "32px auto",
+    padding: 20,
+    background: "#ffffff",
+    borderRadius: 16,
+    boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
+  };
+}
+
+function sectionStyle(): React.CSSProperties {
+  return {
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 12,
+    background: "#f8fafc",
+    border: "1px solid #e5e7eb",
+  };
+}
+
+function buttonStyle(
+  background: string,
+  disabled = false
+): React.CSSProperties {
+  return {
+    padding: "10px 14px",
+    borderRadius: 10,
+    border: "1px solid transparent",
+    background,
+    color: "#ffffff",
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.6 : 1,
+    fontWeight: 600,
+  };
+}
+
 export default function DriverHome() {
-  const [selectedDriverId, setSelectedDriverId] = useState(getStoredDriverSessionId);
+  const [selectedDriverId, setSelectedDriverId] = useState<string>(
+    getStoredDriverSessionId
+  );
   const [drivers, setDrivers] = useState<DemoDriverRow[]>([]);
   const [rides, setRides] = useState<RideRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,6 +130,7 @@ export default function DriverHome() {
   async function loadAll() {
     try {
       setErrorMessage("");
+
       const [driversData, ridesData] = await Promise.all([
         listDemoDrivers(),
         listRecentRides(20),
@@ -101,7 +152,9 @@ export default function DriverHome() {
       }
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Failed to load driver console.";
+        error instanceof Error
+          ? error.message
+          : "Failed to load driver console.";
       setErrorMessage(message);
     } finally {
       setLoading(false);
@@ -127,6 +180,15 @@ export default function DriverHome() {
   const selectedDriver = useMemo(() => {
     return drivers.find((driver) => driver.id === selectedDriverId) ?? null;
   }, [drivers, selectedDriverId]);
+
+  const selectedDriverIsFreshOnline = useMemo(() => {
+    if (!selectedDriver) {
+      return false;
+    }
+
+    return selectedDriver.is_online && isPresenceFresh(selectedDriver.last_seen_at);
+  }, [selectedDriver]);
+
   const currentRideRow = useMemo(() => {
     if (!selectedDriver) {
       return null;
@@ -198,11 +260,8 @@ export default function DriverHome() {
     };
   }, [currentRideRow?.id, currentRideRow?.status]);
 
-  const selectedDriverIsAvailable = selectedDriver?.is_available ?? false;
-  const selectedDriverIsOnline = selectedDriver?.is_online ?? false;
-
   useEffect(() => {
-    if (!selectedDriverId || !selectedDriverIsOnline) {
+    if (!selectedDriverId || !selectedDriver?.is_online) {
       return;
     }
 
@@ -221,7 +280,7 @@ export default function DriverHome() {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [selectedDriverId, selectedDriverIsOnline]);
+  }, [selectedDriverId, selectedDriver?.is_online]);
 
   async function handleToggleOnlineStatus() {
     if (!selectedDriver) {
@@ -263,7 +322,9 @@ export default function DriverHome() {
       );
 
       const message =
-        error instanceof Error ? error.message : "Failed to update driver status.";
+        error instanceof Error
+          ? error.message
+          : "Failed to update driver status.";
       setErrorMessage(message);
     } finally {
       setActionLoading(false);
@@ -280,10 +341,33 @@ export default function DriverHome() {
 
     try {
       await acceptDemoRide(currentRideRow.id, selectedDriver.id);
+      await loadAll();
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to accept ride.";
       console.error("Accept ride failed:", error);
+      setErrorMessage(message);
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleDeclineOffer() {
+    if (!currentRideRow || !selectedDriver || currentRideRow.status !== "offer_sent") {
+      return;
+    }
+
+    setActionLoading(true);
+    setErrorMessage("");
+
+    try {
+      await declineOfferedDemoRide(currentRideRow.id, selectedDriver.id);
+      await syncDemoRideOfferState(currentRideRow.id);
+      await loadAll();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to decline offer.";
+      console.error("Decline offer failed:", error);
       setErrorMessage(message);
     } finally {
       setActionLoading(false);
@@ -300,6 +384,7 @@ export default function DriverHome() {
 
     try {
       await updateRideStage(currentRideRow.id, "in_progress");
+      await loadAll();
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to start ride.";
@@ -319,6 +404,7 @@ export default function DriverHome() {
 
     try {
       await completeDemoRide(currentRideRow.id, selectedDriver.id);
+      await loadAll();
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to complete ride.";
@@ -329,40 +415,19 @@ export default function DriverHome() {
   }
 
   return (
-    <div style={{ maxWidth: 760, margin: "0 auto", padding: 24 }}>
-      <h1 style={{ marginBottom: 20 }}>TrueGo Driver Console</h1>
-      {currentRideRow?.status === "offer_sent" ? (
-        <div
-          style={{
-            background: "#eff6ff",
-            border: "1px solid #bfdbfe",
-            color: "#1d4ed8",
-            padding: 12,
-            borderRadius: 12,
-            marginBottom: 16,
-          }}
-        >
-          New trip offer: {currentRideRow.price_pi.toFixed(2)} Pi rider fare
-          {currentRideRow.driver_payout_pi != null
-            ? ` · ${currentRideRow.driver_payout_pi.toFixed(2)} Pi driver payout`
-            : ""}
-        </div>
-      ) : null}
+    <div style={cardStyle()}>
+      <h1 style={{ marginTop: 0, marginBottom: 16 }}>TrueGo Driver Console</h1>
 
-      <div
-        style={{
-          border: "1px solid #e5e7eb",
-          borderRadius: 16,
-          padding: 16,
-          background: "#fff",
-          marginBottom: 20,
-        }}
-      >
-        <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>
+      <div style={sectionStyle()}>
+        <label
+          htmlFor="driver-select"
+          style={{ display: "block", marginBottom: 8, fontWeight: 600 }}
+        >
           Active demo driver
         </label>
 
         <select
+          id="driver-select"
           value={selectedDriverId}
           onChange={(event) => setSelectedDriverId(event.target.value)}
           style={{
@@ -389,24 +454,20 @@ export default function DriverHome() {
 
         <button
           type="button"
-          onClick={() => void handleToggleOnlineStatus()}
-          disabled={!selectedDriver || actionLoading}
-          style={{
-            padding: "10px 14px",
-            borderRadius: 10,
-            border: "1px solid #d1d5db",
-            background: selectedDriverIsOnline ? "#111827" : "#2563eb",
-            color: "#fff",
-            cursor: !selectedDriver || actionLoading ? "not-allowed" : "pointer",
-            opacity: !selectedDriver || actionLoading ? 0.6 : 1,
-            marginBottom: 12,
+          onClick={() => {
+            void handleToggleOnlineStatus();
           }}
+          disabled={!selectedDriver || actionLoading}
+          style={buttonStyle(
+            selectedDriver?.is_online ? "#111827" : "#2563eb",
+            !selectedDriver || actionLoading
+          )}
         >
-          {selectedDriverIsOnline ? "Go Offline" : "Go Online"}
+          {selectedDriver?.is_online ? "Go Offline" : "Go Online"}
         </button>
 
         {selectedDriver ? (
-          <div style={{ color: "#374151", lineHeight: 1.8 }}>
+          <div style={{ marginTop: 16, lineHeight: 1.8 }}>
             <div>
               <strong>Current driver:</strong> {selectedDriver.display_name}
             </div>
@@ -417,117 +478,159 @@ export default function DriverHome() {
               <strong>Rating:</strong> {selectedDriver.rating.toFixed(1)}
             </div>
             <div>
-              <strong>Availability:</strong>{" "}
+              <strong>Manual availability:</strong>{" "}
               {selectedDriver.is_available ? "Available" : "Busy"}
+            </div>
+            <div>
+              <strong>Presence:</strong>{" "}
+              {selectedDriverIsFreshOnline ? "Fresh / Active" : "Stale / Offline"}
             </div>
           </div>
         ) : (
-          <div style={{ color: "#6b7280" }}>No driver selected.</div>
+          <p style={{ marginTop: 16, marginBottom: 0 }}>No driver selected.</p>
         )}
       </div>
 
-      {loading ? <p>Loading rides...</p> : null}
-      {errorMessage ? <p style={{ color: "crimson" }}>{errorMessage}</p> : null}
+      {loading ? (
+        <div style={sectionStyle()}>
+          <p style={{ margin: 0 }}>Loading rides...</p>
+        </div>
+      ) : null}
 
-      {!loading && !selectedDriver ? (
+      {errorMessage ? (
         <div
           style={{
-            border: "1px solid #e5e7eb",
-            borderRadius: 16,
-            padding: 20,
-            background: "#fff",
+            ...sectionStyle(),
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            color: "#b91c1c",
           }}
         >
+          {errorMessage}
+        </div>
+      ) : null}
+
+      {!loading && !selectedDriver ? (
+        <div style={sectionStyle()}>
           <h2 style={{ marginTop: 0 }}>No drivers found</h2>
-          <p>There are no demo drivers in Supabase yet.</p>
+          <p style={{ marginBottom: 0 }}>
+            There are no demo drivers in Supabase yet.
+          </p>
         </div>
       ) : null}
 
       {!loading && selectedDriver && !currentRideRow ? (
-        <div
-          style={{
-            border: "1px solid #e5e7eb",
-            borderRadius: 16,
-            padding: 20,
-            background: "#fff",
-          }}
-        >
+        <div style={sectionStyle()}>
           <h2 style={{ marginTop: 0 }}>No assigned ride yet</h2>
-          <p>No active ride is available for this driver right now.</p>
+          <p style={{ marginBottom: 0 }}>
+            No active ride is available for this driver right now.
+          </p>
         </div>
       ) : null}
 
       {!loading && currentRideRow && currentRide ? (
-        <div
-          style={{
-            border: "1px solid #e5e7eb",
-            borderRadius: 16,
-            padding: 20,
-            background: "#fff",
-          }}
-        >
-          <h2 style={{ marginTop: 0 }}>Current Ride</h2>
-
-          <div style={{ marginBottom: 12 }}>
+        <div style={sectionStyle()}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <h2 style={{ margin: 0 }}>Current Ride</h2>
             <StatusBadge status={currentRide.status} />
           </div>
 
-          <div style={{ marginBottom: 8 }}>
-            <strong>Status:</strong> {formatRideStatus(currentRideRow.status)}
+          {currentRideRow.status === "offer_sent" ? (
+            <div
+              style={{
+                marginTop: 12,
+                padding: 12,
+                borderRadius: 10,
+                background: "#eff6ff",
+                border: "1px solid #bfdbfe",
+                color: "#1d4ed8",
+                fontWeight: 600,
+              }}
+            >
+              New trip offer: {currentRideRow.price_pi.toFixed(2)} Pi rider fare
+              {currentRideRow.driver_payout_pi != null
+                ? ` · ${currentRideRow.driver_payout_pi.toFixed(2)} Pi driver payout`
+                : ""}
+            </div>
+          ) : null}
+
+          <div style={{ marginTop: 16, lineHeight: 1.8 }}>
+            <div>
+              <strong>Status:</strong> {formatRideStatus(currentRideRow.status)}
+            </div>
+            <div>
+              <strong>Ride ID:</strong> {currentRideRow.id}
+            </div>
+            <div>
+              <strong>Pickup:</strong> {currentRideRow.pickup_text}
+            </div>
+            <div>
+              <strong>Destination:</strong> {currentRideRow.destination_text}
+            </div>
+            <div>
+              <strong>Price:</strong> {currentRideRow.price_pi.toFixed(2)} Pi
+            </div>
+            <div>
+              <strong>Driver payout:</strong>{" "}
+              {currentRideRow.driver_payout_pi != null
+                ? `${currentRideRow.driver_payout_pi.toFixed(2)} Pi`
+                : "N/A"}
+            </div>
+            <div>
+              <strong>Driver:</strong> {currentRideRow.driver_name ?? "Not assigned"}
+            </div>
           </div>
 
-          <div style={{ marginBottom: 8 }}>
-            <strong>Ride ID:</strong> {currentRideRow.id}
-          </div>
+          <div
+            style={{
+              marginTop: 16,
+              display: "flex",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            {currentRideRow.status === "offer_sent" ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleAcceptRide();
+                  }}
+                  disabled={actionLoading}
+                  style={buttonStyle("#16a34a", actionLoading)}
+                >
+                  {actionLoading ? "Accepting..." : "Accept Offer"}
+                </button>
 
-          <div style={{ marginBottom: 8 }}>
-            <strong>Pickup:</strong> {currentRideRow.pickup_text}
-          </div>
-
-          <div style={{ marginBottom: 8 }}>
-            <strong>Destination:</strong> {currentRideRow.destination_text}
-          </div>
-
-          <div style={{ marginBottom: 8 }}>
-            <strong>Price:</strong> {currentRideRow.price_pi.toFixed(2)} Pi
-          </div>
-
-          <div style={{ marginBottom: 8 }}>
-            <strong>Driver:</strong> {currentRideRow.driver_name ?? "Not assigned"}
-          </div>
-
-          <RideTimeline ride={currentRide} />
-
-          <div style={{ display: "flex", gap: 12, marginTop: 20, flexWrap: "wrap" }}>
-            {currentRideRow.status === "searching" ? (
-              <button
-                onClick={handleAcceptRide}
-                disabled={actionLoading || !selectedDriverIsAvailable}
-                style={{
-                  padding: "12px 16px",
-                  borderRadius: 10,
-                  border: "none",
-                  background: "#111827",
-                  color: "#fff",
-                  fontWeight: 600,
-                }}
-              >
-                {actionLoading ? "Accepting..." : "Accept Ride"}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleDeclineOffer();
+                  }}
+                  disabled={actionLoading}
+                  style={buttonStyle("#dc2626", actionLoading)}
+                >
+                  {actionLoading ? "Declining..." : "Decline"}
+                </button>
+              </>
             ) : null}
 
             {["driver_assigned", "driver_arriving"].includes(currentRideRow.status) ? (
               <button
-                onClick={handleStartRide}
-                disabled={actionLoading}
-                style={{
-                  padding: "12px 16px",
-                  borderRadius: 10,
-                  border: "none",
-                  background: "#0ea5e9",
-                  color: "#fff",
-                  fontWeight: 600,
+                type="button"
+                onClick={() => {
+                  void handleStartRide();
                 }}
+                disabled={actionLoading}
+                style={buttonStyle("#2563eb", actionLoading)}
               >
                 {actionLoading ? "Starting..." : "Start Ride"}
               </button>
@@ -535,20 +638,20 @@ export default function DriverHome() {
 
             {currentRideRow.status === "in_progress" ? (
               <button
-                onClick={handleCompleteRide}
-                disabled={actionLoading}
-                style={{
-                  padding: "12px 16px",
-                  borderRadius: 10,
-                  border: "none",
-                  background: "#10b981",
-                  color: "#fff",
-                  fontWeight: 600,
+                type="button"
+                onClick={() => {
+                  void handleCompleteRide();
                 }}
+                disabled={actionLoading}
+                style={buttonStyle("#7c3aed", actionLoading)}
               >
                 {actionLoading ? "Completing..." : "Complete Ride"}
               </button>
             ) : null}
+          </div>
+
+          <div style={{ marginTop: 16 }}>
+            <RideTimeline ride={currentRide} />
           </div>
         </div>
       ) : null}
