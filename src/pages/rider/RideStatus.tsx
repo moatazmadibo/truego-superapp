@@ -10,6 +10,11 @@ import {
   syncDemoRideOfferState,
   type RideRow,
 } from "../../services/rideApi";
+import {
+  demoFareToPayablePi,
+  formatInternalRate,
+  formatPiAmount,
+} from "../../lib/piPricing";
 
 function containerStyle(): React.CSSProperties {
   return {
@@ -213,6 +218,14 @@ export default function RideStatus() {
     return mapRideRowToRide(rideRow);
   }, [rideRow]);
 
+  const payablePi = useMemo(() => {
+    if (!ride) {
+      return 0;
+    }
+
+    return demoFareToPayablePi(ride.pricePi);
+  }, [ride]);
+
   const canRetryDispatch =
     rideRow?.status === "no_driver_available" || rideRow?.status === "cancelled";
 
@@ -352,8 +365,18 @@ export default function RideStatus() {
           </div>
 
           <div style={detailItemStyle()}>
-            <strong>Price</strong>
-            <div style={{ marginTop: 6 }}>{ride.pricePi.toFixed(2)} Pi</div>
+            <strong>Internal fare basis</strong>
+            <div style={{ marginTop: 6 }}>{ride.pricePi.toFixed(2)} USD</div>
+          </div>
+
+          <div style={detailItemStyle()}>
+            <strong>Payable in Pi</strong>
+            <div style={{ marginTop: 6 }}>{formatPiAmount(payablePi)}</div>
+          </div>
+
+          <div style={detailItemStyle()}>
+            <strong>Pricing rate</strong>
+            <div style={{ marginTop: 6 }}>{formatInternalRate()}</div>
           </div>
 
           <div style={detailItemStyle()}>
