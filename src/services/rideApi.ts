@@ -4,11 +4,13 @@ export type VehicleType = "car" | "motorcycle";
 
 export type RideStage =
   | "searching"
+  | "offer_sent"
   | "driver_assigned"
   | "driver_arriving"
   | "in_progress"
   | "completed"
-  | "cancelled";
+  | "cancelled"
+  | "no_driver_available";
 
 export interface RideRow {
   id: string;
@@ -17,6 +19,8 @@ export interface RideRow {
   driver_user_id: string | null;
   driver_name: string | null;
   demo_driver_id: string | null;
+  offered_demo_driver_id: string | null;
+  offer_expires_at: string | null;
   pickup_text: string;
   destination_text: string;
   pickup_lat: number | null;
@@ -26,6 +30,8 @@ export interface RideRow {
   distance_km: number;
   duration_min: number;
   price_pi: number;
+  driver_payout_pi: number | null;
+  pricing_breakdown: Record<string, unknown> | null;
   vehicle_type: VehicleType;
   status: RideStage;
   created_at: string;
@@ -62,8 +68,68 @@ export interface CreateRideInput {
   distance_km: number;
   duration_min: number;
   price_pi: number;
+  driver_payout_pi?: number | null;
+  pricing_breakdown?: Record<string, unknown> | null;
   vehicle_type: VehicleType;
   status?: RideStage;
+}
+
+export interface RidePricingQuote {
+  quotedPricePi: number;
+  driverPayoutPi: number;
+  breakdown: Record<string, unknown>;
+}
+
+function roundPi(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+export function quoteRidePricing(
+  input: Pick<CreateRideInput, "distance_km" | "duration_min" | "vehicle_type">,
+  requestedAt = new Date()
+): RidePricingQuote {
+  const hour = requestedAt.getHours();
+
+  const baseFare = input.vehicle_type === "motorcycle" ? 0.35 : 0.6;
+  const perKmRate = input.vehicle_type === "motorcycle" ? 0.12 : 0.2;
+  const perMinRate = input.vehicle_type === "motorcycle" ? 0.03 : 0.05;
+  const minimumFare = input.vehicle_type === "motorcycle" ? 0.75 : 1.1;
+
+  const isPeak = (hour >= 7 && hour < 10) || (hour >= 16 && hour < 20);
+  const isNight = hour >= 22 || hour < 6;
+
+  const peakMultiplier = isPeak ? 1.2 : 1;
+  const nightMultiplier = isNight ? 1.1 : 1;
+  const demandMultiplier = 1;
+  const serviceFee = input.vehicle_type === "motorcycle" ? 0.08 : 0.12;
+
+  const rawFare =
+    (baseFare + input.distance_km * perKmRate + input.duration_min * perMinRate) *
+    peakMultiplier *
+    nightMultiplier *
+    demandMultiplier;
+
+  const quotedPricePi = roundPi(Math.max(minimumFare, rawFare) + serviceFee);
+  const driverPayoutPi = roundPi(quotedPricePi * 0.85);
+
+  return {
+    quotedPricePi,
+    driverPayoutPi,
+    breakdown: {
+      baseFare,
+      perKmRate,
+      perMinRate,
+      distanceKm: input.distance_km,
+      durationMin: input.duration_min,
+      minimumFare,
+      peakMultiplier,
+      nightMultiplier,
+      demandMultiplier,
+      serviceFee,
+      vehicleType: input.vehicle_type,
+      requestedHour: hour,
+    },
+  };
 }
 
 export async function createRide(input: CreateRideInput): Promise<RideRow> {
@@ -83,6 +149,8 @@ export async function createRide(input: CreateRideInput): Promise<RideRow> {
       distance_km: input.distance_km,
       duration_min: input.duration_min,
       price_pi: input.price_pi,
+      driver_payout_pi: input.driver_payout_pi ?? null,
+      pricing_breakdown: input.pricing_breakdown ?? null,
       vehicle_type: input.vehicle_type,
       status: input.status ?? "searching",
     })
@@ -94,6 +162,55 @@ export async function createRide(input: CreateRideInput): Promise<RideRow> {
   }
 
   return data as RideRow;
+}
+
+export async function dispatchRideToNearestDemoDriver(
+  rideId: string,
+  presenceWindowSeconds = 90
+): Promise<RideRow> {
+  const { data, error } = await supabase.rpc(
+    "dispatch_ride_to_nearest_demo_driver",
+    {
+      p_ride_id: rideId,
+      p_presence_window_seconds: presenceWindowSeconds,
+    }
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  return data as RideRow;
+}
+
+export async function syncDemoRideOfferState(
+  rideId: string
+): Promise<RideRow> {
+  const { data, error } = await supabase.rpc("sync_demo_ride_offer_state", {
+    p_ride_id: rideId,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data as RideRow;
+}
+
+export async function createRideAndAutoDispatch(
+  input: CreateRideInput,
+  presenceWindowSeconds = 90
+): Promise<RideRow> {
+  const quote = quoteRidePricing(input);
+
+  const ride = await createRide({
+    ...input,
+    price_pi: quote.quotedPricePi,
+    driver_payout_pi: quote.driverPayoutPi,
+    pricing_breakdown: quote.breakdown,
+  });
+
+  return dispatchRideToNearestDemoDriver(ride.id, presenceWindowSeconds);
 }
 
 export async function getLatestRide(): Promise<RideRow | null> {
@@ -190,7 +307,7 @@ export async function acceptDemoRide(
   rideId: string,
   driverId: string
 ): Promise<RideRow> {
-  const { data, error } = await supabase.rpc("accept_demo_ride", {
+  const { data, error } = await supabase.rpc("accept_offered_demo_ride", {
     p_ride_id: rideId,
     p_driver_id: driverId,
   });

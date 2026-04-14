@@ -6,7 +6,7 @@ import {
   calculateRouteEstimateByText,
   type RouteEstimate,
 } from "../../services/rideService";
-import { createRide } from "../../services/rideApi";
+import { createRideAndAutoDispatch } from "../../services/rideApi";
 
 function containerStyle(): React.CSSProperties {
   return {
@@ -106,7 +106,7 @@ export default function RidePage() {
     setErrorMessage("");
 
     try {
-      const ride = await createRide({
+      const ride = await createRideAndAutoDispatch({
         rider_user_id: null,
         rider_name: "Demo Rider",
         pickup_text: pickupText,

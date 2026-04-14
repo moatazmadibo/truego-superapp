@@ -7,6 +7,7 @@ import StatusBadge from "../../components/StatusBadge";
 import {
   getRideById,
   subscribeToRide,
+  syncDemoRideOfferState,
   type RideRow,
 } from "../../services/rideApi";
 
@@ -93,6 +94,27 @@ export default function RideStatus() {
 
     return mapRideRowToRide(rideRow);
   }, [rideRow]);
+
+  useEffect(() => {
+    if (!rideRow || !["searching", "offer_sent"].includes(rideRow.status)) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void (async () => {
+        try {
+          const next = await syncDemoRideOfferState(rideRow.id);
+          setRideRow(next);
+        } catch (error) {
+          console.error("Failed to sync ride offer state in rider status:", error);
+        }
+      })();
+    }, 2000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [rideRow?.id, rideRow?.status]);
 
   if (loading) {
     return (

@@ -10,6 +10,7 @@ import {
   listRecentRides,
   setDemoDriverOnlineStatus,
   subscribeToLatestRides,
+  syncDemoRideOfferState,
   touchDemoDriverPresence,
   updateRideStage,
   type DemoDriverRow,
@@ -51,6 +52,8 @@ function formatRideStatus(status: RideRow["status"]) {
   switch (status) {
     case "searching":
       return "Searching for driver";
+    case "offer_sent":
+      return "Offer sent to driver";
     case "driver_assigned":
       return "Driver assigned";
     case "driver_arriving":
@@ -143,23 +146,27 @@ export default function DriverHome() {
       return assignedRide;
     }
 
-    if (!selectedDriver.is_online || !selectedDriver.is_available) {
-      return null;
+    const offeredRide =
+      rides.find((ride) => {
+        if (
+          ride.status !== "offer_sent" ||
+          ride.offered_demo_driver_id !== selectedDriver.id
+        ) {
+          return false;
+        }
+
+        if (!ride.offer_expires_at) {
+          return true;
+        }
+
+        return Date.parse(ride.offer_expires_at) > Date.now();
+      }) ?? null;
+
+    if (offeredRide) {
+      return offeredRide;
     }
 
-    const freshnessWindowMs = 15 * 60 * 1000;
-    const now = Date.now();
-
-    return (
-      rides.find((ride) => {
-        return (
-          ride.status === "searching" &&
-          !ride.demo_driver_id &&
-          ride.vehicle_type === selectedDriver.vehicle_type &&
-          now - Date.parse(ride.created_at) <= freshnessWindowMs
-        );
-      }) ?? null
-    );
+    return null;
   }, [rides, selectedDriver]);
 
   const currentRide = useMemo(() => {
@@ -169,6 +176,27 @@ export default function DriverHome() {
 
     return mapRideRowToRide(currentRideRow);
   }, [currentRideRow]);
+
+  useEffect(() => {
+    if (!currentRideRow || currentRideRow.status !== "offer_sent") {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void (async () => {
+        try {
+          await syncDemoRideOfferState(currentRideRow.id);
+          await loadAll();
+        } catch (error) {
+          console.error("Failed to sync ride offer state in driver console:", error);
+        }
+      })();
+    }, 2000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [currentRideRow?.id, currentRideRow?.status]);
 
   const selectedDriverIsAvailable = selectedDriver?.is_available ?? false;
   const selectedDriverIsOnline = selectedDriver?.is_online ?? false;
@@ -303,6 +331,23 @@ export default function DriverHome() {
   return (
     <div style={{ maxWidth: 760, margin: "0 auto", padding: 24 }}>
       <h1 style={{ marginBottom: 20 }}>TrueGo Driver Console</h1>
+      {currentRideRow?.status === "offer_sent" ? (
+        <div
+          style={{
+            background: "#eff6ff",
+            border: "1px solid #bfdbfe",
+            color: "#1d4ed8",
+            padding: 12,
+            borderRadius: 12,
+            marginBottom: 16,
+          }}
+        >
+          New trip offer: {currentRideRow.price_pi.toFixed(2)} Pi rider fare
+          {currentRideRow.driver_payout_pi != null
+            ? ` · ${currentRideRow.driver_payout_pi.toFixed(2)} Pi driver payout`
+            : ""}
+        </div>
+      ) : null}
 
       <div
         style={{
