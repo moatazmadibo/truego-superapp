@@ -1,6 +1,5 @@
 import type { PiAuthResult, PiAuthScope } from "../types/pi-sdk";
 
-const PI_SDK_SCRIPT_URL = "https://sdk.minepi.com/pi-sdk.js";
 const PI_SESSION_STORAGE_KEY = "truego_pi_session";
 
 export type StoredPiSession = {
@@ -10,7 +9,10 @@ export type StoredPiSession = {
 };
 
 let sdkInitialized = false;
-let sdkInitPromise: Promise<boolean> | null = null;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
 
 function getSandboxFlag(): boolean {
   const explicitValue = import.meta.env.VITE_PI_SANDBOX;
@@ -33,56 +35,6 @@ function getSandboxFlag(): boolean {
   );
 }
 
-function waitForExistingScript(script: HTMLScriptElement): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (script.dataset.loaded === "true") {
-      resolve();
-      return;
-    }
-
-    script.addEventListener("load", () => {
-      script.dataset.loaded = "true";
-      resolve();
-    });
-
-    script.addEventListener("error", () => {
-      reject(new Error("Failed to load Pi SDK script."));
-    });
-  });
-}
-
-async function ensurePiSdkScript(): Promise<void> {
-  if (typeof window === "undefined" || typeof document === "undefined") {
-    return;
-  }
-
-  const existing = document.querySelector<HTMLScriptElement>(
-    `script[src="${PI_SDK_SCRIPT_URL}"]`
-  );
-
-  if (existing) {
-    await waitForExistingScript(existing);
-    return;
-  }
-
-  await new Promise<void>((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = PI_SDK_SCRIPT_URL;
-    script.async = true;
-
-    script.addEventListener("load", () => {
-      script.dataset.loaded = "true";
-      resolve();
-    });
-
-    script.addEventListener("error", () => {
-      reject(new Error("Failed to load Pi SDK script."));
-    });
-
-    document.head.appendChild(script);
-  });
-}
-
 export function isPiSdkAvailable(): boolean {
   return typeof window !== "undefined" && typeof window.Pi !== "undefined";
 }
@@ -92,31 +44,28 @@ export async function initPiSdk(): Promise<boolean> {
     return false;
   }
 
-  if (sdkInitialized && window.Pi) {
-    return true;
-  }
-
-  if (!sdkInitPromise) {
-    sdkInitPromise = (async () => {
-      await ensurePiSdkScript();
-
-      if (!window.Pi) {
-        return false;
+  for (let attempt = 0; attempt < 25; attempt += 1) {
+    if (window.Pi) {
+      if (!sdkInitialized) {
+        try {
+          window.Pi.init({
+            version: "2.0",
+            sandbox: getSandboxFlag(),
+          });
+          sdkInitialized = true;
+        } catch (error) {
+          console.error("Pi.init failed:", error);
+          return false;
+        }
       }
 
-      window.Pi.init({
-        version: "2.0",
-        sandbox: getSandboxFlag(),
-      });
-
-      sdkInitialized = true;
       return true;
-    })().finally(() => {
-      sdkInitPromise = null;
-    });
+    }
+
+    await sleep(200);
   }
 
-  return sdkInitPromise;
+  return false;
 }
 
 export function getStoredPiSession(): StoredPiSession | null {
