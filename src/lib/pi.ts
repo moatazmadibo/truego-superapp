@@ -22,17 +22,9 @@ function sleep(ms: number) {
 function getSandboxFlag(): boolean {
   const explicitValue = import.meta.env.VITE_PI_SANDBOX;
 
-  if (explicitValue === "true") {
-    return true;
-  }
-
-  if (explicitValue === "false") {
-    return false;
-  }
-
-  if (typeof window === "undefined") {
-    return false;
-  }
+  if (explicitValue === "true") return true;
+  if (explicitValue === "false") return false;
+  if (typeof window === "undefined") return false;
 
   return (
     window.location.hostname === "localhost" ||
@@ -107,14 +99,14 @@ export function clearStoredPiSession(): void {
   window.localStorage.removeItem(PI_SESSION_STORAGE_KEY);
 }
 
-export async function loginWithPi(): Promise<PiLoginResult> {
+async function authenticateWithScopes(
+  scopes: PiAuthScope[]
+): Promise<PiLoginResult> {
   const ready = await initPiSdk();
 
   if (!ready || !window.Pi) {
     throw new Error("Pi SDK is not available. Open TrueGo inside Pi Browser.");
   }
-
-  const scopes: PiAuthScope[] = ["username"];
 
   const authResult: PiAuthResult = await window.Pi.authenticate(
     scopes,
@@ -135,4 +127,12 @@ export async function loginWithPi(): Promise<PiLoginResult> {
     session,
     accessToken: authResult.accessToken,
   };
+}
+
+export async function loginWithPi(): Promise<PiLoginResult> {
+  return authenticateWithScopes(["username", "payments"]);
+}
+
+export async function ensurePiPaymentsScope(): Promise<PiLoginResult> {
+  return authenticateWithScopes(["username", "payments"]);
 }
