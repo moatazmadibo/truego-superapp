@@ -1,5 +1,13 @@
-import { useEffect, useState } from "react";
-import { BrowserRouter, Link, Route, Routes } from "react-router-dom";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  BrowserRouter,
+  Link,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 
 import RiderHome from "./pages/rider/RiderHome";
 import RidePage from "./pages/rider/RidePage";
@@ -29,7 +37,7 @@ function landingCardStyle(): React.CSSProperties {
   };
 }
 
-function linkStyle(background: string): React.CSSProperties {
+function linkStyle(background: string, disabled = false): React.CSSProperties {
   return {
     display: "block",
     width: "100%",
@@ -40,6 +48,9 @@ function linkStyle(background: string): React.CSSProperties {
     marginTop: 12,
     textDecoration: "none",
     fontWeight: 600,
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.55 : 1,
+    pointerEvents: disabled ? "none" : "auto",
   };
 }
 
@@ -107,7 +118,33 @@ function errorBoxStyle(): React.CSSProperties {
   };
 }
 
+function infoBoxStyle(): React.CSSProperties {
+  return {
+    marginTop: 12,
+    padding: 10,
+    borderRadius: 10,
+    background: "#eff6ff",
+    border: "1px solid #bfdbfe",
+    color: "#1d4ed8",
+    fontSize: 14,
+  };
+}
+
+function RequirePiAuth({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  const session = getStoredPiSession();
+
+  if (!session) {
+    return <Navigate to="/" replace state={{ from: location.pathname }} />;
+  }
+
+  return <>{children}</>;
+}
+
 function Landing() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const [session, setSession] = useState<StoredPiSession | null>(() =>
     getStoredPiSession()
   );
@@ -117,6 +154,11 @@ function Landing() {
   const [serverSyncing, setServerSyncing] = useState(false);
   const [authError, setAuthError] = useState("");
   const [serverWarning, setServerWarning] = useState("");
+
+  const pendingPath = useMemo(() => {
+    const maybeFrom = (location.state as { from?: string } | null)?.from;
+    return maybeFrom && maybeFrom !== "/" ? maybeFrom : null;
+  }, [location.state]);
 
   useEffect(() => {
     let isMounted = true;
@@ -195,6 +237,10 @@ function Landing() {
           `Pi login succeeded locally, but server verification is still pending. Details: ${message}`
         );
       }
+
+      if (pendingPath) {
+        navigate(pendingPath, { replace: true });
+      }
     } catch (error) {
       clearStoredPiSession();
       setSession(null);
@@ -214,6 +260,7 @@ function Landing() {
     setSession(null);
     setAuthError("");
     setServerWarning("");
+    navigate("/", { replace: true });
   }
 
   return (
@@ -237,13 +284,32 @@ function Landing() {
                 Connected at {new Date(session.authenticatedAt).toLocaleString()}
               </div>
 
-              <button
-                type="button"
-                style={secondaryButtonStyle()}
-                onClick={handlePiLogout}
-              >
-                Sign Out
-              </button>
+              {pendingPath ? (
+                <div style={infoBoxStyle()}>
+                  Continue to your requested page:
+                  <div style={{ marginTop: 6, fontWeight: 700 }}>{pendingPath}</div>
+                </div>
+              ) : null}
+
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {pendingPath ? (
+                  <button
+                    type="button"
+                    style={authButtonStyle("#111827")}
+                    onClick={() => navigate(pendingPath)}
+                  >
+                    Continue
+                  </button>
+                ) : null}
+
+                <button
+                  type="button"
+                  style={secondaryButtonStyle()}
+                  onClick={handlePiLogout}
+                >
+                  Sign Out
+                </button>
+              </div>
             </>
           ) : (
             <>
@@ -255,7 +321,7 @@ function Landing() {
                   : serverSyncing
                   ? "Verifying with TrueGo server..."
                   : sdkReady
-                  ? "Sign in with Pi to personalize your TrueGo session."
+                  ? "Sign in with Pi to access TrueGo."
                   : "Open this page inside Pi Browser to sign in with Pi."}
               </div>
 
@@ -277,18 +343,24 @@ function Landing() {
         </div>
 
         <div style={{ marginTop: 24 }}>
-          <Link to="/rider" style={linkStyle("#0ea5e9")}>
+          <Link to="/rider" style={linkStyle("#0ea5e9", !session)}>
             Rider App
           </Link>
 
-          <Link to="/driver" style={linkStyle("#10b981")}>
+          <Link to="/driver" style={linkStyle("#10b981", !session)}>
             Driver App
           </Link>
 
-          <Link to="/admin" style={linkStyle("#8b5cf6")}>
+          <Link to="/admin" style={linkStyle("#8b5cf6", !session)}>
             Admin Portal
           </Link>
         </div>
+
+        {!session ? (
+          <div style={infoBoxStyle()}>
+            TrueGo is configured for Pi-exclusive authentication. Please sign in with Pi to continue.
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -299,11 +371,46 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Landing />} />
-        <Route path="/rider" element={<RiderHome />} />
-        <Route path="/rider/ride" element={<RidePage />} />
-        <Route path="/rider/status/:rideId" element={<RideStatus />} />
-        <Route path="/driver" element={<DriverHome />} />
-        <Route path="/admin" element={<AdminDashboard />} />
+        <Route
+          path="/rider"
+          element={
+            <RequirePiAuth>
+              <RiderHome />
+            </RequirePiAuth>
+          }
+        />
+        <Route
+          path="/rider/ride"
+          element={
+            <RequirePiAuth>
+              <RidePage />
+            </RequirePiAuth>
+          }
+        />
+        <Route
+          path="/rider/status/:rideId"
+          element={
+            <RequirePiAuth>
+              <RideStatus />
+            </RequirePiAuth>
+          }
+        />
+        <Route
+          path="/driver"
+          element={
+            <RequirePiAuth>
+              <DriverHome />
+            </RequirePiAuth>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <RequirePiAuth>
+              <AdminDashboard />
+            </RequirePiAuth>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );
