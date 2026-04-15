@@ -2,12 +2,22 @@ import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
 import { listRecentRides, subscribeToLatestRides, type RideRow } from "../../services/rideApi";
 
+type RidePaymentSnapshot = {
+  payment_status?: "unpaid" | "approved" | "completed" | "cancelled" | "failed" | null;
+  payment_provider?: string | null;
+  payment_id?: string | null;
+  payment_txid?: string | null;
+  payment_amount_pi?: number | null;
+  payment_completed_at?: string | null;
+};
+
 type DashboardStats = {
   total: number;
   active: number;
   completed: number;
   noDriverAvailable: number;
-  revenuePi: number;
+  paid: number;
+  collectedPi: number;
 };
 
 function formatStatus(status: RideRow["status"]) {
@@ -34,7 +44,20 @@ function formatStatus(status: RideRow["status"]) {
 }
 
 function formatPi(value: number) {
-  return `${value.toFixed(2)} Pi`;
+  return `${value.toFixed(8)} Pi`;
+}
+
+function getPaymentSnapshot(ride: RideRow): RidePaymentSnapshot {
+  const extended = ride as RideRow & RidePaymentSnapshot;
+
+  return {
+    payment_status: extended.payment_status ?? "unpaid",
+    payment_provider: extended.payment_provider ?? null,
+    payment_id: extended.payment_id ?? null,
+    payment_txid: extended.payment_txid ?? null,
+    payment_amount_pi: extended.payment_amount_pi ?? null,
+    payment_completed_at: extended.payment_completed_at ?? null,
+  };
 }
 
 function pageStyle(): React.CSSProperties {
@@ -84,6 +107,18 @@ function rideCardStyle(): React.CSSProperties {
   };
 }
 
+function badgeStyle(background: string, color = "#ffffff"): React.CSSProperties {
+  return {
+    display: "inline-block",
+    padding: "6px 10px",
+    borderRadius: 999,
+    background,
+    color,
+    fontWeight: 700,
+    fontSize: 12,
+  };
+}
+
 export default function AdminDashboard() {
   const [rides, setRides] = useState<RideRow[]>([]);
   const [stats, setStats] = useState<DashboardStats>({
@@ -91,7 +126,8 @@ export default function AdminDashboard() {
     active: 0,
     completed: 0,
     noDriverAvailable: 0,
-    revenuePi: 0,
+    paid: 0,
+    collectedPi: 0,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -106,7 +142,8 @@ export default function AdminDashboard() {
         activeResult,
         completedResult,
         noDriverResult,
-        revenueResult,
+        paidResult,
+        collectedPiResult,
       ] = await Promise.all([
         listRecentRides(20),
         supabase.from("rides").select("id", { count: "exact", head: true }),
@@ -128,17 +165,25 @@ export default function AdminDashboard() {
           .from("rides")
           .select("id", { count: "exact", head: true })
           .eq("status", "no_driver_available"),
-        supabase.from("rides").select("price_pi").eq("status", "completed"),
+        supabase
+          .from("rides")
+          .select("id", { count: "exact", head: true })
+          .eq("payment_status", "completed"),
+        supabase
+          .from("rides")
+          .select("payment_amount_pi")
+          .eq("payment_status", "completed"),
       ]);
 
       if (totalResult.error) throw totalResult.error;
       if (activeResult.error) throw activeResult.error;
       if (completedResult.error) throw completedResult.error;
       if (noDriverResult.error) throw noDriverResult.error;
-      if (revenueResult.error) throw revenueResult.error;
+      if (paidResult.error) throw paidResult.error;
+      if (collectedPiResult.error) throw collectedPiResult.error;
 
-      const revenuePi = (revenueResult.data ?? []).reduce((sum, row) => {
-        return sum + Number(row.price_pi ?? 0);
+      const collectedPi = (collectedPiResult.data ?? []).reduce((sum, row) => {
+        return sum + Number(row.payment_amount_pi ?? 0);
       }, 0);
 
       setRides(recentRides);
@@ -147,7 +192,8 @@ export default function AdminDashboard() {
         active: activeResult.count ?? 0,
         completed: completedResult.count ?? 0,
         noDriverAvailable: noDriverResult.count ?? 0,
-        revenuePi,
+        paid: paidResult.count ?? 0,
+        collectedPi,
       });
     } catch (err) {
       const message =
@@ -172,7 +218,7 @@ export default function AdminDashboard() {
     <div style={pageStyle()}>
       <h1 style={{ marginTop: 0, marginBottom: 0 }}>TrueGo Admin Dashboard</h1>
       <p style={{ color: "#6b7280", marginTop: 8 }}>
-        Live overview of all rides plus the latest 20 rides.
+        Live operational view plus Pi payment visibility.
       </p>
 
       <div style={statsGridStyle()}>
@@ -198,6 +244,13 @@ export default function AdminDashboard() {
         </div>
 
         <div style={statCardStyle()}>
+          <div style={{ color: "#6b7280", fontSize: 14 }}>Paid rides</div>
+          <div style={{ fontSize: 28, fontWeight: 700, marginTop: 8 }}>
+            {stats.paid}
+          </div>
+        </div>
+
+        <div style={statCardStyle()}>
           <div style={{ color: "#6b7280", fontSize: 14 }}>No driver available</div>
           <div style={{ fontSize: 28, fontWeight: 700, marginTop: 8 }}>
             {stats.noDriverAvailable}
@@ -205,9 +258,9 @@ export default function AdminDashboard() {
         </div>
 
         <div style={statCardStyle()}>
-          <div style={{ color: "#6b7280", fontSize: 14 }}>Completed revenue</div>
+          <div style={{ color: "#6b7280", fontSize: 14 }}>Collected Pi</div>
           <div style={{ fontSize: 28, fontWeight: 700, marginTop: 8 }}>
-            {formatPi(stats.revenuePi)}
+            {formatPi(stats.collectedPi)}
           </div>
         </div>
       </div>
@@ -234,19 +287,51 @@ export default function AdminDashboard() {
         {!loading && !error && rides.length === 0 ? <p>No rides found yet.</p> : null}
 
         {!loading && !error && rides.length > 0
-          ? rides.map((ride) => (
-              <div key={ride.id} style={rideCardStyle()}>
-                <div><strong>Ride ID:</strong> {ride.id}</div>
-                <div><strong>Status:</strong> {formatStatus(ride.status)}</div>
-                <div><strong>Rider:</strong> {ride.rider_name ?? "Unknown rider"}</div>
-                <div><strong>Driver:</strong> {ride.driver_name ?? "Not assigned"}</div>
-                <div><strong>Pickup:</strong> {ride.pickup_text}</div>
-                <div><strong>Destination:</strong> {ride.destination_text}</div>
-                <div><strong>Distance:</strong> {ride.distance_km.toFixed(2)} km</div>
-                <div><strong>Time:</strong> {ride.duration_min} min</div>
-                <div><strong>Price:</strong> {formatPi(ride.price_pi)}</div>
-              </div>
-            ))
+          ? rides.map((ride) => {
+              const payment = getPaymentSnapshot(ride);
+              const isPaid = payment.payment_status === "completed";
+
+              return (
+                <div key={ride.id} style={rideCardStyle()}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                    }}
+                  >
+                    <div>
+                      <div><strong>Ride ID:</strong> {ride.id}</div>
+                      <div><strong>Status:</strong> {formatStatus(ride.status)}</div>
+                    </div>
+
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <span style={badgeStyle(ride.status === "completed" ? "#16a34a" : "#6b7280")}>
+                        {formatStatus(ride.status)}
+                      </span>
+
+                      <span style={badgeStyle(isPaid ? "#2563eb" : "#9ca3af")}>
+                        {isPaid ? "Paid" : "Unpaid"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: 12 }}><strong>Rider:</strong> {ride.rider_name ?? "Unknown rider"}</div>
+                  <div><strong>Driver:</strong> {ride.driver_name ?? "Not assigned"}</div>
+                  <div><strong>Pickup:</strong> {ride.pickup_text}</div>
+                  <div><strong>Destination:</strong> {ride.destination_text}</div>
+                  <div><strong>Distance:</strong> {ride.distance_km.toFixed(2)} km</div>
+                  <div><strong>Time:</strong> {ride.duration_min} min</div>
+                  <div><strong>Internal fare:</strong> {Number(ride.price_pi ?? 0).toFixed(2)} USD</div>
+                  <div><strong>Payment status:</strong> {payment.payment_status ?? "unpaid"}</div>
+                  <div><strong>Payment amount:</strong> {payment.payment_amount_pi != null ? formatPi(Number(payment.payment_amount_pi)) : "Not paid yet"}</div>
+                  <div><strong>Payment ID:</strong> {payment.payment_id ?? "N/A"}</div>
+                  <div><strong>TXID:</strong> {payment.payment_txid ?? "N/A"}</div>
+                </div>
+              );
+            })
           : null}
       </div>
     </div>

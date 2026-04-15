@@ -42,6 +42,59 @@ Deno.serve(async (req) => {
       );
     }
 
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    const { data: existingRide, error: existingRideError } = await admin
+      .from("rides")
+      .select(
+        "id, payment_status, payment_id, payment_txid, payment_amount_pi, payment_completed_at"
+      )
+      .eq("id", rideId)
+      .single();
+
+    if (existingRideError || !existingRide) {
+      return new Response(
+        JSON.stringify({ error: "Ride not found" }),
+        {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (existingRide.payment_status === "completed") {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          alreadyCompleted: true,
+          ride: existingRide,
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (
+      existingRide.payment_id &&
+      existingRide.payment_id !== paymentId &&
+      ["approved", "completed"].includes(existingRide.payment_status ?? "")
+    ) {
+      return new Response(
+        JSON.stringify({
+          error: "Ride already linked to a different payment",
+        }),
+        {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     const piResponse = await fetch(
       `https://api.minepi.com/v2/payments/${paymentId}/complete`,
       {
@@ -70,11 +123,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    const admin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
-
     const { data, error } = await admin
       .from("rides")
       .update({
@@ -86,7 +134,9 @@ Deno.serve(async (req) => {
         payment_completed_at: new Date().toISOString(),
       })
       .eq("id", rideId)
-      .select("id, payment_status, payment_id, payment_txid, payment_amount_pi, payment_completed_at")
+      .select(
+        "id, payment_status, payment_id, payment_txid, payment_amount_pi, payment_completed_at"
+      )
       .single();
 
     if (error) {

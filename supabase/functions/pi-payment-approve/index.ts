@@ -42,6 +42,74 @@ Deno.serve(async (req) => {
       );
     }
 
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    const { data: existingRide, error: existingRideError } = await admin
+      .from("rides")
+      .select("id, payment_status, payment_id, payment_txid, payment_amount_pi")
+      .eq("id", rideId)
+      .single();
+
+    if (existingRideError || !existingRide) {
+      return new Response(
+        JSON.stringify({ error: "Ride not found" }),
+        {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (existingRide.payment_status === "completed") {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          alreadyCompleted: true,
+          ride: existingRide,
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (
+      existingRide.payment_status === "approved" &&
+      existingRide.payment_id === paymentId
+    ) {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          alreadyApproved: true,
+          ride: existingRide,
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (
+      existingRide.payment_id &&
+      existingRide.payment_id !== paymentId &&
+      ["approved", "completed"].includes(existingRide.payment_status ?? "")
+    ) {
+      return new Response(
+        JSON.stringify({
+          error: "Ride already has a different approved/completed payment",
+        }),
+        {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     const piResponse = await fetch(
       `https://api.minepi.com/v2/payments/${paymentId}/approve`,
       {
@@ -68,11 +136,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    const admin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
-
     const { data, error } = await admin
       .from("rides")
       .update({
@@ -82,7 +145,9 @@ Deno.serve(async (req) => {
         payment_amount_pi: amountPi ?? null,
       })
       .eq("id", rideId)
-      .select("id, payment_status, payment_id, payment_amount_pi")
+      .select(
+        "id, payment_status, payment_id, payment_txid, payment_amount_pi, payment_completed_at"
+      )
       .single();
 
     if (error) {

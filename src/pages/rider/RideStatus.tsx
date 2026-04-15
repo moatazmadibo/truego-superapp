@@ -15,7 +15,11 @@ import {
   formatInternalRate,
   formatPiAmount,
 } from "../../lib/piPricing";
-import { getStoredPiSession } from "../../lib/pi";
+import {
+  ensurePiPaymentsScope,
+  getStoredPiSession,
+  saveStoredPiSession,
+} from "../../lib/pi";
 import { createPiPayment } from "../../services/piPlatform";
 import {
   approvePiRidePayment,
@@ -98,6 +102,18 @@ function secondaryLinkStyle(): React.CSSProperties {
     color: "#111827",
     fontWeight: 600,
     textDecoration: "none",
+  };
+}
+
+function paidBadgeStyle(): React.CSSProperties {
+  return {
+    display: "inline-block",
+    padding: "8px 12px",
+    borderRadius: 999,
+    background: "#dcfce7",
+    color: "#166534",
+    fontWeight: 700,
+    fontSize: 13,
   };
 }
 
@@ -282,12 +298,13 @@ export default function RideStatus() {
   const canRetryDispatch =
     rideRow?.status === "no_driver_available" || rideRow?.status === "cancelled";
 
+  const isPaid = payment.payment_status === "completed";
+
   const canPayWithPi =
     Boolean(ride && piSession) &&
     payablePi > 0 &&
-    rideRow?.status !== "cancelled" &&
-    rideRow?.status !== "no_driver_available" &&
-    payment.payment_status !== "completed";
+    rideRow?.status === "completed" &&
+    !isPaid;
 
   async function refreshCurrentRide() {
     if (!rideId) {
@@ -323,7 +340,7 @@ export default function RideStatus() {
     }
   }
 
-  function handlePayWithPi() {
+  async function handlePayWithPi() {
     if (!ride || !piSession) {
       setErrorMessage("Login with Pi first from the home screen.");
       return;
@@ -331,9 +348,14 @@ export default function RideStatus() {
 
     setPaymentLoading(true);
     setErrorMessage("");
-    setPaymentMessage("Opening Pi payment flow...");
+    setPaymentMessage("Preparing Pi payment access...");
 
     try {
+      const paymentLogin = await ensurePiPaymentsScope();
+      saveStoredPiSession(paymentLogin.session);
+
+      setPaymentMessage("Opening Pi payment flow...");
+
       createPiPayment(
         {
           amount: payablePi,
@@ -345,7 +367,7 @@ export default function RideStatus() {
             vehicleType: ride.vehicleType,
             destination: ride.destinationText,
           },
-          uid: piSession.uid,
+          uid: paymentLogin.session.uid,
         },
         {
           onReadyForServerApproval: async (paymentId) => {
@@ -487,6 +509,12 @@ export default function RideStatus() {
             {paymentMessage}
           </div>
         ) : null}
+
+        {isPaid ? (
+          <div style={{ marginTop: 12 }}>
+            <span style={paidBadgeStyle()}>Paid via Pi</span>
+          </div>
+        ) : null}
       </div>
 
       <div style={sectionStyle()}>
@@ -529,16 +557,6 @@ export default function RideStatus() {
           </div>
 
           <div style={detailItemStyle()}>
-            <strong>Payment status</strong>
-            <div style={{ marginTop: 6 }}>{formatPaymentStatus(payment.payment_status)}</div>
-          </div>
-
-          <div style={detailItemStyle()}>
-            <strong>Payment reference</strong>
-            <div style={{ marginTop: 6 }}>{payment.payment_id ?? "Not created yet"}</div>
-          </div>
-
-          <div style={detailItemStyle()}>
             <strong>Vehicle</strong>
             <div style={{ marginTop: 6 }}>{ride.vehicleType}</div>
           </div>
@@ -547,6 +565,54 @@ export default function RideStatus() {
             <strong>Driver</strong>
             <div style={{ marginTop: 6 }}>
               {rideRow.driver_name ?? "Not assigned yet"}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={sectionStyle()}>
+        <h3 style={{ marginTop: 0 }}>Payment receipt</h3>
+
+        <div style={detailGridStyle()}>
+          <div style={detailItemStyle()}>
+            <strong>Payment status</strong>
+            <div style={{ marginTop: 6 }}>{formatPaymentStatus(payment.payment_status)}</div>
+          </div>
+
+          <div style={detailItemStyle()}>
+            <strong>Payment provider</strong>
+            <div style={{ marginTop: 6 }}>{payment.payment_provider ?? "Pi"}</div>
+          </div>
+
+          <div style={detailItemStyle()}>
+            <strong>Payment amount</strong>
+            <div style={{ marginTop: 6 }}>
+              {payment.payment_amount_pi != null
+                ? formatPiAmount(Number(payment.payment_amount_pi))
+                : "Not paid yet"}
+            </div>
+          </div>
+
+          <div style={detailItemStyle()}>
+            <strong>Payment ID</strong>
+            <div style={{ marginTop: 6, wordBreak: "break-all" }}>
+              {payment.payment_id ?? "Not created yet"}
+            </div>
+          </div>
+
+          <div style={detailItemStyle()}>
+            <strong>Transaction ID</strong>
+            <div style={{ marginTop: 6, wordBreak: "break-all" }}>
+              {payment.payment_txid ?? "Pending"}
+            </div>
+          </div>
+
+          <div style={detailItemStyle()}>
+            <strong>Completed at</strong>
+            <div style={{ marginTop: 6 }}>
+              {payment.payment_completed_at
+                ? new Date(payment.payment_completed_at).toLocaleString()
+                : "Pending"}
             </div>
           </div>
         </div>
@@ -567,12 +633,18 @@ export default function RideStatus() {
         {canPayWithPi ? (
           <button
             type="button"
-            onClick={handlePayWithPi}
+            onClick={() => {
+              void handlePayWithPi();
+            }}
             disabled={paymentLoading}
             style={actionButtonStyle("#111827", paymentLoading)}
           >
             {paymentLoading ? "Processing Pi Payment..." : `Pay ${formatPiAmount(payablePi)}`}
           </button>
+        ) : null}
+
+        {isPaid ? (
+          <span style={paidBadgeStyle()}>Payment already completed</span>
         ) : null}
 
         {!piSession ? (
