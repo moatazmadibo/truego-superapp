@@ -12,7 +12,6 @@ import {
 } from "../../services/rideApi";
 import {
   demoFareToPayablePi,
-  formatInternalRate,
   formatPiAmount,
 } from "../../lib/piPricing";
 import {
@@ -542,18 +541,8 @@ export default function RideStatus() {
           </div>
 
           <div style={detailItemStyle()}>
-            <strong>Internal fare basis</strong>
-            <div style={{ marginTop: 6 }}>{ride.pricePi.toFixed(2)} USD</div>
-          </div>
-
-          <div style={detailItemStyle()}>
-            <strong>Payable in Pi</strong>
+            <strong>Estimated fare in Pi</strong>
             <div style={{ marginTop: 6 }}>{formatPiAmount(payablePi)}</div>
-          </div>
-
-          <div style={detailItemStyle()}>
-            <strong>Pricing rate</strong>
-            <div style={{ marginTop: 6 }}>{formatInternalRate()}</div>
           </div>
 
           <div style={detailItemStyle()}>
@@ -570,53 +559,59 @@ export default function RideStatus() {
         </div>
       </div>
 
-      <div style={sectionStyle()}>
-        <h3 style={{ marginTop: 0 }}>Payment receipt</h3>
+      {rideRow.status === "completed" || payment.payment_id ? (
+        <div style={sectionStyle()}>
+          <h3 style={{ marginTop: 0 }}>Pi payment</h3>
 
-        <div style={detailGridStyle()}>
-          <div style={detailItemStyle()}>
-            <strong>Payment status</strong>
-            <div style={{ marginTop: 6 }}>{formatPaymentStatus(payment.payment_status)}</div>
-          </div>
-
-          <div style={detailItemStyle()}>
-            <strong>Payment provider</strong>
-            <div style={{ marginTop: 6 }}>{payment.payment_provider ?? "Pi"}</div>
-          </div>
-
-          <div style={detailItemStyle()}>
-            <strong>Payment amount</strong>
-            <div style={{ marginTop: 6 }}>
-              {payment.payment_amount_pi != null
-                ? formatPiAmount(Number(payment.payment_amount_pi))
-                : "Not paid yet"}
+          <div style={detailGridStyle()}>
+            <div style={detailItemStyle()}>
+              <strong>Payment status</strong>
+              <div style={{ marginTop: 6 }}>{formatPaymentStatus(payment.payment_status)}</div>
             </div>
-          </div>
 
-          <div style={detailItemStyle()}>
-            <strong>Payment ID</strong>
-            <div style={{ marginTop: 6, wordBreak: "break-all" }}>
-              {payment.payment_id ?? "Not created yet"}
+            <div style={detailItemStyle()}>
+              <strong>Payment provider</strong>
+              <div style={{ marginTop: 6 }}>{payment.payment_provider ?? "Pi"}</div>
             </div>
-          </div>
 
-          <div style={detailItemStyle()}>
-            <strong>Transaction ID</strong>
-            <div style={{ marginTop: 6, wordBreak: "break-all" }}>
-              {payment.payment_txid ?? "Pending"}
+            <div style={detailItemStyle()}>
+              <strong>Payment amount</strong>
+              <div style={{ marginTop: 6 }}>
+                {payment.payment_amount_pi != null
+                  ? formatPiAmount(Number(payment.payment_amount_pi))
+                  : formatPiAmount(payablePi)}
+              </div>
             </div>
-          </div>
 
-          <div style={detailItemStyle()}>
-            <strong>Completed at</strong>
-            <div style={{ marginTop: 6 }}>
-              {payment.payment_completed_at
-                ? new Date(payment.payment_completed_at).toLocaleString()
-                : "Pending"}
-            </div>
+            {payment.payment_id ? (
+              <div style={detailItemStyle()}>
+                <strong>Payment ID</strong>
+                <div style={{ marginTop: 6, wordBreak: "break-all" }}>
+                  {payment.payment_id}
+                </div>
+              </div>
+            ) : null}
+
+            {payment.payment_txid ? (
+              <div style={detailItemStyle()}>
+                <strong>Transaction ID</strong>
+                <div style={{ marginTop: 6, wordBreak: "break-all" }}>
+                  {payment.payment_txid}
+                </div>
+              </div>
+            ) : null}
+
+            {payment.payment_completed_at ? (
+              <div style={detailItemStyle()}>
+                <strong>Completed at</strong>
+                <div style={{ marginTop: 6 }}>
+                  {new Date(payment.payment_completed_at).toLocaleString()}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
-      </div>
+      ) : null}
 
       <div style={sectionStyle()}>
         <RideTimeline ride={ride} />
