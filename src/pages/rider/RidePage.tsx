@@ -217,7 +217,7 @@ export default function RidePage() {
 
     try {
       const ride = await createRideAndAutoDispatch({
-        rider_user_id: session?.uid ?? null,
+        rider_user_id: null,
         rider_name: session?.username ? `@${session.username}` : "Pi Rider",
         pickup_text: pickupText.trim(),
         destination_text: destinationText.trim(),
