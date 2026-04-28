@@ -416,14 +416,14 @@ export default function DriverHome() {
 
   return (
     <div style={cardStyle()}>
-      <h1 style={{ marginTop: 0, marginBottom: 16 }}>TrueGo Driver Console</h1>
+      <h1 style={{ marginTop: 0, marginBottom: 16 }}>TrueGo Driver</h1>
 
       <div style={sectionStyle()}>
         <label
           htmlFor="driver-select"
           style={{ display: "block", marginBottom: 8, fontWeight: 600 }}
         >
-          Active demo driver
+          Active driver
         </label>
 
         <select
@@ -440,7 +440,7 @@ export default function DriverHome() {
           disabled={drivers.length === 0 || actionLoading}
         >
           {drivers.length === 0 ? (
-            <option value="">No demo drivers available</option>
+            <option value="">No drivers available</option>
           ) : null}
 
           {drivers.map((driver) => (
@@ -514,16 +514,16 @@ export default function DriverHome() {
         <div style={sectionStyle()}>
           <h2 style={{ marginTop: 0 }}>No drivers found</h2>
           <p style={{ marginBottom: 0 }}>
-            There are no demo drivers in Supabase yet.
+            There are no drivers available yet.
           </p>
         </div>
       ) : null}
 
       {!loading && selectedDriver && !currentRideRow ? (
         <div style={sectionStyle()}>
-          <h2 style={{ marginTop: 0 }}>No assigned ride yet</h2>
+          <h2 style={{ marginTop: 0 }}>No active ride yet</h2>
           <p style={{ marginBottom: 0 }}>
-            No active ride is available for this driver right now.
+            You are online and ready. New ride offers will appear here.
           </p>
         </div>
       ) : null}
@@ -555,7 +555,7 @@ export default function DriverHome() {
                 fontWeight: 600,
               }}
             >
-              New trip offer: {currentRideRow.price_pi.toFixed(2)} Pi rider fare
+              New ride offer: {currentRideRow.price_pi.toFixed(2)} Pi fare
               {currentRideRow.driver_payout_pi != null
                 ? ` · ${currentRideRow.driver_payout_pi.toFixed(2)} Pi driver payout`
                 : ""}
