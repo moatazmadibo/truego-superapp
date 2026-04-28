@@ -218,7 +218,7 @@ export default function AdminDashboard() {
     <div style={pageStyle()}>
       <h1 style={{ marginTop: 0, marginBottom: 0 }}>TrueGo Admin Dashboard</h1>
       <p style={{ color: "#6b7280", marginTop: 8 }}>
-        Live operational view plus Pi payment visibility.
+        Operations-only view for monitoring rides, driver assignment, and Pi payment status.
       </p>
 
       <div style={statsGridStyle()}>
@@ -324,7 +324,7 @@ export default function AdminDashboard() {
                   <div><strong>Destination:</strong> {ride.destination_text}</div>
                   <div><strong>Distance:</strong> {ride.distance_km.toFixed(2)} km</div>
                   <div><strong>Time:</strong> {ride.duration_min} min</div>
-                  <div><strong>Internal fare:</strong> {Number(ride.price_pi ?? 0).toFixed(2)} USD</div>
+                  <div><strong>Estimated fare:</strong> {Number(ride.price_pi ?? 0).toFixed(2)} Pi reference</div>
                   <div><strong>Payment status:</strong> {payment.payment_status ?? "unpaid"}</div>
                   <div><strong>Payment amount:</strong> {payment.payment_amount_pi != null ? formatPi(Number(payment.payment_amount_pi)) : "Not paid yet"}</div>
                   <div><strong>Payment ID:</strong> {payment.payment_id ?? "N/A"}</div>
