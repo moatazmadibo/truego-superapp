@@ -7,27 +7,70 @@ import {
   type RouteEstimate,
 } from "../../services/rideService";
 import { createRideAndAutoDispatch } from "../../services/rideApi";
+import { getStoredPiSession } from "../../lib/pi";
 
-function containerStyle(): React.CSSProperties {
-  return {
-    maxWidth: 620,
-    margin: "40px auto",
-    background: "#ffffff",
-    borderRadius: 16,
-    padding: 20,
-    boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
-  };
-}
+const pageStyle: React.CSSProperties = {
+  minHeight: "100vh",
+  background: "linear-gradient(180deg, #f8fafc 0%, #eef6ff 100%)",
+  padding: 20,
+};
 
-function inputStyle(): React.CSSProperties {
-  return {
-    padding: 12,
-    width: "100%",
-    marginBottom: 12,
-    borderRadius: 10,
-    border: "1px solid #d1d5db",
-  };
-}
+const containerStyle: React.CSSProperties = {
+  maxWidth: 660,
+  margin: "32px auto",
+  background: "#ffffff",
+  borderRadius: 22,
+  padding: 22,
+  boxShadow: "0 16px 45px rgba(15, 23, 42, 0.10)",
+  border: "1px solid #e5e7eb",
+};
+
+const eyebrowStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  padding: "7px 10px",
+  borderRadius: 999,
+  background: "#e0f2fe",
+  color: "#0369a1",
+  fontSize: 13,
+  fontWeight: 800,
+  marginBottom: 12,
+};
+
+const titleStyle: React.CSSProperties = {
+  margin: 0,
+  color: "#0f172a",
+  fontSize: 28,
+  lineHeight: 1.2,
+};
+
+const subtitleStyle: React.CSSProperties = {
+  marginTop: 10,
+  marginBottom: 20,
+  color: "#475569",
+  fontSize: 15,
+  lineHeight: 1.6,
+};
+
+const labelStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: 13,
+  fontWeight: 800,
+  color: "#334155",
+  marginBottom: 7,
+};
+
+const inputStyle: React.CSSProperties = {
+  padding: "13px 14px",
+  width: "100%",
+  marginBottom: 14,
+  borderRadius: 12,
+  border: "1px solid #cbd5e1",
+  outline: "none",
+  fontSize: 15,
+  boxSizing: "border-box",
+  background: "#ffffff",
+};
 
 function vehicleButtonStyle(
   isActive: boolean,
@@ -35,24 +78,89 @@ function vehicleButtonStyle(
 ): React.CSSProperties {
   return {
     flex: 1,
-    padding: 12,
-    borderRadius: 10,
-    border: isActive ? "1px solid transparent" : "1px solid #d1d5db",
+    padding: 13,
+    borderRadius: 12,
+    border: isActive ? "1px solid transparent" : "1px solid #cbd5e1",
     background: isActive ? background : "#ffffff",
     color: isActive ? "#ffffff" : "#111827",
-    fontWeight: 600,
+    fontWeight: 800,
+    cursor: "pointer",
   };
 }
 
-function infoCardStyle(): React.CSSProperties {
-  return {
-    marginTop: 16,
-    padding: 16,
-    borderRadius: 12,
-    background: "#f8fafc",
-    border: "1px solid #e5e7eb",
-  };
-}
+const primaryButtonStyle: React.CSSProperties = {
+  width: "100%",
+  padding: 14,
+  border: "none",
+  borderRadius: 12,
+  background: "#0ea5e9",
+  color: "#ffffff",
+  fontWeight: 800,
+  fontSize: 15,
+  cursor: "pointer",
+  boxShadow: "0 10px 20px rgba(14, 165, 233, 0.22)",
+};
+
+const darkButtonStyle: React.CSSProperties = {
+  ...primaryButtonStyle,
+  background: "#111827",
+  boxShadow: "0 10px 20px rgba(17, 24, 39, 0.16)",
+};
+
+const errorStyle: React.CSSProperties = {
+  marginTop: 12,
+  padding: 12,
+  borderRadius: 12,
+  background: "#fef2f2",
+  color: "#b91c1c",
+  border: "1px solid #fecaca",
+  fontSize: 14,
+  lineHeight: 1.5,
+};
+
+const infoCardStyle: React.CSSProperties = {
+  marginTop: 18,
+  padding: 16,
+  borderRadius: 16,
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
+};
+
+const summaryGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr",
+  gap: 10,
+  marginBottom: 16,
+};
+
+const summaryItemStyle: React.CSSProperties = {
+  padding: 12,
+  borderRadius: 14,
+  background: "#ffffff",
+  border: "1px solid #e5e7eb",
+};
+
+const summaryLabelStyle: React.CSSProperties = {
+  color: "#64748b",
+  fontSize: 12,
+  fontWeight: 800,
+  textTransform: "uppercase",
+  letterSpacing: 0.4,
+};
+
+const summaryValueStyle: React.CSSProperties = {
+  color: "#0f172a",
+  fontSize: 18,
+  fontWeight: 900,
+  marginTop: 4,
+};
+
+const helperStyle: React.CSSProperties = {
+  color: "#64748b",
+  fontSize: 13,
+  lineHeight: 1.55,
+  marginTop: 12,
+};
 
 export default function RidePage() {
   const navigate = useNavigate();
@@ -79,8 +187,8 @@ export default function RidePage() {
 
     try {
       const result = await calculateRouteEstimateByText(
-        pickupText,
-        destinationText,
+        pickupText.trim(),
+        destinationText.trim(),
         vehicleType
       );
 
@@ -102,15 +210,17 @@ export default function RidePage() {
       return;
     }
 
+    const session = getStoredPiSession();
+
     setSubmitting(true);
     setErrorMessage("");
 
     try {
       const ride = await createRideAndAutoDispatch({
-        rider_user_id: null,
-        rider_name: "Demo Rider",
-        pickup_text: pickupText,
-        destination_text: destinationText,
+        rider_user_id: session?.uid ?? null,
+        rider_name: session?.username ? `@${session.username}` : "Pi Rider",
+        pickup_text: pickupText.trim(),
+        destination_text: destinationText.trim(),
         pickup_lat: estimate.pickup.lat,
         pickup_lng: estimate.pickup.lng,
         destination_lat: estimate.destination.lat,
@@ -134,26 +244,42 @@ export default function RidePage() {
   }
 
   return (
-    <div style={{ padding: 20 }}>
-      <div style={containerStyle()}>
-        <h2 style={{ marginTop: 0 }}>Request Ride</h2>
+    <main style={pageStyle}>
+      <section style={containerStyle}>
+        <div style={eyebrowStyle}>Ride estimate</div>
 
+        <h1 style={titleStyle}>Review your trip details</h1>
+
+        <p style={subtitleStyle}>
+          Confirm the pickup, destination, vehicle type, and estimated Pi price
+          before sending the request to available drivers.
+        </p>
+
+        <label style={labelStyle} htmlFor="pickup">
+          Pickup location
+        </label>
         <input
+          id="pickup"
           placeholder="Pickup location"
           value={pickupText}
           onChange={(event) => setPickupText(event.target.value)}
-          style={inputStyle()}
+          style={inputStyle}
         />
 
+        <label style={labelStyle} htmlFor="destination">
+          Destination
+        </label>
         <input
+          id="destination"
           placeholder="Destination"
           value={destinationText}
           onChange={(event) => setDestinationText(event.target.value)}
-          style={inputStyle()}
+          style={inputStyle}
         />
 
-        <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+        <div style={{ display: "flex", gap: 12, marginBottom: 14 }}>
           <button
+            type="button"
             onClick={() => setVehicleType("car")}
             style={vehicleButtonStyle(vehicleType === "car", "#0ea5e9")}
           >
@@ -161,6 +287,7 @@ export default function RidePage() {
           </button>
 
           <button
+            type="button"
             onClick={() => setVehicleType("motorcycle")}
             style={vehicleButtonStyle(vehicleType === "motorcycle", "#10b981")}
           >
@@ -169,66 +296,59 @@ export default function RidePage() {
         </div>
 
         <button
+          type="button"
           onClick={handleEstimate}
           disabled={loading || submitting}
           style={{
-            width: "100%",
-            padding: 12,
-            border: "none",
-            borderRadius: 10,
-            background: "#111827",
-            color: "#ffffff",
-            fontWeight: 600,
+            ...darkButtonStyle,
+            opacity: loading || submitting ? 0.7 : 1,
+            cursor: loading || submitting ? "not-allowed" : "pointer",
           }}
         >
-          {loading ? "Calculating..." : "Estimate Ride"}
+          {loading ? "Calculating estimate..." : "Estimate Ride"}
         </button>
 
-        {errorMessage ? (
-          <div
-            style={{
-              marginTop: 12,
-              padding: 12,
-              borderRadius: 10,
-              background: "#fef2f2",
-              color: "#b91c1c",
-              border: "1px solid #fecaca",
-            }}
-          >
-            {errorMessage}
-          </div>
-        ) : null}
+        <p style={helperStyle}>
+          The estimate is shown before dispatch. A driver must accept the ride
+          before the trip becomes assigned.
+        </p>
+
+        {errorMessage ? <div style={errorStyle}>{errorMessage}</div> : null}
 
         {estimate ? (
-          <div style={infoCardStyle()}>
-            <div style={{ marginBottom: 8 }}>
-              <strong>Distance:</strong> {estimate.distanceKm} km
-            </div>
-            <div style={{ marginBottom: 8 }}>
-              <strong>Time:</strong> {estimate.durationMin} min
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <strong>Price:</strong> {estimate.pricePi} Pi
+          <div style={infoCardStyle}>
+            <div style={summaryGridStyle}>
+              <div style={summaryItemStyle}>
+                <div style={summaryLabelStyle}>Distance</div>
+                <div style={summaryValueStyle}>{estimate.distanceKm} km</div>
+              </div>
+
+              <div style={summaryItemStyle}>
+                <div style={summaryLabelStyle}>Estimated time</div>
+                <div style={summaryValueStyle}>{estimate.durationMin} min</div>
+              </div>
+
+              <div style={summaryItemStyle}>
+                <div style={summaryLabelStyle}>Estimated price</div>
+                <div style={summaryValueStyle}>{estimate.pricePi} Pi</div>
+              </div>
             </div>
 
             <button
+              type="button"
               onClick={handleRequestRide}
               disabled={submitting}
               style={{
-                width: "100%",
-                padding: 12,
-                border: "none",
-                borderRadius: 10,
-                background: "#0ea5e9",
-                color: "#ffffff",
-                fontWeight: 600,
+                ...primaryButtonStyle,
+                opacity: submitting ? 0.7 : 1,
+                cursor: submitting ? "not-allowed" : "pointer",
               }}
             >
-              {submitting ? "Creating Ride..." : "Confirm Request"}
+              {submitting ? "Sending request..." : "Confirm and Find Driver"}
             </button>
           </div>
         ) : null}
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }
