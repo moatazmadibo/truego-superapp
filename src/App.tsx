@@ -269,7 +269,7 @@ function Landing() {
         <h1 style={{ marginTop: 0, marginBottom: 8 }}>TrueGo</h1>
 
         <p style={{ marginTop: 0, color: "#4b5563" }}>
-          Pi Powered Global Mobility Platform
+          Request rides and connect with drivers through the Pi ecosystem.
         </p>
 
         <div style={authPanelStyle()}>
@@ -344,15 +344,7 @@ function Landing() {
 
         <div style={{ marginTop: 24 }}>
           <Link to="/rider" style={linkStyle("#0ea5e9", !session)}>
-            Rider App
-          </Link>
-
-          <Link to="/driver" style={linkStyle("#10b981", !session)}>
-            Driver App
-          </Link>
-
-          <Link to="/admin" style={linkStyle("#8b5cf6", !session)}>
-            Admin Portal
+            Continue to Rider App
           </Link>
         </div>
 
