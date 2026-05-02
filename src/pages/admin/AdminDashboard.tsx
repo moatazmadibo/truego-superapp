@@ -324,7 +324,7 @@ export default function AdminDashboard() {
                   <div><strong>Destination:</strong> {ride.destination_text}</div>
                   <div><strong>Distance:</strong> {ride.distance_km.toFixed(2)} km</div>
                   <div><strong>Time:</strong> {ride.duration_min} min</div>
-                  <div><strong>Estimated fare:</strong> {Number(ride.price_pi ?? 0).toFixed(2)} Pi reference</div>
+                  <div><strong>Estimated fare:</strong> {formatPi(Number(ride.price_pi ?? 0))}</div>
                   <div><strong>Payment status:</strong> {payment.payment_status ?? "unpaid"}</div>
                   <div><strong>Payment amount:</strong> {payment.payment_amount_pi != null ? formatPi(Number(payment.payment_amount_pi)) : "Not paid yet"}</div>
                   <div><strong>Payment ID:</strong> {payment.payment_id ?? "N/A"}</div>

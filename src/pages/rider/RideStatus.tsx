@@ -11,7 +11,6 @@ import {
   type RideRow,
 } from "../../services/rideApi";
 import {
-  demoFareToPayablePi,
   formatPiAmount,
 } from "../../lib/piPricing";
 import {
@@ -290,7 +289,7 @@ export default function RideStatus() {
       return 0;
     }
 
-    return demoFareToPayablePi(ride.pricePi);
+    return ride.pricePi;
   }, [ride]);
 
   const piSession = useMemo(() => getStoredPiSession(), []);
@@ -541,7 +540,7 @@ export default function RideStatus() {
           </div>
 
           <div style={detailItemStyle()}>
-            <strong>Estimated fare in Pi</strong>
+            <strong>Estimated fare</strong>
             <div style={{ marginTop: 6 }}>{formatPiAmount(payablePi)}</div>
           </div>
 
