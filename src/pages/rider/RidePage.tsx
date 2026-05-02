@@ -7,7 +7,7 @@ import {
   type RouteEstimate,
 } from "../../services/rideService";
 import { createRideAndAutoDispatch } from "../../services/rideApi";
-import { demoFareToPayablePi, formatPiAmount } from "../../lib/piPricing";
+import { formatPiAmount } from "../../lib/piPricing";
 import { getStoredPiSession } from "../../lib/pi";
 
 const pageStyle: React.CSSProperties = {
@@ -177,7 +177,7 @@ export default function RidePage() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const payableEstimatePi = estimate ? demoFareToPayablePi(estimate.pricePi) : 0;
+  const payableEstimatePi = estimate ? estimate.pricePi : 0;
 
   async function handleEstimate() {
     if (!pickupText.trim() || !destinationText.trim()) {

@@ -1,4 +1,5 @@
 import type { LatLng, VehicleType } from "../types/ride";
+import { usdToPiAmount } from "../lib/piPricing";
 
 export interface RouteEstimate {
   pickup: LatLng;
@@ -65,12 +66,12 @@ function calculatePrice(
   durationMin: number,
   vehicleType: VehicleType
 ): number {
-  const price =
+  const referenceFare =
     BASE_FARE[vehicleType] +
     distanceKm * PER_KM[vehicleType] +
     durationMin * PER_MIN[vehicleType];
 
-  return Number(price.toFixed(2));
+  return usdToPiAmount(referenceFare);
 }
 
 async function geocodeLocation(
