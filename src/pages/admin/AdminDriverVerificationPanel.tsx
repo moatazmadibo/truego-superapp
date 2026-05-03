@@ -8,6 +8,16 @@ type VerificationStatus =
   | "rejected"
   | "needs_more_info";
 
+type DocumentType =
+  | "national_id"
+  | "national_id_front"
+  | "national_id_back"
+  | "driving_license"
+  | "vehicle_license"
+  | "vehicle_photo"
+  | "profile_photo"
+  | "other";
+
 type DemoDriverVerificationRow = {
   demo_driver_id: string;
   driver_name: string;
@@ -22,14 +32,23 @@ type DemoDriverDocumentRow = {
   id: string;
   demo_driver_id: string;
   driver_name: string;
-  document_type: string;
+  document_type: DocumentType;
   file_path: string;
   file_name: string | null;
   mime_type: string | null;
   file_size: number | null;
-  status: string;
+  status: "pending" | "approved" | "rejected" | "needs_more_info";
   uploaded_at: string;
 };
+
+const REQUIRED_DOCUMENTS: Array<{ type: DocumentType; label: string }> = [
+  { type: "national_id_front", label: "National ID - Front" },
+  { type: "national_id_back", label: "National ID - Back" },
+  { type: "driving_license", label: "Driving license" },
+  { type: "vehicle_license", label: "Vehicle license" },
+  { type: "vehicle_photo", label: "Vehicle photo" },
+  { type: "profile_photo", label: "Profile photo" },
+];
 
 function sectionStyle(): React.CSSProperties {
   return {
@@ -65,7 +84,7 @@ function buttonStyle(background: string, disabled = false): React.CSSProperties 
   };
 }
 
-function badgeColor(status: VerificationStatus | string) {
+function badgeColor(status: VerificationStatus) {
   switch (status) {
     case "approved":
       return "#16a34a";
@@ -97,10 +116,14 @@ function formatStatus(status: VerificationStatus) {
   }
 }
 
-function formatDocumentType(type: string) {
+function formatDocumentType(type: DocumentType) {
   switch (type) {
     case "national_id":
       return "National ID";
+    case "national_id_front":
+      return "National ID - Front";
+    case "national_id_back":
+      return "National ID - Back";
     case "driving_license":
       return "Driving license";
     case "vehicle_license":
@@ -118,57 +141,15 @@ function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleString() : "N/A";
 }
 
-function formatFileSize(size: number | null) {
-  if (!size) return "N/A";
-
-  if (size < 1024 * 1024) {
-    return `${Math.round(size / 1024)} KB`;
-  }
-
-  return `${(size / 1024 / 1024).toFixed(2)} MB`;
-}
-
 export default function AdminDriverVerificationPanel() {
   const [rows, setRows] = useState<DemoDriverVerificationRow[]>([]);
-  const [documents, setDocuments] = useState<Record<string, DemoDriverDocumentRow[]>>({});
+  const [documentsByDriver, setDocumentsByDriver] = useState<Record<string, DemoDriverDocumentRow[]>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [actionKey, setActionKey] = useState("");
-  const [openingPath, setOpeningPath] = useState("");
+  const [openKey, setOpenKey] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-
-  async function loadDocuments(driverIds: string[]) {
-    if (driverIds.length === 0) {
-      setDocuments({});
-      return;
-    }
-
-    const { data, error: documentsError } = await supabase
-      .from("demo_driver_documents")
-      .select(
-        "id, demo_driver_id, driver_name, document_type, file_path, file_name, mime_type, file_size, status, uploaded_at"
-      )
-      .in("demo_driver_id", driverIds)
-      .order("uploaded_at", { ascending: false });
-
-    if (documentsError) {
-      setError(documentsError.message);
-      return;
-    }
-
-    const grouped: Record<string, DemoDriverDocumentRow[]> = {};
-
-    for (const document of (data ?? []) as DemoDriverDocumentRow[]) {
-      if (!grouped[document.demo_driver_id]) {
-        grouped[document.demo_driver_id] = [];
-      }
-
-      grouped[document.demo_driver_id].push(document);
-    }
-
-    setDocuments(grouped);
-  }
 
   async function loadRows() {
     setLoading(true);
@@ -183,23 +164,44 @@ export default function AdminDriverVerificationPanel() {
 
     if (loadError) {
       setError(loadError.message);
-    } else {
-      const nextRows = (data ?? []) as DemoDriverVerificationRow[];
-      setRows(nextRows);
+      setLoading(false);
+      return;
+    }
 
-      setNotes((current) => {
-        const copy = { ...current };
+    const nextRows = (data ?? []) as DemoDriverVerificationRow[];
+    setRows(nextRows);
 
-        for (const row of nextRows) {
-          if (copy[row.demo_driver_id] == null) {
-            copy[row.demo_driver_id] = row.admin_review_notes ?? "";
-          }
+    setNotes((current) => {
+      const copy = { ...current };
+      for (const row of nextRows) {
+        if (copy[row.demo_driver_id] == null) {
+          copy[row.demo_driver_id] = row.admin_review_notes ?? "";
         }
+      }
+      return copy;
+    });
 
-        return copy;
-      });
+    if (nextRows.length > 0) {
+      const ids = nextRows.map((row) => row.demo_driver_id);
 
-      await loadDocuments(nextRows.map((row) => row.demo_driver_id));
+      const { data: docsData, error: docsError } = await supabase
+        .from("demo_driver_documents")
+        .select("id, demo_driver_id, driver_name, document_type, file_path, file_name, mime_type, file_size, status, uploaded_at")
+        .in("demo_driver_id", ids)
+        .order("uploaded_at", { ascending: false });
+
+      if (docsError) {
+        setError(docsError.message);
+      } else {
+        const grouped: Record<string, DemoDriverDocumentRow[]> = {};
+        for (const doc of (docsData ?? []) as DemoDriverDocumentRow[]) {
+          grouped[doc.demo_driver_id] = grouped[doc.demo_driver_id] ?? [];
+          grouped[doc.demo_driver_id].push(doc);
+        }
+        setDocumentsByDriver(grouped);
+      }
+    } else {
+      setDocumentsByDriver({});
     }
 
     setLoading(false);
@@ -208,6 +210,30 @@ export default function AdminDriverVerificationPanel() {
   useEffect(() => {
     void loadRows();
   }, []);
+
+  function getMissingDocuments(row: DemoDriverVerificationRow) {
+    const docs = documentsByDriver[row.demo_driver_id] ?? [];
+    const uploadedTypes = new Set(docs.map((doc) => doc.document_type));
+
+    return REQUIRED_DOCUMENTS.filter((document) => !uploadedTypes.has(document.type));
+  }
+
+  async function openDocument(document: DemoDriverDocumentRow) {
+    setOpenKey(document.id);
+    setError("");
+
+    const { data, error: signedUrlError } = await supabase.storage
+      .from("driver-documents")
+      .createSignedUrl(document.file_path, 3600);
+
+    if (signedUrlError) {
+      setError(signedUrlError.message);
+    } else if (data?.signedUrl) {
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    }
+
+    setOpenKey("");
+  }
 
   async function reviewDriver(row: DemoDriverVerificationRow, nextStatus: VerificationStatus) {
     setActionKey(`${row.demo_driver_id}:${nextStatus}`);
@@ -230,23 +256,6 @@ export default function AdminDriverVerificationPanel() {
     setActionKey("");
   }
 
-  async function openDocument(document: DemoDriverDocumentRow) {
-    setOpeningPath(document.file_path);
-    setError("");
-
-    const { data, error: signedUrlError } = await supabase.storage
-      .from("driver-documents")
-      .createSignedUrl(document.file_path, 60 * 5);
-
-    if (signedUrlError || !data?.signedUrl) {
-      setError(signedUrlError?.message ?? "Could not open document.");
-    } else {
-      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
-    }
-
-    setOpeningPath("");
-  }
-
   return (
     <div style={sectionStyle()}>
       <div
@@ -261,7 +270,7 @@ export default function AdminDriverVerificationPanel() {
         <div>
           <h2 style={{ margin: 0 }}>Driver Verification Review</h2>
           <p style={{ margin: "6px 0 0", color: "#475569" }}>
-            Review demo driver verification requests and uploaded documents for Pi listing readiness.
+            Review demo driver verification requests and required documents.
           </p>
         </div>
 
@@ -278,31 +287,13 @@ export default function AdminDriverVerificationPanel() {
       </div>
 
       {error ? (
-        <div
-          style={{
-            marginTop: 12,
-            padding: 12,
-            borderRadius: 10,
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            color: "#b91c1c",
-          }}
-        >
+        <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c" }}>
           {error}
         </div>
       ) : null}
 
       {message ? (
-        <div
-          style={{
-            marginTop: 12,
-            padding: 12,
-            borderRadius: 10,
-            background: "#ecfdf5",
-            border: "1px solid #bbf7d0",
-            color: "#047857",
-          }}
-        >
+        <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: "#ecfdf5", border: "1px solid #bbf7d0", color: "#047857" }}>
           {message}
         </div>
       ) : null}
@@ -313,7 +304,9 @@ export default function AdminDriverVerificationPanel() {
 
       {rows.map((row) => {
         const isActionLoading = actionKey.startsWith(`${row.demo_driver_id}:`);
-        const driverDocuments = documents[row.demo_driver_id] ?? [];
+        const docs = documentsByDriver[row.demo_driver_id] ?? [];
+        const missingDocuments = getMissingDocuments(row);
+        const canApprove = missingDocuments.length === 0;
 
         return (
           <div key={row.demo_driver_id} style={cardStyle()}>
@@ -327,12 +320,8 @@ export default function AdminDriverVerificationPanel() {
               }}
             >
               <div>
-                <div>
-                  <strong>Driver:</strong> {row.driver_name}
-                </div>
-                <div>
-                  <strong>Demo driver ID:</strong> {row.demo_driver_id}
-                </div>
+                <div><strong>Driver:</strong> {row.driver_name}</div>
+                <div><strong>Demo driver ID:</strong> {row.demo_driver_id}</div>
               </div>
 
               <span
@@ -350,24 +339,39 @@ export default function AdminDriverVerificationPanel() {
             </div>
 
             <div style={{ marginTop: 10, lineHeight: 1.7 }}>
-              <div>
-                <strong>Submitted at:</strong> {formatDate(row.submitted_at)}
-              </div>
-              <div>
-                <strong>Verified at:</strong> {formatDate(row.verified_at)}
-              </div>
-              <div>
-                <strong>Updated at:</strong> {formatDate(row.updated_at)}
+              <div><strong>Submitted at:</strong> {formatDate(row.submitted_at)}</div>
+              <div><strong>Verified at:</strong> {formatDate(row.verified_at)}</div>
+              <div><strong>Updated at:</strong> {formatDate(row.updated_at)}</div>
+            </div>
+
+            <div
+              style={{
+                marginTop: 12,
+                padding: 12,
+                borderRadius: 10,
+                background: canApprove ? "#ecfdf5" : "#fff7ed",
+                border: canApprove ? "1px solid #bbf7d0" : "1px solid #fed7aa",
+                color: canApprove ? "#047857" : "#9a3412",
+              }}
+            >
+              <strong>Required documents</strong>
+              <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+                {REQUIRED_DOCUMENTS.map((document) => {
+                  const uploaded = docs.some((doc) => doc.document_type === document.type);
+
+                  return (
+                    <div key={document.type}>
+                      {uploaded ? "✓" : "○"} {document.label}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
-            <div style={{ marginTop: 14 }}>
-              <h3 style={{ marginBottom: 8 }}>Uploaded documents</h3>
-
-              {driverDocuments.length === 0 ? (
-                <p style={{ color: "#64748b" }}>No documents uploaded yet.</p>
-              ) : (
-                driverDocuments.map((document) => (
+            {docs.length > 0 ? (
+              <div style={{ marginTop: 12 }}>
+                <strong>Uploaded documents</strong>
+                {docs.map((document) => (
                   <div
                     key={document.id}
                     style={{
@@ -379,50 +383,25 @@ export default function AdminDriverVerificationPanel() {
                       lineHeight: 1.7,
                     }}
                   >
-                    <div>
-                      <strong>Type:</strong> {formatDocumentType(document.document_type)}
-                    </div>
-                    <div>
-                      <strong>File:</strong> {document.file_name ?? document.file_path}
-                    </div>
-                    <div>
-                      <strong>Size:</strong> {formatFileSize(document.file_size)}
-                    </div>
-                    <div>
-                      <strong>Status:</strong>{" "}
-                      <span
-                        style={{
-                          borderRadius: 999,
-                          padding: "3px 8px",
-                          background: badgeColor(document.status),
-                          color: "#ffffff",
-                          fontWeight: 700,
-                          fontSize: 12,
-                        }}
-                      >
-                        {document.status}
-                      </span>
-                    </div>
-                    <div>
-                      <strong>Uploaded:</strong> {formatDate(document.uploaded_at)}
-                    </div>
+                    <div><strong>Type:</strong> {formatDocumentType(document.document_type)}</div>
+                    <div><strong>File:</strong> {document.file_name ?? document.file_path}</div>
+                    <div><strong>Status:</strong> {document.status}</div>
+                    <div><strong>Uploaded:</strong> {formatDate(document.uploaded_at)}</div>
 
-                    <div style={{ marginTop: 8 }}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void openDocument(document);
-                        }}
-                        disabled={openingPath === document.file_path}
-                        style={buttonStyle("#0f766e", openingPath === document.file_path)}
-                      >
-                        {openingPath === document.file_path ? "Opening..." : "Open Document"}
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void openDocument(document);
+                      }}
+                      disabled={openKey === document.id}
+                      style={{ ...buttonStyle("#0f766e", openKey === document.id), marginTop: 8 }}
+                    >
+                      {openKey === document.id ? "Opening..." : "Open document"}
+                    </button>
                   </div>
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            ) : null}
 
             <label style={{ display: "block", marginTop: 12, fontWeight: 700 }}>
               Admin notes
@@ -448,21 +427,15 @@ export default function AdminDriverVerificationPanel() {
               placeholder="Write review notes for this driver..."
             />
 
-            <div
-              style={{
-                marginTop: 12,
-                display: "flex",
-                gap: 10,
-                flexWrap: "wrap",
-              }}
-            >
+            <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
               <button
                 type="button"
                 onClick={() => {
                   void reviewDriver(row, "approved");
                 }}
-                disabled={isActionLoading}
-                style={buttonStyle("#16a34a", isActionLoading)}
+                disabled={isActionLoading || !canApprove}
+                title={!canApprove ? "Upload all required documents before approval." : undefined}
+                style={buttonStyle("#16a34a", isActionLoading || !canApprove)}
               >
                 Approve
               </button>
@@ -489,6 +462,12 @@ export default function AdminDriverVerificationPanel() {
                 Reject
               </button>
             </div>
+
+            {!canApprove ? (
+              <p style={{ marginBottom: 0, color: "#9a3412" }}>
+                Approval is blocked until all required documents are uploaded.
+              </p>
+            ) : null}
           </div>
         );
       })}

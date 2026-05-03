@@ -11,6 +11,8 @@ type DriverVerificationStatus =
 
 type DocumentType =
   | "national_id"
+  | "national_id_front"
+  | "national_id_back"
   | "driving_license"
   | "vehicle_license"
   | "vehicle_photo"
@@ -39,6 +41,15 @@ type DriverDocumentRow = {
   status: "pending" | "approved" | "rejected" | "needs_more_info";
   uploaded_at: string;
 };
+
+const REQUIRED_DOCUMENTS: Array<{ type: DocumentType; label: string }> = [
+  { type: "national_id_front", label: "National ID - Front" },
+  { type: "national_id_back", label: "National ID - Back" },
+  { type: "driving_license", label: "Driving license" },
+  { type: "vehicle_license", label: "Vehicle license" },
+  { type: "vehicle_photo", label: "Vehicle photo" },
+  { type: "profile_photo", label: "Profile photo" },
+];
 
 function getDriverDisplayName(driver: DemoDriverRow) {
   const record = driver as DemoDriverRow & {
@@ -78,6 +89,10 @@ function formatDocumentType(type: DocumentType) {
   switch (type) {
     case "national_id":
       return "National ID";
+    case "national_id_front":
+      return "National ID - Front";
+    case "national_id_back":
+      return "National ID - Back";
     case "driving_license":
       return "Driving license";
     case "vehicle_license":
@@ -137,7 +152,7 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
   const [submittedAt, setSubmittedAt] = useState<string | null>(null);
   const [adminNotes, setAdminNotes] = useState<string | null>(null);
   const [documents, setDocuments] = useState<DriverDocumentRow[]>([]);
-  const [documentType, setDocumentType] = useState<DocumentType>("national_id");
+  const [documentType, setDocumentType] = useState<DocumentType>("national_id_front");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -276,6 +291,11 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
     setUploadLoading(false);
   }
 
+  const uploadedDocumentTypes = new Set(documents.map((document) => document.document_type));
+  const missingRequiredDocuments = REQUIRED_DOCUMENTS.filter(
+    (document) => !uploadedDocumentTypes.has(document.type)
+  );
+
   return (
     <div style={sectionStyle()}>
       <div
@@ -329,6 +349,30 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
       >
         <h3 style={{ marginTop: 0 }}>Upload driver documents</h3>
 
+        <div
+          style={{
+            marginBottom: 12,
+            padding: 12,
+            borderRadius: 10,
+            background: missingRequiredDocuments.length === 0 ? "#ecfdf5" : "#fff7ed",
+            border: missingRequiredDocuments.length === 0 ? "1px solid #bbf7d0" : "1px solid #fed7aa",
+            color: missingRequiredDocuments.length === 0 ? "#047857" : "#9a3412",
+          }}
+        >
+          <strong>Required documents checklist</strong>
+          <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+            {REQUIRED_DOCUMENTS.map((document) => {
+              const uploaded = uploadedDocumentTypes.has(document.type);
+
+              return (
+                <div key={document.type}>
+                  {uploaded ? "✓" : "○"} {document.label}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         <label style={{ display: "block", fontWeight: 700 }}>Document type</label>
         <select
           value={documentType}
@@ -342,7 +386,8 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
             font: "inherit",
           }}
         >
-          <option value="national_id">National ID</option>
+          <option value="national_id_front">National ID - Front</option>
+          <option value="national_id_back">National ID - Back</option>
           <option value="driving_license">Driving license</option>
           <option value="vehicle_license">Vehicle license</option>
           <option value="vehicle_photo">Vehicle photo</option>
@@ -416,8 +461,8 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
           onClick={() => {
             void handleSubmitVerification();
           }}
-          disabled={loading || actionLoading || status === "approved"}
-          style={buttonStyle("#2563eb", loading || actionLoading || status === "approved")}
+          disabled={loading || actionLoading || status === "approved" || missingRequiredDocuments.length > 0}
+          style={buttonStyle("#2563eb", loading || actionLoading || status === "approved" || missingRequiredDocuments.length > 0)}
         >
           {actionLoading
             ? "Submitting..."
