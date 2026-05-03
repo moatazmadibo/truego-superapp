@@ -231,13 +231,22 @@ export async function createRideAndAutoDispatch(
   input: CreateRideInput,
   presenceWindowSeconds = 90
 ): Promise<RideRow> {
-  const quote = quoteRidePricing(input);
+  const riderFarePi = Number(input.price_pi.toFixed(8));
+  const driverPayoutPi = Number((riderFarePi * 0.85).toFixed(8));
 
   const ride = await createRide({
     ...input,
-    price_pi: quote.quotedPricePi,
-    driver_payout_pi: quote.driverPayoutPi,
-    pricing_breakdown: quote.breakdown,
+    price_pi: riderFarePi,
+    driver_payout_pi: input.driver_payout_pi ?? driverPayoutPi,
+    pricing_breakdown: input.pricing_breakdown ?? {
+      riderFarePi,
+      driverPayoutPi,
+      driverPayoutRate: 0.85,
+      vehicleType: input.vehicle_type,
+      distanceKm: input.distance_km,
+      durationMin: input.duration_min,
+      pricingMode: "fractional_test_pi",
+    },
   });
 
   return dispatchRideToNearestDemoDriver(ride.id, presenceWindowSeconds);
