@@ -3,6 +3,8 @@ import { supabase } from "../../lib/supabase";
 import AdminDriverVerificationPanel from "./AdminDriverVerificationPanel";
 import { listRecentRides, subscribeToLatestRides, type RideRow } from "../../services/rideApi";
 
+type AdminTab = "rides" | "drivers";
+
 type RidePaymentSnapshot = {
   payment_status?: "unpaid" | "approved" | "completed" | "cancelled" | "failed" | null;
   payment_provider?: string | null;
@@ -98,6 +100,20 @@ function statCardStyle(): React.CSSProperties {
   };
 }
 
+
+function tabButtonStyle(active: boolean): React.CSSProperties {
+  return {
+    border: "1px solid #cbd5e1",
+    borderRadius: 999,
+    padding: "10px 14px",
+    background: active ? "#111827" : "#ffffff",
+    color: active ? "#ffffff" : "#111827",
+    fontWeight: 800,
+    cursor: "pointer",
+    boxShadow: active ? "0 8px 20px rgba(15, 23, 42, 0.18)" : "none",
+  };
+}
+
 function rideCardStyle(): React.CSSProperties {
   return {
     padding: 16,
@@ -121,6 +137,7 @@ function badgeStyle(background: string, color = "#ffffff"): React.CSSProperties 
 }
 
 export default function AdminDashboard() {
+  const [activeTab, setActiveTab] = useState<AdminTab>("rides");
   const [rides, setRides] = useState<RideRow[]>([]);
   const [stats, setStats] = useState<DashboardStats>({
     total: 0,
@@ -266,8 +283,35 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <AdminDriverVerificationPanel />
+      <div
+        style={{
+          display: "flex",
+          gap: 10,
+          flexWrap: "wrap",
+          marginTop: 16,
+          marginBottom: 16,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setActiveTab("rides")}
+          style={tabButtonStyle(activeTab === "rides")}
+        >
+          Rides & Payments
+        </button>
 
+        <button
+          type="button"
+          onClick={() => setActiveTab("drivers")}
+          style={tabButtonStyle(activeTab === "drivers")}
+        >
+          Driver Verification
+        </button>
+      </div>
+
+      {activeTab === "drivers" ? <AdminDriverVerificationPanel /> : null}
+
+      {activeTab === "rides" ? (
       <div style={sectionStyle()}>
         <h2 style={{ marginTop: 0 }}>Recent rides</h2>
 
@@ -337,6 +381,7 @@ export default function AdminDashboard() {
             })
           : null}
       </div>
+      ) : null}
     </div>
   );
 }
