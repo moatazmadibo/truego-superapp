@@ -100,17 +100,14 @@ export default function AdminDriverVerificationPanel() {
     setLoading(true);
     setError("");
 
-    const { data, error: loadError } = await supabase
-      .from("demo_driver_verifications")
-      .select(
-        "demo_driver_id, driver_name, verification_status, admin_review_notes, submitted_at, verified_at, updated_at"
-      )
-      .order("updated_at", { ascending: false });
+    const { data, error: loadError } = await supabase.rpc(
+      "list_demo_driver_verifications"
+    );
 
     if (loadError) {
       setError(loadError.message);
     } else {
-      const nextRows = (data ?? []) as DemoDriverVerificationRow[];
+      const nextRows = (Array.isArray(data) ? data : []) as DemoDriverVerificationRow[];
       setRows(nextRows);
 
       setNotes((current) => {
