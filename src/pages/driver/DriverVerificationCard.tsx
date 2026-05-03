@@ -13,6 +13,7 @@ type DocumentType =
   | "national_id"
   | "national_id_front"
   | "national_id_back"
+  | "passport"
   | "driving_license"
   | "vehicle_license"
   | "vehicle_photo"
@@ -43,8 +44,6 @@ type DriverDocumentRow = {
 };
 
 const REQUIRED_DOCUMENTS: Array<{ type: DocumentType; label: string }> = [
-  { type: "national_id_front", label: "National ID - Front" },
-  { type: "national_id_back", label: "National ID - Back" },
   { type: "driving_license", label: "Driving license" },
   { type: "vehicle_license", label: "Vehicle license" },
   { type: "vehicle_photo", label: "Vehicle photo" },
@@ -93,6 +92,8 @@ function formatDocumentType(type: DocumentType) {
       return "National ID - Front";
     case "national_id_back":
       return "National ID - Back";
+    case "passport":
+      return "Passport";
     case "driving_license":
       return "Driving license";
     case "vehicle_license":
@@ -292,9 +293,15 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
   }
 
   const uploadedDocumentTypes = new Set(documents.map((document) => document.document_type));
+  const hasPassport = uploadedDocumentTypes.has("passport");
+  const hasNationalIdBothSides =
+    uploadedDocumentTypes.has("national_id_front") &&
+    uploadedDocumentTypes.has("national_id_back");
+  const hasIdentityProof = hasPassport || hasNationalIdBothSides;
   const missingRequiredDocuments = REQUIRED_DOCUMENTS.filter(
     (document) => !uploadedDocumentTypes.has(document.type)
   );
+  const verificationReady = hasIdentityProof && missingRequiredDocuments.length === 0;
 
   return (
     <div style={sectionStyle()}>
@@ -354,13 +361,16 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
             marginBottom: 12,
             padding: 12,
             borderRadius: 10,
-            background: missingRequiredDocuments.length === 0 ? "#ecfdf5" : "#fff7ed",
-            border: missingRequiredDocuments.length === 0 ? "1px solid #bbf7d0" : "1px solid #fed7aa",
-            color: missingRequiredDocuments.length === 0 ? "#047857" : "#9a3412",
+            background: verificationReady ? "#ecfdf5" : "#fff7ed",
+            border: verificationReady ? "1px solid #bbf7d0" : "1px solid #fed7aa",
+            color: verificationReady ? "#047857" : "#9a3412",
           }}
         >
           <strong>Required documents checklist</strong>
           <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+            <div>
+              {hasIdentityProof ? "✓" : "○"} Identity proof: Passport OR National ID front and back
+            </div>
             {REQUIRED_DOCUMENTS.map((document) => {
               const uploaded = uploadedDocumentTypes.has(document.type);
 
@@ -388,6 +398,7 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
         >
           <option value="national_id_front">National ID - Front</option>
           <option value="national_id_back">National ID - Back</option>
+          <option value="passport">Passport</option>
           <option value="driving_license">Driving license</option>
           <option value="vehicle_license">Vehicle license</option>
           <option value="vehicle_photo">Vehicle photo</option>
@@ -461,8 +472,8 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
           onClick={() => {
             void handleSubmitVerification();
           }}
-          disabled={loading || actionLoading || status === "approved" || missingRequiredDocuments.length > 0}
-          style={buttonStyle("#2563eb", loading || actionLoading || status === "approved" || missingRequiredDocuments.length > 0)}
+          disabled={loading || actionLoading || status === "approved" || !verificationReady}
+          style={buttonStyle("#2563eb", loading || actionLoading || status === "approved" || !verificationReady)}
         >
           {actionLoading
             ? "Submitting..."

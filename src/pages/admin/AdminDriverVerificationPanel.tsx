@@ -12,6 +12,7 @@ type DocumentType =
   | "national_id"
   | "national_id_front"
   | "national_id_back"
+  | "passport"
   | "driving_license"
   | "vehicle_license"
   | "vehicle_photo"
@@ -42,8 +43,6 @@ type DemoDriverDocumentRow = {
 };
 
 const REQUIRED_DOCUMENTS: Array<{ type: DocumentType; label: string }> = [
-  { type: "national_id_front", label: "National ID - Front" },
-  { type: "national_id_back", label: "National ID - Back" },
   { type: "driving_license", label: "Driving license" },
   { type: "vehicle_license", label: "Vehicle license" },
   { type: "vehicle_photo", label: "Vehicle photo" },
@@ -124,6 +123,8 @@ function formatDocumentType(type: DocumentType) {
       return "National ID - Front";
     case "national_id_back":
       return "National ID - Back";
+    case "passport":
+      return "Passport";
     case "driving_license":
       return "Driving license";
     case "vehicle_license":
@@ -211,11 +212,23 @@ export default function AdminDriverVerificationPanel() {
     void loadRows();
   }, []);
 
-  function getMissingDocuments(row: DemoDriverVerificationRow) {
+  function getDocumentReviewState(row: DemoDriverVerificationRow) {
     const docs = documentsByDriver[row.demo_driver_id] ?? [];
     const uploadedTypes = new Set(docs.map((doc) => doc.document_type));
+    const hasPassport = uploadedTypes.has("passport");
+    const hasNationalIdBothSides =
+      uploadedTypes.has("national_id_front") &&
+      uploadedTypes.has("national_id_back");
+    const hasIdentityProof = hasPassport || hasNationalIdBothSides;
+    const missingDocuments = REQUIRED_DOCUMENTS.filter(
+      (document) => !uploadedTypes.has(document.type)
+    );
 
-    return REQUIRED_DOCUMENTS.filter((document) => !uploadedTypes.has(document.type));
+    return {
+      hasIdentityProof,
+      missingDocuments,
+      canApprove: hasIdentityProof && missingDocuments.length === 0,
+    };
   }
 
   async function openDocument(document: DemoDriverDocumentRow) {
@@ -305,8 +318,8 @@ export default function AdminDriverVerificationPanel() {
       {rows.map((row) => {
         const isActionLoading = actionKey.startsWith(`${row.demo_driver_id}:`);
         const docs = documentsByDriver[row.demo_driver_id] ?? [];
-        const missingDocuments = getMissingDocuments(row);
-        const canApprove = missingDocuments.length === 0;
+        const documentReview = getDocumentReviewState(row);
+        const canApprove = documentReview.canApprove;
 
         return (
           <div key={row.demo_driver_id} style={cardStyle()}>
@@ -356,6 +369,9 @@ export default function AdminDriverVerificationPanel() {
             >
               <strong>Required documents</strong>
               <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+                <div>
+                  {documentReview.hasIdentityProof ? "✓" : "○"} Identity proof: Passport OR National ID front and back
+                </div>
                 {REQUIRED_DOCUMENTS.map((document) => {
                   const uploaded = docs.some((doc) => doc.document_type === document.type);
 
