@@ -18,6 +18,19 @@ type DemoDriverVerificationRow = {
   updated_at: string | null;
 };
 
+type DemoDriverDocumentRow = {
+  id: string;
+  demo_driver_id: string;
+  driver_name: string;
+  document_type: string;
+  file_path: string;
+  file_name: string | null;
+  mime_type: string | null;
+  file_size: number | null;
+  status: string;
+  uploaded_at: string;
+};
+
 function sectionStyle(): React.CSSProperties {
   return {
     marginTop: 16,
@@ -52,7 +65,7 @@ function buttonStyle(background: string, disabled = false): React.CSSProperties 
   };
 }
 
-function badgeColor(status: VerificationStatus) {
+function badgeColor(status: VerificationStatus | string) {
   switch (status) {
     case "approved":
       return "#16a34a";
@@ -84,41 +97,109 @@ function formatStatus(status: VerificationStatus) {
   }
 }
 
+function formatDocumentType(type: string) {
+  switch (type) {
+    case "national_id":
+      return "National ID";
+    case "driving_license":
+      return "Driving license";
+    case "vehicle_license":
+      return "Vehicle license";
+    case "vehicle_photo":
+      return "Vehicle photo";
+    case "profile_photo":
+      return "Profile photo";
+    default:
+      return "Other";
+  }
+}
+
 function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleString() : "N/A";
 }
 
+function formatFileSize(size: number | null) {
+  if (!size) return "N/A";
+
+  if (size < 1024 * 1024) {
+    return `${Math.round(size / 1024)} KB`;
+  }
+
+  return `${(size / 1024 / 1024).toFixed(2)} MB`;
+}
+
 export default function AdminDriverVerificationPanel() {
   const [rows, setRows] = useState<DemoDriverVerificationRow[]>([]);
+  const [documents, setDocuments] = useState<Record<string, DemoDriverDocumentRow[]>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [actionKey, setActionKey] = useState("");
+  const [openingPath, setOpeningPath] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+
+  async function loadDocuments(driverIds: string[]) {
+    if (driverIds.length === 0) {
+      setDocuments({});
+      return;
+    }
+
+    const { data, error: documentsError } = await supabase
+      .from("demo_driver_documents")
+      .select(
+        "id, demo_driver_id, driver_name, document_type, file_path, file_name, mime_type, file_size, status, uploaded_at"
+      )
+      .in("demo_driver_id", driverIds)
+      .order("uploaded_at", { ascending: false });
+
+    if (documentsError) {
+      setError(documentsError.message);
+      return;
+    }
+
+    const grouped: Record<string, DemoDriverDocumentRow[]> = {};
+
+    for (const document of (data ?? []) as DemoDriverDocumentRow[]) {
+      if (!grouped[document.demo_driver_id]) {
+        grouped[document.demo_driver_id] = [];
+      }
+
+      grouped[document.demo_driver_id].push(document);
+    }
+
+    setDocuments(grouped);
+  }
 
   async function loadRows() {
     setLoading(true);
     setError("");
 
-    const { data, error: loadError } = await supabase.rpc(
-      "list_demo_driver_verifications"
-    );
+    const { data, error: loadError } = await supabase
+      .from("demo_driver_verifications")
+      .select(
+        "demo_driver_id, driver_name, verification_status, admin_review_notes, submitted_at, verified_at, updated_at"
+      )
+      .order("updated_at", { ascending: false });
 
     if (loadError) {
       setError(loadError.message);
     } else {
-      const nextRows = (Array.isArray(data) ? data : []) as DemoDriverVerificationRow[];
+      const nextRows = (data ?? []) as DemoDriverVerificationRow[];
       setRows(nextRows);
 
       setNotes((current) => {
         const copy = { ...current };
+
         for (const row of nextRows) {
           if (copy[row.demo_driver_id] == null) {
             copy[row.demo_driver_id] = row.admin_review_notes ?? "";
           }
         }
+
         return copy;
       });
+
+      await loadDocuments(nextRows.map((row) => row.demo_driver_id));
     }
 
     setLoading(false);
@@ -149,6 +230,23 @@ export default function AdminDriverVerificationPanel() {
     setActionKey("");
   }
 
+  async function openDocument(document: DemoDriverDocumentRow) {
+    setOpeningPath(document.file_path);
+    setError("");
+
+    const { data, error: signedUrlError } = await supabase.storage
+      .from("driver-documents")
+      .createSignedUrl(document.file_path, 60 * 5);
+
+    if (signedUrlError || !data?.signedUrl) {
+      setError(signedUrlError?.message ?? "Could not open document.");
+    } else {
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    }
+
+    setOpeningPath("");
+  }
+
   return (
     <div style={sectionStyle()}>
       <div
@@ -163,7 +261,7 @@ export default function AdminDriverVerificationPanel() {
         <div>
           <h2 style={{ margin: 0 }}>Driver Verification Review</h2>
           <p style={{ margin: "6px 0 0", color: "#475569" }}>
-            Review demo driver verification requests for Pi listing readiness.
+            Review demo driver verification requests and uploaded documents for Pi listing readiness.
           </p>
         </div>
 
@@ -215,6 +313,7 @@ export default function AdminDriverVerificationPanel() {
 
       {rows.map((row) => {
         const isActionLoading = actionKey.startsWith(`${row.demo_driver_id}:`);
+        const driverDocuments = documents[row.demo_driver_id] ?? [];
 
         return (
           <div key={row.demo_driver_id} style={cardStyle()}>
@@ -260,6 +359,69 @@ export default function AdminDriverVerificationPanel() {
               <div>
                 <strong>Updated at:</strong> {formatDate(row.updated_at)}
               </div>
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <h3 style={{ marginBottom: 8 }}>Uploaded documents</h3>
+
+              {driverDocuments.length === 0 ? (
+                <p style={{ color: "#64748b" }}>No documents uploaded yet.</p>
+              ) : (
+                driverDocuments.map((document) => (
+                  <div
+                    key={document.id}
+                    style={{
+                      marginTop: 8,
+                      padding: 10,
+                      borderRadius: 10,
+                      background: "#ffffff",
+                      border: "1px solid #e5e7eb",
+                      lineHeight: 1.7,
+                    }}
+                  >
+                    <div>
+                      <strong>Type:</strong> {formatDocumentType(document.document_type)}
+                    </div>
+                    <div>
+                      <strong>File:</strong> {document.file_name ?? document.file_path}
+                    </div>
+                    <div>
+                      <strong>Size:</strong> {formatFileSize(document.file_size)}
+                    </div>
+                    <div>
+                      <strong>Status:</strong>{" "}
+                      <span
+                        style={{
+                          borderRadius: 999,
+                          padding: "3px 8px",
+                          background: badgeColor(document.status),
+                          color: "#ffffff",
+                          fontWeight: 700,
+                          fontSize: 12,
+                        }}
+                      >
+                        {document.status}
+                      </span>
+                    </div>
+                    <div>
+                      <strong>Uploaded:</strong> {formatDate(document.uploaded_at)}
+                    </div>
+
+                    <div style={{ marginTop: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void openDocument(document);
+                        }}
+                        disabled={openingPath === document.file_path}
+                        style={buttonStyle("#0f766e", openingPath === document.file_path)}
+                      >
+                        {openingPath === document.file_path ? "Opening..." : "Open Document"}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
 
             <label style={{ display: "block", marginTop: 12, fontWeight: 700 }}>
