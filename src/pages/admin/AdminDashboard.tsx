@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
+import AdminDriverVerificationPanel from "./AdminDriverVerificationPanel";
 import { listRecentRides, subscribeToLatestRides, type RideRow } from "../../services/rideApi";
 
 type RidePaymentSnapshot = {
@@ -264,6 +265,8 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+
+      <AdminDriverVerificationPanel />
 
       <div style={sectionStyle()}>
         <h2 style={{ marginTop: 0 }}>Recent rides</h2>
