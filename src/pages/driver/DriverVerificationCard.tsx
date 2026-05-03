@@ -9,6 +9,14 @@ type DriverVerificationStatus =
   | "rejected"
   | "needs_more_info";
 
+type DocumentType =
+  | "national_id"
+  | "driving_license"
+  | "vehicle_license"
+  | "vehicle_photo"
+  | "profile_photo"
+  | "other";
+
 type VerificationRow = {
   demo_driver_id?: string;
   driver_name?: string;
@@ -17,6 +25,19 @@ type VerificationRow = {
   submitted_at?: string | null;
   verified_at?: string | null;
   updated_at?: string | null;
+};
+
+type DriverDocumentRow = {
+  id: string;
+  demo_driver_id: string;
+  driver_name: string;
+  document_type: DocumentType;
+  file_path: string;
+  file_name: string | null;
+  mime_type: string | null;
+  file_size: number | null;
+  status: "pending" | "approved" | "rejected" | "needs_more_info";
+  uploaded_at: string;
 };
 
 function getDriverDisplayName(driver: DemoDriverRow) {
@@ -50,6 +71,23 @@ function formatVerificationStatus(status: DriverVerificationStatus) {
       return "Needs more info";
     default:
       return status;
+  }
+}
+
+function formatDocumentType(type: DocumentType) {
+  switch (type) {
+    case "national_id":
+      return "National ID";
+    case "driving_license":
+      return "Driving license";
+    case "vehicle_license":
+      return "Vehicle license";
+    case "vehicle_photo":
+      return "Vehicle photo";
+    case "profile_photo":
+      return "Profile photo";
+    default:
+      return "Other";
   }
 }
 
@@ -98,8 +136,12 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
   const [verifiedAt, setVerifiedAt] = useState<string | null>(null);
   const [submittedAt, setSubmittedAt] = useState<string | null>(null);
   const [adminNotes, setAdminNotes] = useState<string | null>(null);
+  const [documents, setDocuments] = useState<DriverDocumentRow[]>([]);
+  const [documentType, setDocumentType] = useState<DocumentType>("national_id");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [uploadLoading, setUploadLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -110,6 +152,20 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
     setVerifiedAt(row.verified_at ?? null);
     setSubmittedAt(row.submitted_at ?? null);
     setAdminNotes(row.admin_review_notes ?? null);
+  }
+
+  async function loadDocuments() {
+    const { data, error: documentsError } = await supabase
+      .from("demo_driver_documents")
+      .select("id, demo_driver_id, driver_name, document_type, file_path, file_name, mime_type, file_size, status, uploaded_at")
+      .eq("demo_driver_id", driver.id)
+      .order("uploaded_at", { ascending: false });
+
+    if (documentsError) {
+      setError(documentsError.message);
+    } else {
+      setDocuments((data ?? []) as DriverDocumentRow[]);
+    }
   }
 
   useEffect(() => {
@@ -133,6 +189,7 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
         setError(loadError.message);
       } else {
         applyVerificationRow(data as VerificationRow);
+        await loadDocuments();
       }
 
       setLoading(false);
@@ -166,6 +223,57 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
     }
 
     setActionLoading(false);
+  }
+
+  async function handleUploadDocument() {
+    if (!selectedFile) {
+      setError("Please select a document file first.");
+      return;
+    }
+
+    setUploadLoading(true);
+    setError("");
+    setMessage("");
+
+    const safeFileName = selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const filePath = `${driver.id}/${documentType}/${Date.now()}-${safeFileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("driver-documents")
+      .upload(filePath, selectedFile, {
+        cacheControl: "3600",
+        upsert: true,
+        contentType: selectedFile.type || undefined,
+      });
+
+    if (uploadError) {
+      setError(uploadError.message);
+      setUploadLoading(false);
+      return;
+    }
+
+    const { error: insertError } = await supabase
+      .from("demo_driver_documents")
+      .insert({
+        demo_driver_id: driver.id,
+        driver_name: driverName,
+        document_type: documentType,
+        file_path: filePath,
+        file_name: selectedFile.name,
+        mime_type: selectedFile.type || null,
+        file_size: selectedFile.size,
+        status: "pending",
+      });
+
+    if (insertError) {
+      setError(insertError.message);
+    } else {
+      setSelectedFile(null);
+      setMessage("Document uploaded successfully.");
+      await loadDocuments();
+    }
+
+    setUploadLoading(false);
   }
 
   return (
@@ -203,64 +311,101 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
       </div>
 
       <div style={{ marginTop: 12, lineHeight: 1.8 }}>
-        <div>
-          <strong>Driver:</strong> {driverName}
-        </div>
-        <div>
-          <strong>Verification status:</strong> {formatVerificationStatus(status)}
-        </div>
-        <div>
-          <strong>Submitted at:</strong>{" "}
-          {submittedAt ? new Date(submittedAt).toLocaleString() : "Not submitted yet"}
-        </div>
-        <div>
-          <strong>Verified at:</strong>{" "}
-          {verifiedAt ? new Date(verifiedAt).toLocaleString() : "Not verified yet"}
-        </div>
-        <div>
-          <strong>Admin notes:</strong> {adminNotes ?? "No notes yet"}
-        </div>
+        <div><strong>Driver:</strong> {driverName}</div>
+        <div><strong>Verification status:</strong> {formatVerificationStatus(status)}</div>
+        <div><strong>Submitted at:</strong> {submittedAt ? new Date(submittedAt).toLocaleString() : "Not submitted yet"}</div>
+        <div><strong>Verified at:</strong> {verifiedAt ? new Date(verifiedAt).toLocaleString() : "Not verified yet"}</div>
+        <div><strong>Admin notes:</strong> {adminNotes ?? "No notes yet"}</div>
       </div>
 
       <div
         style={{
-          marginTop: 12,
+          marginTop: 14,
           padding: 12,
-          borderRadius: 10,
-          background: "#fefce8",
-          border: "1px solid #fde68a",
-          color: "#854d0e",
+          borderRadius: 12,
+          background: "#ffffff",
+          border: "1px solid #e5e7eb",
         }}
       >
-        Documents bucket is prepared: <strong>driver-documents</strong>. File upload will be added in the next step.
-      </div>
+        <h3 style={{ marginTop: 0 }}>Upload driver documents</h3>
 
-      {error ? (
-        <div
+        <label style={{ display: "block", fontWeight: 700 }}>Document type</label>
+        <select
+          value={documentType}
+          onChange={(event) => setDocumentType(event.target.value as DocumentType)}
           style={{
-            marginTop: 12,
-            padding: 12,
+            width: "100%",
+            marginTop: 6,
             borderRadius: 10,
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            color: "#b91c1c",
+            border: "1px solid #cbd5e1",
+            padding: 10,
+            font: "inherit",
           }}
         >
+          <option value="national_id">National ID</option>
+          <option value="driving_license">Driving license</option>
+          <option value="vehicle_license">Vehicle license</option>
+          <option value="vehicle_photo">Vehicle photo</option>
+          <option value="profile_photo">Profile photo</option>
+          <option value="other">Other</option>
+        </select>
+
+        <label style={{ display: "block", marginTop: 12, fontWeight: 700 }}>File</label>
+        <input
+          type="file"
+          accept="image/*,.pdf"
+          onChange={(event) => {
+            setSelectedFile(event.target.files?.[0] ?? null);
+          }}
+          style={{ marginTop: 8, width: "100%" }}
+        />
+
+        <div style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            onClick={() => {
+              void handleUploadDocument();
+            }}
+            disabled={uploadLoading}
+            style={buttonStyle("#0f766e", uploadLoading)}
+          >
+            {uploadLoading ? "Uploading..." : "Upload Document"}
+          </button>
+        </div>
+      </div>
+
+      {documents.length > 0 ? (
+        <div style={{ marginTop: 14 }}>
+          <h3>Uploaded documents</h3>
+          {documents.map((document) => (
+            <div
+              key={document.id}
+              style={{
+                marginTop: 8,
+                padding: 10,
+                borderRadius: 10,
+                background: "#ffffff",
+                border: "1px solid #e5e7eb",
+                lineHeight: 1.7,
+              }}
+            >
+              <div><strong>Type:</strong> {formatDocumentType(document.document_type)}</div>
+              <div><strong>File:</strong> {document.file_name ?? document.file_path}</div>
+              <div><strong>Status:</strong> {document.status}</div>
+              <div><strong>Uploaded:</strong> {new Date(document.uploaded_at).toLocaleString()}</div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {error ? (
+        <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c" }}>
           {error}
         </div>
       ) : null}
 
       {message ? (
-        <div
-          style={{
-            marginTop: 12,
-            padding: 12,
-            borderRadius: 10,
-            background: "#ecfdf5",
-            border: "1px solid #bbf7d0",
-            color: "#047857",
-          }}
-        >
+        <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: "#ecfdf5", border: "1px solid #bbf7d0", color: "#047857" }}>
           {message}
         </div>
       ) : null}
