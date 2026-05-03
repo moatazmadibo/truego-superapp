@@ -9,6 +9,33 @@ type DriverVerificationStatus =
   | "rejected"
   | "needs_more_info";
 
+type VerificationRow = {
+  demo_driver_id?: string;
+  driver_name?: string;
+  verification_status?: DriverVerificationStatus;
+  admin_review_notes?: string | null;
+  submitted_at?: string | null;
+  verified_at?: string | null;
+  updated_at?: string | null;
+};
+
+function getDriverDisplayName(driver: DemoDriverRow) {
+  const record = driver as DemoDriverRow & {
+    name?: string | null;
+    driver_name?: string | null;
+    display_name?: string | null;
+    full_name?: string | null;
+  };
+
+  return (
+    record.name ??
+    record.driver_name ??
+    record.display_name ??
+    record.full_name ??
+    driver.id
+  );
+}
+
 function formatVerificationStatus(status: DriverVerificationStatus) {
   switch (status) {
     case "pending":
@@ -41,24 +68,6 @@ function verificationBadgeColor(status: DriverVerificationStatus) {
   }
 }
 
-
-function getDriverDisplayName(driver: DemoDriverRow) {
-  const record = driver as DemoDriverRow & {
-    name?: string | null;
-    driver_name?: string | null;
-    display_name?: string | null;
-    full_name?: string | null;
-  };
-
-  return (
-    record.name ??
-    record.driver_name ??
-    record.display_name ??
-    record.full_name ??
-    driver.id
-  );
-}
-
 function sectionStyle(): React.CSSProperties {
   return {
     marginTop: 16,
@@ -83,13 +92,25 @@ function buttonStyle(background: string, disabled = false): React.CSSProperties 
 }
 
 export default function DriverVerificationCard({ driver }: { driver: DemoDriverRow }) {
+  const driverName = getDriverDisplayName(driver);
+
   const [status, setStatus] = useState<DriverVerificationStatus>("pending");
   const [verifiedAt, setVerifiedAt] = useState<string | null>(null);
+  const [submittedAt, setSubmittedAt] = useState<string | null>(null);
   const [adminNotes, setAdminNotes] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  function applyVerificationRow(row: VerificationRow | null | undefined) {
+    if (!row) return;
+
+    setStatus((row.verification_status ?? "pending") as DriverVerificationStatus);
+    setVerifiedAt(row.verified_at ?? null);
+    setSubmittedAt(row.submitted_at ?? null);
+    setAdminNotes(row.admin_review_notes ?? null);
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -98,20 +119,20 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
       setLoading(true);
       setError("");
 
-      const { data, error: loadError } = await supabase
-        .from("drivers")
-        .select("verification_status, verified_at, admin_review_notes")
-        .eq("id", driver.id)
-        .maybeSingle();
+      const { data, error: loadError } = await supabase.rpc(
+        "get_demo_driver_verification",
+        {
+          p_demo_driver_id: driver.id,
+          p_driver_name: driverName,
+        }
+      );
 
       if (!mounted) return;
 
       if (loadError) {
         setError(loadError.message);
-      } else if (data) {
-        setStatus((data.verification_status ?? "pending") as DriverVerificationStatus);
-        setVerifiedAt(data.verified_at ?? null);
-        setAdminNotes(data.admin_review_notes ?? null);
+      } else {
+        applyVerificationRow(data as VerificationRow);
       }
 
       setLoading(false);
@@ -122,27 +143,25 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
     return () => {
       mounted = false;
     };
-  }, [driver.id]);
+  }, [driver.id, driverName]);
 
   async function handleSubmitVerification() {
     setActionLoading(true);
     setError("");
     setMessage("");
 
-    const { error: updateError } = await supabase
-      .from("drivers")
-      .update({
-        verification_status: "submitted",
-        admin_review_notes:
-          adminNotes ??
-          "Driver submitted verification request from TrueGo driver portal.",
-      })
-      .eq("id", driver.id);
+    const { data, error: submitError } = await supabase.rpc(
+      "submit_demo_driver_verification",
+      {
+        p_demo_driver_id: driver.id,
+        p_driver_name: driverName,
+      }
+    );
 
-    if (updateError) {
-      setError(updateError.message);
+    if (submitError) {
+      setError(submitError.message);
     } else {
-      setStatus("submitted");
+      applyVerificationRow(data as VerificationRow);
       setMessage("Verification request submitted. Admin can review this driver from the admin dashboard.");
     }
 
@@ -185,10 +204,14 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
 
       <div style={{ marginTop: 12, lineHeight: 1.8 }}>
         <div>
-          <strong>Driver:</strong> {getDriverDisplayName(driver)}
+          <strong>Driver:</strong> {driverName}
         </div>
         <div>
           <strong>Verification status:</strong> {formatVerificationStatus(status)}
+        </div>
+        <div>
+          <strong>Submitted at:</strong>{" "}
+          {submittedAt ? new Date(submittedAt).toLocaleString() : "Not submitted yet"}
         </div>
         <div>
           <strong>Verified at:</strong>{" "}
