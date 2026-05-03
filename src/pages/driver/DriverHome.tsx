@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import RideTimeline from "../../components/RideTimeline";
+import DriverVerificationCard from "./DriverVerificationCard";
 import StatusBadge from "../../components/StatusBadge";
 import { formatPiAmount } from "../../lib/piPricing";
 import type { Ride } from "../../types/ride";
@@ -518,6 +519,10 @@ export default function DriverHome() {
             There are no drivers available yet.
           </p>
         </div>
+      ) : null}
+
+      {!loading && selectedDriver ? (
+        <DriverVerificationCard driver={selectedDriver} />
       ) : null}
 
       {!loading && selectedDriver && !currentRideRow ? (
