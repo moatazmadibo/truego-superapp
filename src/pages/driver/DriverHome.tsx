@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import RideTimeline from "../../components/RideTimeline";
 import StatusBadge from "../../components/StatusBadge";
+import { formatPiAmount } from "../../lib/piPricing";
 import type { Ride } from "../../types/ride";
 import {
   acceptDemoRide,
@@ -555,9 +556,9 @@ export default function DriverHome() {
                 fontWeight: 600,
               }}
             >
-              New ride offer: {currentRideRow.price_pi.toFixed(2)} Pi fare
+              New ride offer: {formatPiAmount(Number(currentRideRow.price_pi))} fare
               {currentRideRow.driver_payout_pi != null
-                ? ` · ${currentRideRow.driver_payout_pi.toFixed(2)} Pi driver payout`
+                ? ` · ${formatPiAmount(Number(currentRideRow.driver_payout_pi))} driver payout`
                 : ""}
             </div>
           ) : null}
@@ -576,12 +577,12 @@ export default function DriverHome() {
               <strong>Destination:</strong> {currentRideRow.destination_text}
             </div>
             <div>
-              <strong>Price:</strong> {currentRideRow.price_pi.toFixed(2)} Pi
+              <strong>Price:</strong> {formatPiAmount(Number(currentRideRow.price_pi))}
             </div>
             <div>
               <strong>Driver payout:</strong>{" "}
               {currentRideRow.driver_payout_pi != null
-                ? `${currentRideRow.driver_payout_pi.toFixed(2)} Pi`
+                ? formatPiAmount(Number(currentRideRow.driver_payout_pi))
                 : "N/A"}
             </div>
             <div>
