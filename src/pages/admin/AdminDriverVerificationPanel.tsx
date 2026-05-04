@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabase";
 
 type VerificationStatus =
@@ -83,6 +83,15 @@ function buttonStyle(background: string, disabled = false): React.CSSProperties 
   };
 }
 
+function statStyle(): React.CSSProperties {
+  return {
+    padding: 12,
+    borderRadius: 12,
+    background: "#f8fafc",
+    border: "1px solid #e5e7eb",
+  };
+}
+
 function badgeColor(status: VerificationStatus) {
   switch (status) {
     case "approved":
@@ -118,7 +127,7 @@ function formatStatus(status: VerificationStatus) {
 function formatDocumentType(type: DocumentType) {
   switch (type) {
     case "national_id":
-      return "National ID";
+      return "National ID - legacy single-side";
     case "national_id_front":
       return "National ID - Front";
     case "national_id_back":
@@ -142,6 +151,39 @@ function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleString() : "N/A";
 }
 
+function getDocumentReviewState(docs: DemoDriverDocumentRow[]) {
+  const uploadedTypes = new Set(docs.map((doc) => doc.document_type));
+  const hasPassport = uploadedTypes.has("passport");
+  const hasNationalIdBothSides =
+    uploadedTypes.has("national_id_front") &&
+    uploadedTypes.has("national_id_back");
+  const hasIdentityProof = hasPassport || hasNationalIdBothSides;
+  const hasLegacyNationalId = uploadedTypes.has("national_id");
+
+  const missingDocuments = REQUIRED_DOCUMENTS.filter(
+    (document) => !uploadedTypes.has(document.type)
+  );
+
+  return {
+    hasPassport,
+    hasNationalIdBothSides,
+    hasIdentityProof,
+    hasLegacyNationalId,
+    missingDocuments,
+    canApprove: hasIdentityProof && missingDocuments.length === 0,
+    checklist: [
+      {
+        label: "Identity proof: Passport OR National ID front and back",
+        uploaded: hasIdentityProof,
+      },
+      ...REQUIRED_DOCUMENTS.map((document) => ({
+        label: document.label,
+        uploaded: uploadedTypes.has(document.type),
+      })),
+    ],
+  };
+}
+
 export default function AdminDriverVerificationPanel() {
   const [rows, setRows] = useState<DemoDriverVerificationRow[]>([]);
   const [documentsByDriver, setDocumentsByDriver] = useState<Record<string, DemoDriverDocumentRow[]>>({});
@@ -151,6 +193,19 @@ export default function AdminDriverVerificationPanel() {
   const [openKey, setOpenKey] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+
+  const stats = useMemo(() => {
+    const total = rows.length;
+    const approved = rows.filter((row) => row.verification_status === "approved").length;
+    const submitted = rows.filter((row) => row.verification_status === "submitted").length;
+    const needsMoreInfo = rows.filter((row) => row.verification_status === "needs_more_info").length;
+    const readyForApproval = rows.filter((row) => {
+      const docs = documentsByDriver[row.demo_driver_id] ?? [];
+      return getDocumentReviewState(docs).canApprove;
+    }).length;
+
+    return { total, approved, submitted, needsMoreInfo, readyForApproval };
+  }, [documentsByDriver, rows]);
 
   async function loadRows() {
     setLoading(true);
@@ -212,25 +267,6 @@ export default function AdminDriverVerificationPanel() {
     void loadRows();
   }, []);
 
-  function getDocumentReviewState(row: DemoDriverVerificationRow) {
-    const docs = documentsByDriver[row.demo_driver_id] ?? [];
-    const uploadedTypes = new Set(docs.map((doc) => doc.document_type));
-    const hasPassport = uploadedTypes.has("passport");
-    const hasNationalIdBothSides =
-      uploadedTypes.has("national_id_front") &&
-      uploadedTypes.has("national_id_back");
-    const hasIdentityProof = hasPassport || hasNationalIdBothSides;
-    const missingDocuments = REQUIRED_DOCUMENTS.filter(
-      (document) => !uploadedTypes.has(document.type)
-    );
-
-    return {
-      hasIdentityProof,
-      missingDocuments,
-      canApprove: hasIdentityProof && missingDocuments.length === 0,
-    };
-  }
-
   async function openDocument(document: DemoDriverDocumentRow) {
     setOpenKey(document.id);
     setError("");
@@ -283,7 +319,7 @@ export default function AdminDriverVerificationPanel() {
         <div>
           <h2 style={{ margin: 0 }}>Driver Verification Review</h2>
           <p style={{ margin: "6px 0 0", color: "#475569" }}>
-            Review demo driver verification requests and required documents.
+            Review driver identity, license, vehicle documents, and approval readiness in a separate workflow from rides.
           </p>
         </div>
 
@@ -297,6 +333,21 @@ export default function AdminDriverVerificationPanel() {
         >
           {loading ? "Refreshing..." : "Refresh"}
         </button>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+          gap: 10,
+          marginTop: 14,
+        }}
+      >
+        <div style={statStyle()}><strong>Total</strong><div>{stats.total}</div></div>
+        <div style={statStyle()}><strong>Submitted</strong><div>{stats.submitted}</div></div>
+        <div style={statStyle()}><strong>Ready</strong><div>{stats.readyForApproval}</div></div>
+        <div style={statStyle()}><strong>Approved</strong><div>{stats.approved}</div></div>
+        <div style={statStyle()}><strong>Needs info</strong><div>{stats.needsMoreInfo}</div></div>
       </div>
 
       {error ? (
@@ -318,8 +369,9 @@ export default function AdminDriverVerificationPanel() {
       {rows.map((row) => {
         const isActionLoading = actionKey.startsWith(`${row.demo_driver_id}:`);
         const docs = documentsByDriver[row.demo_driver_id] ?? [];
-        const documentReview = getDocumentReviewState(row);
-        const canApprove = documentReview.canApprove;
+        const reviewState = getDocumentReviewState(docs);
+        const approvedButDocumentsIncomplete =
+          row.verification_status === "approved" && !reviewState.canApprove;
 
         return (
           <div key={row.demo_driver_id} style={cardStyle()}>
@@ -357,65 +409,89 @@ export default function AdminDriverVerificationPanel() {
               <div><strong>Updated at:</strong> {formatDate(row.updated_at)}</div>
             </div>
 
+            {approvedButDocumentsIncomplete ? (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: 12,
+                  borderRadius: 10,
+                  background: "#fff7ed",
+                  border: "1px solid #fed7aa",
+                  color: "#9a3412",
+                }}
+              >
+                This driver was approved before the latest required-document policy. Ask the driver for missing documents or mark as Needs more info.
+              </div>
+            ) : null}
+
             <div
               style={{
                 marginTop: 12,
                 padding: 12,
                 borderRadius: 10,
-                background: canApprove ? "#ecfdf5" : "#fff7ed",
-                border: canApprove ? "1px solid #bbf7d0" : "1px solid #fed7aa",
-                color: canApprove ? "#047857" : "#9a3412",
+                background: reviewState.canApprove ? "#ecfdf5" : "#fff7ed",
+                border: reviewState.canApprove ? "1px solid #bbf7d0" : "1px solid #fed7aa",
+                color: reviewState.canApprove ? "#047857" : "#9a3412",
               }}
             >
               <strong>Required documents</strong>
               <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
-                <div>
-                  {documentReview.hasIdentityProof ? "✓" : "○"} Identity proof: Passport OR National ID front and back
-                </div>
-                {REQUIRED_DOCUMENTS.map((document) => {
-                  const uploaded = docs.some((doc) => doc.document_type === document.type);
-
-                  return (
-                    <div key={document.type}>
-                      {uploaded ? "✓" : "○"} {document.label}
-                    </div>
-                  );
-                })}
+                {reviewState.checklist.map((item) => (
+                  <div key={item.label}>
+                    {item.uploaded ? "✓" : "○"} {item.label}
+                  </div>
+                ))}
               </div>
+
+              {reviewState.hasLegacyNationalId && !reviewState.hasIdentityProof ? (
+                <div style={{ marginTop: 10 }}>
+                  Legacy National ID upload is stored, but it is not counted for final approval. The driver must upload Passport or both National ID sides.
+                </div>
+              ) : null}
             </div>
 
             {docs.length > 0 ? (
               <div style={{ marginTop: 12 }}>
                 <strong>Uploaded documents</strong>
-                {docs.map((document) => (
-                  <div
-                    key={document.id}
-                    style={{
-                      marginTop: 8,
-                      padding: 10,
-                      borderRadius: 10,
-                      background: "#ffffff",
-                      border: "1px solid #e5e7eb",
-                      lineHeight: 1.7,
-                    }}
-                  >
-                    <div><strong>Type:</strong> {formatDocumentType(document.document_type)}</div>
-                    <div><strong>File:</strong> {document.file_name ?? document.file_path}</div>
-                    <div><strong>Status:</strong> {document.status}</div>
-                    <div><strong>Uploaded:</strong> {formatDate(document.uploaded_at)}</div>
+                {docs.map((document) => {
+                  const isLegacyIdentity = document.document_type === "national_id";
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void openDocument(document);
+                  return (
+                    <div
+                      key={document.id}
+                      style={{
+                        marginTop: 8,
+                        padding: 10,
+                        borderRadius: 10,
+                        background: "#ffffff",
+                        border: "1px solid #e5e7eb",
+                        lineHeight: 1.7,
                       }}
-                      disabled={openKey === document.id}
-                      style={{ ...buttonStyle("#0f766e", openKey === document.id), marginTop: 8 }}
                     >
-                      {openKey === document.id ? "Opening..." : "Open document"}
-                    </button>
-                  </div>
-                ))}
+                      <div><strong>Type:</strong> {formatDocumentType(document.document_type)}</div>
+                      <div><strong>File:</strong> {document.file_name ?? document.file_path}</div>
+                      <div><strong>Status:</strong> {document.status}</div>
+                      <div><strong>Uploaded:</strong> {formatDate(document.uploaded_at)}</div>
+
+                      {isLegacyIdentity ? (
+                        <div style={{ marginTop: 6, color: "#9a3412" }}>
+                          Legacy single-side National ID. Not counted for final approval.
+                        </div>
+                      ) : null}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void openDocument(document);
+                        }}
+                        disabled={openKey === document.id}
+                        style={{ ...buttonStyle("#0f766e", openKey === document.id), marginTop: 8 }}
+                      >
+                        {openKey === document.id ? "Opening..." : "Open document"}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             ) : null}
 
@@ -449,9 +525,9 @@ export default function AdminDriverVerificationPanel() {
                 onClick={() => {
                   void reviewDriver(row, "approved");
                 }}
-                disabled={isActionLoading || !canApprove}
-                title={!canApprove ? "Upload all required documents before approval." : undefined}
-                style={buttonStyle("#16a34a", isActionLoading || !canApprove)}
+                disabled={isActionLoading || !reviewState.canApprove}
+                title={!reviewState.canApprove ? "Upload all required documents before approval." : undefined}
+                style={buttonStyle("#16a34a", isActionLoading || !reviewState.canApprove)}
               >
                 Approve
               </button>
@@ -479,7 +555,7 @@ export default function AdminDriverVerificationPanel() {
               </button>
             </div>
 
-            {!canApprove ? (
+            {!reviewState.canApprove ? (
               <p style={{ marginBottom: 0, color: "#9a3412" }}>
                 Approval is blocked until all required documents are uploaded.
               </p>

@@ -87,7 +87,7 @@ function formatVerificationStatus(status: DriverVerificationStatus) {
 function formatDocumentType(type: DocumentType) {
   switch (type) {
     case "national_id":
-      return "National ID";
+      return "National ID - legacy single-side";
     case "national_id_front":
       return "National ID - Front";
     case "national_id_back":
@@ -145,6 +145,41 @@ function buttonStyle(background: string, disabled = false): React.CSSProperties 
   };
 }
 
+function getDocumentReadiness(documents: DriverDocumentRow[]) {
+  const uploadedDocumentTypes = new Set(documents.map((document) => document.document_type));
+  const hasPassport = uploadedDocumentTypes.has("passport");
+  const hasNationalIdBothSides =
+    uploadedDocumentTypes.has("national_id_front") &&
+    uploadedDocumentTypes.has("national_id_back");
+  const hasIdentityProof = hasPassport || hasNationalIdBothSides;
+  const hasLegacyNationalId = uploadedDocumentTypes.has("national_id");
+
+  const missingRequiredDocuments = REQUIRED_DOCUMENTS.filter(
+    (document) => !uploadedDocumentTypes.has(document.type)
+  );
+
+  const checklist = [
+    {
+      label: "Identity proof: Passport OR National ID front and back",
+      uploaded: hasIdentityProof,
+    },
+    ...REQUIRED_DOCUMENTS.map((document) => ({
+      label: document.label,
+      uploaded: uploadedDocumentTypes.has(document.type),
+    })),
+  ];
+
+  return {
+    hasPassport,
+    hasNationalIdBothSides,
+    hasIdentityProof,
+    hasLegacyNationalId,
+    missingRequiredDocuments,
+    checklist,
+    verificationReady: hasIdentityProof && missingRequiredDocuments.length === 0,
+  };
+}
+
 export default function DriverVerificationCard({ driver }: { driver: DemoDriverRow }) {
   const driverName = getDriverDisplayName(driver);
 
@@ -153,13 +188,16 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
   const [submittedAt, setSubmittedAt] = useState<string | null>(null);
   const [adminNotes, setAdminNotes] = useState<string | null>(null);
   const [documents, setDocuments] = useState<DriverDocumentRow[]>([]);
-  const [documentType, setDocumentType] = useState<DocumentType>("national_id_front");
+  const [documentType, setDocumentType] = useState<DocumentType>("passport");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  const readiness = getDocumentReadiness(documents);
+  const approvedButDocumentsIncomplete = status === "approved" && !readiness.verificationReady;
 
   function applyVerificationRow(row: VerificationRow | null | undefined) {
     if (!row) return;
@@ -292,17 +330,6 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
     setUploadLoading(false);
   }
 
-  const uploadedDocumentTypes = new Set(documents.map((document) => document.document_type));
-  const hasPassport = uploadedDocumentTypes.has("passport");
-  const hasNationalIdBothSides =
-    uploadedDocumentTypes.has("national_id_front") &&
-    uploadedDocumentTypes.has("national_id_back");
-  const hasIdentityProof = hasPassport || hasNationalIdBothSides;
-  const missingRequiredDocuments = REQUIRED_DOCUMENTS.filter(
-    (document) => !uploadedDocumentTypes.has(document.type)
-  );
-  const verificationReady = hasIdentityProof && missingRequiredDocuments.length === 0;
-
   return (
     <div style={sectionStyle()}>
       <div
@@ -317,7 +344,7 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
         <div>
           <h2 style={{ margin: 0 }}>Driver Verification</h2>
           <p style={{ margin: "6px 0 0", color: "#475569" }}>
-            TrueGo keeps driver verification ready for safety and listing review.
+            Upload required documents one by one. Admin approval is only available after the document checklist is complete.
           </p>
         </div>
 
@@ -345,6 +372,57 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
         <div><strong>Admin notes:</strong> {adminNotes ?? "No notes yet"}</div>
       </div>
 
+      {approvedButDocumentsIncomplete ? (
+        <div
+          style={{
+            marginTop: 12,
+            padding: 12,
+            borderRadius: 10,
+            background: "#fff7ed",
+            border: "1px solid #fed7aa",
+            color: "#9a3412",
+          }}
+        >
+          This driver was approved before the latest required-document policy. Please upload the missing documents to keep the verification record complete.
+        </div>
+      ) : null}
+
+      <div
+        style={{
+          marginTop: 14,
+          padding: 12,
+          borderRadius: 12,
+          background: "#ffffff",
+          border: "1px solid #e5e7eb",
+        }}
+      >
+        <h3 style={{ marginTop: 0 }}>Required documents checklist</h3>
+
+        <div
+          style={{
+            padding: 12,
+            borderRadius: 10,
+            background: readiness.verificationReady ? "#ecfdf5" : "#fff7ed",
+            border: readiness.verificationReady ? "1px solid #bbf7d0" : "1px solid #fed7aa",
+            color: readiness.verificationReady ? "#047857" : "#9a3412",
+          }}
+        >
+          <div style={{ display: "grid", gap: 6 }}>
+            {readiness.checklist.map((item) => (
+              <div key={item.label}>
+                {item.uploaded ? "✓" : "○"} {item.label}
+              </div>
+            ))}
+          </div>
+
+          {readiness.hasLegacyNationalId && !readiness.hasIdentityProof ? (
+            <div style={{ marginTop: 10 }}>
+              Legacy National ID upload is stored, but it is not counted for final approval. Upload Passport or both National ID sides.
+            </div>
+          ) : null}
+        </div>
+      </div>
+
       <div
         style={{
           marginTop: 14,
@@ -355,33 +433,6 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
         }}
       >
         <h3 style={{ marginTop: 0 }}>Upload driver documents</h3>
-
-        <div
-          style={{
-            marginBottom: 12,
-            padding: 12,
-            borderRadius: 10,
-            background: verificationReady ? "#ecfdf5" : "#fff7ed",
-            border: verificationReady ? "1px solid #bbf7d0" : "1px solid #fed7aa",
-            color: verificationReady ? "#047857" : "#9a3412",
-          }}
-        >
-          <strong>Required documents checklist</strong>
-          <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
-            <div>
-              {hasIdentityProof ? "✓" : "○"} Identity proof: Passport OR National ID front and back
-            </div>
-            {REQUIRED_DOCUMENTS.map((document) => {
-              const uploaded = uploadedDocumentTypes.has(document.type);
-
-              return (
-                <div key={document.type}>
-                  {uploaded ? "✓" : "○"} {document.label}
-                </div>
-              );
-            })}
-          </div>
-        </div>
 
         <label style={{ display: "block", fontWeight: 700 }}>Document type</label>
         <select
@@ -396,9 +447,9 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
             font: "inherit",
           }}
         >
+          <option value="passport">Passport</option>
           <option value="national_id_front">National ID - Front</option>
           <option value="national_id_back">National ID - Back</option>
-          <option value="passport">Passport</option>
           <option value="driving_license">Driving license</option>
           <option value="vehicle_license">Vehicle license</option>
           <option value="vehicle_photo">Vehicle photo</option>
@@ -433,24 +484,34 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
       {documents.length > 0 ? (
         <div style={{ marginTop: 14 }}>
           <h3>Uploaded documents</h3>
-          {documents.map((document) => (
-            <div
-              key={document.id}
-              style={{
-                marginTop: 8,
-                padding: 10,
-                borderRadius: 10,
-                background: "#ffffff",
-                border: "1px solid #e5e7eb",
-                lineHeight: 1.7,
-              }}
-            >
-              <div><strong>Type:</strong> {formatDocumentType(document.document_type)}</div>
-              <div><strong>File:</strong> {document.file_name ?? document.file_path}</div>
-              <div><strong>Status:</strong> {document.status}</div>
-              <div><strong>Uploaded:</strong> {new Date(document.uploaded_at).toLocaleString()}</div>
-            </div>
-          ))}
+          {documents.map((document) => {
+            const isLegacyIdentity = document.document_type === "national_id";
+
+            return (
+              <div
+                key={document.id}
+                style={{
+                  marginTop: 8,
+                  padding: 10,
+                  borderRadius: 10,
+                  background: "#ffffff",
+                  border: "1px solid #e5e7eb",
+                  lineHeight: 1.7,
+                }}
+              >
+                <div><strong>Type:</strong> {formatDocumentType(document.document_type)}</div>
+                <div><strong>File:</strong> {document.file_name ?? document.file_path}</div>
+                <div><strong>Status:</strong> {document.status}</div>
+                <div><strong>Uploaded:</strong> {new Date(document.uploaded_at).toLocaleString()}</div>
+
+                {isLegacyIdentity ? (
+                  <div style={{ marginTop: 6, color: "#9a3412" }}>
+                    Legacy single-side National ID upload. Not counted for final approval.
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       ) : null}
 
@@ -472,14 +533,16 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
           onClick={() => {
             void handleSubmitVerification();
           }}
-          disabled={loading || actionLoading || status === "approved" || !verificationReady}
-          style={buttonStyle("#2563eb", loading || actionLoading || status === "approved" || !verificationReady)}
+          disabled={loading || actionLoading || status === "approved" || !readiness.verificationReady}
+          style={buttonStyle("#2563eb", loading || actionLoading || status === "approved" || !readiness.verificationReady)}
         >
           {actionLoading
             ? "Submitting..."
             : status === "approved"
               ? "Verification Approved"
-              : "Submit Verification Request"}
+              : readiness.verificationReady
+                ? "Submit Verification Request"
+                : "Complete documents to submit"}
         </button>
       </div>
     </div>
