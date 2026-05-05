@@ -15,6 +15,15 @@ type ReverseGeocodeResult = {
   display_name?: string;
 };
 
+type NominatimSearchResult = {
+  place_id: number;
+  display_name: string;
+  lat: string;
+  lon: string;
+  type?: string;
+  class?: string;
+};
+
 type PickedAddress = {
   coordinates: string;
   label: string;
@@ -70,6 +79,25 @@ async function reverseGeocode(lat: number, lng: number, signal: AbortSignal) {
   return json.display_name ? shortAddress(json.display_name) : null;
 }
 
+async function searchNominatim(query: string, signal: AbortSignal) {
+  const url = `${nominatimBaseUrl}/search?format=jsonv2&q=${encodeURIComponent(
+    query
+  )}&limit=5&addressdetails=1`;
+
+  const response = await fetch(url, {
+    signal,
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Location search failed: ${response.status}`);
+  }
+
+  return (await response.json()) as NominatimSearchResult[];
+}
+
 function markerIcon(label: string, background: string) {
   return L.divIcon({
     className: "",
@@ -107,6 +135,19 @@ function pickerButtonStyle(active: boolean): React.CSSProperties {
   };
 }
 
+function smallActionButtonStyle(background: string): React.CSSProperties {
+  return {
+    border: 0,
+    borderRadius: 999,
+    padding: "8px 10px",
+    background,
+    color: "#ffffff",
+    fontWeight: 800,
+    cursor: "pointer",
+    fontSize: 12,
+  };
+}
+
 function addressBoxStyle(): React.CSSProperties {
   return {
     marginTop: 8,
@@ -140,11 +181,19 @@ export default function MapLocationPicker({
     destination: null,
   });
 
+  const searchControllerRef = useRef<AbortController | null>(null);
+
   const [pickupAddress, setPickupAddress] = useState<PickedAddress | null>(null);
   const [destinationAddress, setDestinationAddress] =
     useState<PickedAddress | null>(null);
+
   const [reverseLoading, setReverseLoading] = useState<PickMode | null>(null);
   const [reverseMessage, setReverseMessage] = useState("");
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<NominatimSearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchMessage, setSearchMessage] = useState("");
 
   const pickupPoint = useMemo(() => parseCoordinates(pickupText), [pickupText]);
   const destinationPoint = useMemo(
@@ -155,6 +204,34 @@ export default function MapLocationPicker({
   useEffect(() => {
     pickModeRef.current = pickMode;
   }, [pickMode]);
+
+  function moveMapTo(lat: number, lng: number, zoom = 14) {
+    const map = mapRef.current;
+
+    if (!map) return;
+
+    map.setView([lat, lng], zoom);
+  }
+
+  function setPickedLocation(
+    mode: PickMode,
+    lat: number,
+    lng: number,
+    label: string
+  ) {
+    const coordinates = formatCoordinates(lat, lng);
+
+    if (mode === "pickup") {
+      onPickupChange(coordinates);
+      setPickupAddress({ coordinates, label });
+      setPickMode("destination");
+    } else {
+      onDestinationChange(coordinates);
+      setDestinationAddress({ coordinates, label });
+    }
+
+    moveMapTo(lat, lng, 14);
+  }
 
   async function handleMapPick(lat: number, lng: number, mode: PickMode) {
     const coordinates = formatCoordinates(lat, lng);
@@ -218,6 +295,56 @@ export default function MapLocationPicker({
     }
   }
 
+  async function handleSearch() {
+    const query = searchQuery.trim();
+
+    if (!query) {
+      setSearchMessage("Please enter a place name to search.");
+      setSearchResults([]);
+      return;
+    }
+
+    setSearchLoading(true);
+    setSearchMessage("");
+    setSearchResults([]);
+
+    searchControllerRef.current?.abort();
+    const controller = new AbortController();
+    searchControllerRef.current = controller;
+
+    try {
+      const results = await searchNominatim(query, controller.signal);
+      setSearchResults(results);
+
+      if (results.length === 0) {
+        setSearchMessage("No matching locations found.");
+      }
+    } catch (error) {
+      if (controller.signal.aborted) return;
+
+      console.warn("Location search fallback:", error);
+      setSearchMessage("Location search is unavailable now. You can still click on the map.");
+    } finally {
+      if (searchControllerRef.current === controller) {
+        searchControllerRef.current = null;
+      }
+
+      setSearchLoading(false);
+    }
+  }
+
+  function handleUseSearchResult(result: NominatimSearchResult, mode: PickMode) {
+    const lat = Number(result.lat);
+    const lng = Number(result.lon);
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      setSearchMessage("Selected result has invalid coordinates.");
+      return;
+    }
+
+    setPickedLocation(mode, lat, lng, shortAddress(result.display_name));
+  }
+
   useEffect(() => {
     if (!mapNodeRef.current || mapRef.current) return;
 
@@ -249,6 +376,7 @@ export default function MapLocationPicker({
     return () => {
       reverseControllersRef.current.pickup?.abort();
       reverseControllersRef.current.destination?.abort();
+      searchControllerRef.current?.abort();
 
       map.remove();
       mapRef.current = null;
@@ -340,8 +468,8 @@ export default function MapLocationPicker({
         <div>
           <strong>Pick locations on map</strong>
           <div style={{ marginTop: 4, color: "#64748b", fontSize: 13 }}>
-            Click the map to set pickup first, then destination. Coordinates are
-            saved for routing, while the address preview is shown below.
+            Search for a place or click the map. Coordinates are saved for routing,
+            while the address preview is shown below.
           </div>
         </div>
 
@@ -357,6 +485,124 @@ export default function MapLocationPicker({
         >
           OSM + Nominatim
         </span>
+      </div>
+
+      <div
+        style={{
+          marginBottom: 12,
+          padding: 12,
+          borderRadius: 14,
+          background: "#f8fafc",
+          border: "1px solid #e5e7eb",
+        }}
+      >
+        <label
+          htmlFor="location-search"
+          style={{
+            display: "block",
+            fontWeight: 800,
+            color: "#334155",
+            marginBottom: 8,
+          }}
+        >
+          Search location
+        </label>
+
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input
+            id="location-search"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void handleSearch();
+              }
+            }}
+            placeholder="Example: Cairo Airport, Giza, Sudan Club..."
+            style={{
+              flex: "1 1 220px",
+              minWidth: 0,
+              borderRadius: 12,
+              border: "1px solid #cbd5e1",
+              padding: "10px 12px",
+              font: "inherit",
+            }}
+          />
+
+          <button
+            type="button"
+            onClick={() => {
+              void handleSearch();
+            }}
+            disabled={searchLoading}
+            style={smallActionButtonStyle("#111827")}
+          >
+            {searchLoading ? "Searching..." : "Search"}
+          </button>
+        </div>
+
+        {searchMessage ? (
+          <div
+            style={{
+              marginTop: 8,
+              padding: 10,
+              borderRadius: 12,
+              background: "#fff7ed",
+              border: "1px solid #fed7aa",
+              color: "#9a3412",
+              fontSize: 13,
+              lineHeight: 1.6,
+            }}
+          >
+            {searchMessage}
+          </div>
+        ) : null}
+
+        {searchResults.length > 0 ? (
+          <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+            {searchResults.map((result) => (
+              <div
+                key={result.place_id}
+                style={{
+                  padding: 10,
+                  borderRadius: 12,
+                  background: "#ffffff",
+                  border: "1px solid #e5e7eb",
+                }}
+              >
+                <div style={{ color: "#334155", fontSize: 13, lineHeight: 1.5 }}>
+                  {shortAddress(result.display_name)}
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    flexWrap: "wrap",
+                    marginTop: 8,
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleUseSearchResult(result, "pickup")}
+                    style={smallActionButtonStyle("#0ea5e9")}
+                  >
+                    Use as Pickup
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleUseSearchResult(result, "destination")}
+                    style={smallActionButtonStyle("#16a34a")}
+                  >
+                    Use as Destination
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
