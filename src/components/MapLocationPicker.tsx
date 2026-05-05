@@ -11,6 +11,19 @@ type MapLocationPickerProps = {
   onDestinationChange: (value: string) => void;
 };
 
+type ReverseGeocodeResult = {
+  display_name?: string;
+};
+
+type PickedAddress = {
+  coordinates: string;
+  label: string;
+};
+
+const nominatimBaseUrl =
+  (import.meta.env.VITE_NOMINATIM_BASE_URL as string | undefined) ||
+  "https://nominatim.openstreetmap.org";
+
 function parseCoordinates(value: string) {
   const parts = value
     .split(",")
@@ -32,6 +45,33 @@ function parseCoordinates(value: string) {
 
 function formatCoordinates(lat: number, lng: number) {
   return `${lat.toFixed(6)},${lng.toFixed(6)}`;
+}
+
+function shortAddress(value: string) {
+  const parts = value
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return parts.slice(0, 4).join(", ") || value;
+}
+
+async function reverseGeocode(lat: number, lng: number, signal: AbortSignal) {
+  const url = `${nominatimBaseUrl}/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
+
+  const response = await fetch(url, {
+    signal,
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Reverse geocoding failed: ${response.status}`);
+  }
+
+  const json = (await response.json()) as ReverseGeocodeResult;
+  return json.display_name ? shortAddress(json.display_name) : null;
 }
 
 function markerIcon(label: string, background: string) {
@@ -71,6 +111,19 @@ function pickerButtonStyle(active: boolean): React.CSSProperties {
   };
 }
 
+function addressBoxStyle(): React.CSSProperties {
+  return {
+    marginTop: 8,
+    padding: 10,
+    borderRadius: 12,
+    background: "#f8fafc",
+    border: "1px solid #e5e7eb",
+    color: "#334155",
+    fontSize: 13,
+    lineHeight: 1.6,
+  };
+}
+
 export default function MapLocationPicker({
   pickupText,
   destinationText,
@@ -82,14 +135,73 @@ export default function MapLocationPicker({
   const pickupMarkerRef = useRef<L.Marker | null>(null);
   const destinationMarkerRef = useRef<L.Marker | null>(null);
   const routeLineRef = useRef<L.Polyline | null>(null);
+  const latestReverseControllerRef = useRef<AbortController | null>(null);
 
   const [pickMode, setPickMode] = useState<PickMode>("pickup");
+  const [pickupAddress, setPickupAddress] = useState<PickedAddress | null>(null);
+  const [destinationAddress, setDestinationAddress] =
+    useState<PickedAddress | null>(null);
+  const [reverseLoading, setReverseLoading] = useState<PickMode | null>(null);
+  const [reverseMessage, setReverseMessage] = useState("");
 
   const pickupPoint = useMemo(() => parseCoordinates(pickupText), [pickupText]);
   const destinationPoint = useMemo(
     () => parseCoordinates(destinationText),
     [destinationText]
   );
+
+  async function handleMapPick(lat: number, lng: number, mode: PickMode) {
+    const coordinates = formatCoordinates(lat, lng);
+
+    if (mode === "pickup") {
+      onPickupChange(coordinates);
+      setPickupAddress({ coordinates, label: "Looking up address..." });
+      setPickMode("destination");
+    } else {
+      onDestinationChange(coordinates);
+      setDestinationAddress({ coordinates, label: "Looking up address..." });
+    }
+
+    setReverseLoading(mode);
+    setReverseMessage("");
+
+    latestReverseControllerRef.current?.abort();
+    const controller = new AbortController();
+    latestReverseControllerRef.current = controller;
+
+    try {
+      const label = await reverseGeocode(lat, lng, controller.signal);
+
+      if (mode === "pickup") {
+        setPickupAddress({
+          coordinates,
+          label: label ?? "Address not available",
+        });
+      } else {
+        setDestinationAddress({
+          coordinates,
+          label: label ?? "Address not available",
+        });
+      }
+    } catch (error) {
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      console.warn("Reverse geocoding fallback:", error);
+      setReverseMessage(
+        "Address lookup is unavailable now. Coordinates were saved successfully."
+      );
+
+      if (mode === "pickup") {
+        setPickupAddress({ coordinates, label: "Coordinates saved" });
+      } else {
+        setDestinationAddress({ coordinates, label: "Coordinates saved" });
+      }
+    } finally {
+      setReverseLoading(null);
+    }
+  }
 
   useEffect(() => {
     if (!mapNodeRef.current || mapRef.current) {
@@ -110,14 +222,7 @@ export default function MapLocationPicker({
     }).addTo(map);
 
     map.on("click", (event: L.LeafletMouseEvent) => {
-      const value = formatCoordinates(event.latlng.lat, event.latlng.lng);
-
-      if (pickMode === "pickup") {
-        onPickupChange(value);
-        setPickMode("destination");
-      } else {
-        onDestinationChange(value);
-      }
+      void handleMapPick(event.latlng.lat, event.latlng.lng, pickMode);
     });
 
     setTimeout(() => {
@@ -125,10 +230,11 @@ export default function MapLocationPicker({
     }, 120);
 
     return () => {
+      latestReverseControllerRef.current?.abort();
       map.remove();
       mapRef.current = null;
     };
-  }, [onDestinationChange, onPickupChange, pickMode]);
+  }, [pickMode]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -162,7 +268,7 @@ export default function MapLocationPicker({
         icon: markerIcon("P", "#0ea5e9"),
       })
         .addTo(map)
-        .bindPopup("Pickup");
+        .bindPopup(pickupAddress?.label || "Pickup");
     }
 
     if (destinationPoint) {
@@ -176,7 +282,7 @@ export default function MapLocationPicker({
         icon: markerIcon("D", "#16a34a"),
       })
         .addTo(map)
-        .bindPopup("Destination");
+        .bindPopup(destinationAddress?.label || "Destination");
     }
 
     if (routePoints.length === 2) {
@@ -191,7 +297,7 @@ export default function MapLocationPicker({
     } else if (routePoints.length === 1) {
       map.setView(routePoints[0], 13);
     }
-  }, [destinationPoint, pickupPoint]);
+  }, [destinationAddress?.label, destinationPoint, pickupAddress?.label, pickupPoint]);
 
   return (
     <div
@@ -218,7 +324,7 @@ export default function MapLocationPicker({
           <strong>Pick locations on map</strong>
           <div style={{ marginTop: 4, color: "#64748b", fontSize: 13 }}>
             Click the map to set pickup first, then destination. Coordinates are
-            copied into the current fields.
+            saved for routing, while the address preview is shown below.
           </div>
         </div>
 
@@ -232,7 +338,7 @@ export default function MapLocationPicker({
             fontSize: 12,
           }}
         >
-          Free OSM picker
+          OSM + Nominatim
         </span>
       </div>
 
@@ -265,21 +371,42 @@ export default function MapLocationPicker({
         }}
       />
 
-      <div
-        style={{
-          marginTop: 10,
-          padding: 10,
-          borderRadius: 12,
-          background: "#f8fafc",
-          border: "1px solid #e5e7eb",
-          color: "#334155",
-          fontSize: 13,
-          lineHeight: 1.6,
-        }}
-      >
+      <div style={addressBoxStyle()}>
         <strong>Current mode:</strong>{" "}
         {pickMode === "pickup" ? "Pick Pickup" : "Pick Destination"}
+        {reverseLoading ? ` · Looking up ${reverseLoading} address...` : ""}
       </div>
+
+      {pickupAddress ? (
+        <div style={addressBoxStyle()}>
+          <strong>Pickup preview:</strong> {pickupAddress.label}
+          <div style={{ color: "#64748b" }}>{pickupAddress.coordinates}</div>
+        </div>
+      ) : null}
+
+      {destinationAddress ? (
+        <div style={addressBoxStyle()}>
+          <strong>Destination preview:</strong> {destinationAddress.label}
+          <div style={{ color: "#64748b" }}>{destinationAddress.coordinates}</div>
+        </div>
+      ) : null}
+
+      {reverseMessage ? (
+        <div
+          style={{
+            marginTop: 8,
+            padding: 10,
+            borderRadius: 12,
+            background: "#fff7ed",
+            border: "1px solid #fed7aa",
+            color: "#9a3412",
+            fontSize: 13,
+            lineHeight: 1.6,
+          }}
+        >
+          {reverseMessage}
+        </div>
+      ) : null}
     </div>
   );
 }
