@@ -497,7 +497,29 @@ export default function DriverHome() {
         </button>
       </div>
 
+      {activeTab === "verification" ? (
+        <div
+          style={{
+            marginTop: 14,
+            marginBottom: 16,
+            padding: 14,
+            borderRadius: 16,
+            background: "#fff7ed",
+            border: "1px solid #fed7aa",
+            color: "#9a3412",
+            lineHeight: 1.6,
+            fontSize: 14,
+          }}
+        >
+          <strong>Driver verification lifecycle note:</strong> verification is
+          completed once during onboarding, then updated only when needed, such
+          as license renewal, vehicle replacement, identity/passport update, or
+          an admin request for additional documents.
+        </div>
+      ) : null}
 
+
+      {activeTab === "operations" ? (
       <div style={sectionStyle()}>
         <label
           htmlFor="driver-select"
@@ -588,6 +610,7 @@ export default function DriverHome() {
           <p style={{ marginTop: 16, marginBottom: 0 }}>No driver selected.</p>
         )}
       </div>
+      ) : null}
 
       {loading ? (
         <div style={sectionStyle()}>
