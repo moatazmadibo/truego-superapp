@@ -85,12 +85,13 @@ function isPresenceFresh(lastSeenAt?: string | null) {
 
 function cardStyle(): React.CSSProperties {
   return {
-    maxWidth: 880,
+    maxWidth: 960,
     margin: "32px auto",
-    padding: 20,
+    padding: 22,
     background: "#ffffff",
-    borderRadius: 16,
-    boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
+    borderRadius: 22,
+    boxShadow: "0 18px 55px rgba(15, 23, 42, 0.12)",
+    border: "1px solid #e5e7eb",
   };
 }
 
@@ -109,14 +110,26 @@ function buttonStyle(
   disabled = false
 ): React.CSSProperties {
   return {
-    padding: "10px 14px",
-    borderRadius: 10,
+    padding: "11px 15px",
+    borderRadius: 12,
     border: "1px solid transparent",
     background,
     color: "#ffffff",
     cursor: disabled ? "not-allowed" : "pointer",
     opacity: disabled ? 0.6 : 1,
-    fontWeight: 600,
+    fontWeight: 800,
+    boxShadow: disabled ? "none" : "0 10px 20px rgba(15, 23, 42, 0.12)",
+  };
+}
+
+function detailMiniCardStyle(): React.CSSProperties {
+  return {
+    padding: 12,
+    borderRadius: 14,
+    background: "#ffffff",
+    border: "1px solid #e5e7eb",
+    color: "#334155",
+    lineHeight: 1.5,
   };
 }
 
@@ -423,6 +436,24 @@ export default function DriverHome() {
 
       <ListingReadinessPanel context="driver" compact />
 
+      <div
+        style={{
+          marginTop: 14,
+          marginBottom: 16,
+          padding: 14,
+          borderRadius: 16,
+          background: "#f0f9ff",
+          border: "1px solid #bae6fd",
+          color: "#0369a1",
+          lineHeight: 1.6,
+          fontSize: 14,
+        }}
+      >
+        <strong>Driver operations checkpoint:</strong> drivers must go online
+        before receiving offers. Ride assignment happens only after the driver
+        reviews the upfront fare and accepts the offer.
+      </div>
+
       <div style={sectionStyle()}>
         <label
           htmlFor="driver-select"
@@ -472,23 +503,41 @@ export default function DriverHome() {
         </button>
 
         {selectedDriver ? (
-          <div style={{ marginTop: 16, lineHeight: 1.8 }}>
-            <div>
-              <strong>Current driver:</strong> {selectedDriver.display_name}
+          <div
+            style={{
+              marginTop: 16,
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+              gap: 10,
+            }}
+          >
+            <div style={detailMiniCardStyle()}>
+              <strong>Current driver</strong>
+              <div style={{ marginTop: 6 }}>{selectedDriver.display_name}</div>
             </div>
-            <div>
-              <strong>Vehicle:</strong> {selectedDriver.vehicle_type}
+
+            <div style={detailMiniCardStyle()}>
+              <strong>Vehicle</strong>
+              <div style={{ marginTop: 6 }}>{selectedDriver.vehicle_type}</div>
             </div>
-            <div>
-              <strong>Rating:</strong> {selectedDriver.rating.toFixed(1)}
+
+            <div style={detailMiniCardStyle()}>
+              <strong>Rating</strong>
+              <div style={{ marginTop: 6 }}>{selectedDriver.rating.toFixed(1)}</div>
             </div>
-            <div>
-              <strong>Manual availability:</strong>{" "}
-              {selectedDriver.is_available ? "Available" : "Busy"}
+
+            <div style={detailMiniCardStyle()}>
+              <strong>Availability</strong>
+              <div style={{ marginTop: 6 }}>
+                {selectedDriver.is_available ? "Available" : "Busy"}
+              </div>
             </div>
-            <div>
-              <strong>Presence:</strong>{" "}
-              {selectedDriverIsFreshOnline ? "Fresh / Active" : "Stale / Offline"}
+
+            <div style={detailMiniCardStyle()}>
+              <strong>Presence</strong>
+              <div style={{ marginTop: 6 }}>
+                {selectedDriverIsFreshOnline ? "Fresh / Active" : "Stale / Offline"}
+              </div>
             </div>
           </div>
         ) : (
@@ -531,8 +580,10 @@ export default function DriverHome() {
       {!loading && selectedDriver && !currentRideRow ? (
         <div style={sectionStyle()}>
           <h2 style={{ marginTop: 0 }}>No active ride yet</h2>
-          <p style={{ marginBottom: 0 }}>
-            You are online and ready. New ride offers will appear here.
+          <p style={{ marginBottom: 0, color: "#475569", lineHeight: 1.6 }}>
+            You are online and ready. New ride offers will appear here with
+            upfront fare, driver payout, pickup, and destination details before
+            you accept.
           </p>
         </div>
       ) : null}
@@ -552,6 +603,23 @@ export default function DriverHome() {
             <StatusBadge status={currentRide.status} />
           </div>
 
+          <div
+            style={{
+              marginTop: 14,
+              padding: 12,
+              borderRadius: 14,
+              background: "#f8fafc",
+              border: "1px solid #e5e7eb",
+              color: "#334155",
+              lineHeight: 1.6,
+              fontSize: 14,
+            }}
+          >
+            <strong>Current ride operations note:</strong> the driver can accept
+            or decline offers. Accepted trips progress through arrival, start,
+            completion, and then rider payment.
+          </div>
+
           {currentRideRow.status === "offer_sent" ? (
             <div
               style={{
@@ -564,9 +632,9 @@ export default function DriverHome() {
                 fontWeight: 600,
               }}
             >
-              New ride offer: {formatPiAmount(Number(currentRideRow.price_pi))} fare
+              New ride offer · Fare: {formatPiAmount(Number(currentRideRow.price_pi))}
               {currentRideRow.driver_payout_pi != null
-                ? ` · ${formatPiAmount(Number(currentRideRow.driver_payout_pi))} driver payout`
+                ? ` · Driver payout: ${formatPiAmount(Number(currentRideRow.driver_payout_pi))}`
                 : ""}
             </div>
           ) : null}

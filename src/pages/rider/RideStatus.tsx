@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import type { Ride } from "../../types/ride";
 import RideTimeline from "../../components/RideTimeline";
 import StatusBadge from "../../components/StatusBadge";
+import ListingReadinessPanel from "../../components/ListingReadinessPanel";
 import {
   getRideById,
   retryDemoRideDispatch,
@@ -35,12 +36,13 @@ type RidePaymentSnapshot = {
 
 function containerStyle(): React.CSSProperties {
   return {
-    maxWidth: 720,
-    margin: "40px auto",
+    maxWidth: 820,
+    margin: "32px auto",
     background: "#ffffff",
-    borderRadius: 16,
-    padding: 20,
-    boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
+    borderRadius: 22,
+    padding: 22,
+    boxShadow: "0 18px 55px rgba(15, 23, 42, 0.12)",
+    border: "1px solid #e5e7eb",
   };
 }
 
@@ -411,6 +413,94 @@ export default function RideStatus() {
   if (loading) {
     return (
       <div style={containerStyle()}>
+      <ListingReadinessPanel context="rider" compact />
+
+      <div
+        style={{
+          marginTop: 14,
+          padding: 16,
+          borderRadius: 18,
+          background: "linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%)",
+          color: "#ffffff",
+          boxShadow: "0 12px 28px rgba(15, 23, 42, 0.18)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 12,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                display: "inline-flex",
+                padding: "6px 10px",
+                borderRadius: 999,
+                background: "rgba(255,255,255,0.15)",
+                fontSize: 12,
+                fontWeight: 900,
+                marginBottom: 8,
+              }}
+            >
+              Live ride status
+            </div>
+
+            <h1 style={{ margin: 0, fontSize: 26 }}>Track your TrueGo ride</h1>
+
+            <p style={{ marginTop: 8, marginBottom: 0, lineHeight: 1.6 }}>
+              {rideRow ? getStatusMessage(rideRow.status) : "Loading ride status..."}
+            </p>
+          </div>
+
+          {ride ? <StatusBadge status={ride.status} /> : null}
+        </div>
+
+        <div
+          style={{
+            marginTop: 14,
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+            gap: 10,
+          }}
+        >
+          <div
+            style={{
+              padding: 12,
+              borderRadius: 14,
+              background: "rgba(255,255,255,0.12)",
+            }}
+          >
+            <strong>Fare</strong>
+            <div style={{ marginTop: 6 }}>{formatPiAmount(payablePi)}</div>
+          </div>
+
+          <div
+            style={{
+              padding: 12,
+              borderRadius: 14,
+              background: "rgba(255,255,255,0.12)",
+            }}
+          >
+            <strong>Payment</strong>
+            <div style={{ marginTop: 6 }}>{formatPaymentStatus(payment.payment_status)}</div>
+          </div>
+
+          <div
+            style={{
+              padding: 12,
+              borderRadius: 14,
+              background: "rgba(255,255,255,0.12)",
+            }}
+          >
+            <strong>Driver</strong>
+            <div style={{ marginTop: 6 }}>{rideRow?.driver_name ?? "Waiting"}</div>
+          </div>
+        </div>
+      </div>
         <h2 style={{ marginTop: 0 }}>Ride Status</h2>
         <p style={{ marginBottom: 0 }}>Loading ride...</p>
       </div>
@@ -472,11 +562,11 @@ export default function RideStatus() {
           </p>
         </div>
 
-        <StatusBadge status={ride.status} />
+        {ride ? <StatusBadge status={ride.status} /> : null}
       </div>
 
       <div style={sectionStyle()}>
-        <p style={{ margin: 0, fontWeight: 600 }}>{getStatusMessage(rideRow.status)}</p>
+        <p style={{ margin: 0, fontWeight: 600 }}>{rideRow ? getStatusMessage(rideRow.status) : "Loading ride status..."}</p>
 
         {errorMessage ? (
           <div
@@ -513,6 +603,23 @@ export default function RideStatus() {
             <span style={paidBadgeStyle()}>Paid via Pi</span>
           </div>
         ) : null}
+      </div>
+
+      <div
+        style={{
+          marginTop: 16,
+          padding: 14,
+          borderRadius: 16,
+          background: "#f0f9ff",
+          border: "1px solid #bae6fd",
+          color: "#0369a1",
+          lineHeight: 1.6,
+          fontSize: 14,
+        }}
+      >
+        <strong>Review flow checkpoint:</strong> the ride status updates in
+        real time. Payment appears only after trip completion, and the Pi
+        transaction details are shown here after payment succeeds.
       </div>
 
       <div style={sectionStyle()}>
@@ -561,6 +668,24 @@ export default function RideStatus() {
       {rideRow.status === "completed" || payment.payment_id ? (
         <div style={sectionStyle()}>
           <h3 style={{ marginTop: 0 }}>Pi payment</h3>
+
+          <div
+            style={{
+              marginBottom: 14,
+              padding: 12,
+              borderRadius: 14,
+              background: isPaid ? "#ecfdf5" : "#fff7ed",
+              border: isPaid ? "1px solid #bbf7d0" : "1px solid #fed7aa",
+              color: isPaid ? "#047857" : "#9a3412",
+              lineHeight: 1.6,
+              fontSize: 14,
+            }}
+          >
+            <strong>Test-Pi payment review note:</strong>{" "}
+            {isPaid
+              ? "Payment is completed and the transaction reference is available below."
+              : "The payment button becomes available after the driver completes the trip."}
+          </div>
 
           <div style={detailGridStyle()}>
             <div style={detailItemStyle()}>
@@ -614,6 +739,28 @@ export default function RideStatus() {
 
       <div style={sectionStyle()}>
         <RideTimeline ride={ride} />
+      </div>
+
+      <div
+        style={{
+          marginTop: 16,
+          padding: 14,
+          borderRadius: 16,
+          background: "#f8fafc",
+          border: "1px solid #e5e7eb",
+          color: "#334155",
+          lineHeight: 1.6,
+          fontSize: 14,
+        }}
+      >
+        <strong>Available rider actions:</strong>{" "}
+        {canPayWithPi
+          ? "Your ride is completed. You can now pay safely with Test-Pi."
+          : isPaid
+            ? "Payment has already been completed."
+            : canRetryDispatch
+              ? "No driver accepted this ride yet. You can retry dispatch."
+              : "Continue monitoring this page while the ride progresses."}
       </div>
 
       <div
