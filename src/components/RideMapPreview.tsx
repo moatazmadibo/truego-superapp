@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -14,6 +14,22 @@ type RideMapPreviewProps = {
   title?: string;
   height?: number;
 };
+
+type OsrmRouteResponse = {
+  routes?: Array<{
+    geometry?: {
+      coordinates?: Array<[number, number]>;
+    };
+    distance?: number;
+    duration?: number;
+  }>;
+};
+
+type RouteSource = "loading" | "osrm" | "fallback" | "unavailable";
+
+const osrmBaseUrl =
+  (import.meta.env.VITE_OSRM_BASE_URL as string | undefined) ||
+  "https://router.project-osrm.org";
 
 function isValidPoint(point: MapPoint) {
   return (
@@ -49,6 +65,29 @@ function markerIcon(label: string, background: string) {
   });
 }
 
+async function fetchOsrmRoute(
+  pickup: Required<Pick<MapPoint, "lat" | "lng">>,
+  destination: Required<Pick<MapPoint, "lat" | "lng">>,
+  signal: AbortSignal
+) {
+  const url = `${osrmBaseUrl}/route/v1/driving/${pickup.lng},${pickup.lat};${destination.lng},${destination.lat}?overview=full&geometries=geojson`;
+
+  const response = await fetch(url, { signal });
+
+  if (!response.ok) {
+    throw new Error(`OSRM route request failed: ${response.status}`);
+  }
+
+  const json = (await response.json()) as OsrmRouteResponse;
+  const coordinates = json.routes?.[0]?.geometry?.coordinates ?? [];
+
+  if (coordinates.length < 2) {
+    throw new Error("OSRM returned no route geometry.");
+  }
+
+  return coordinates.map(([lng, lat]) => L.latLng(lat, lng));
+}
+
 export default function RideMapPreview({
   pickup,
   destination,
@@ -57,63 +96,110 @@ export default function RideMapPreview({
 }: RideMapPreviewProps) {
   const mapNodeRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
+  const [routeSource, setRouteSource] = useState<RouteSource>("unavailable");
 
   const hasValidRoute = isValidPoint(pickup) && isValidPoint(destination);
 
   useEffect(() => {
     if (!mapNodeRef.current || !hasValidRoute) {
+      setRouteSource("unavailable");
       return;
     }
 
-    if (mapRef.current) {
-      mapRef.current.remove();
-      mapRef.current = null;
+    const abortController = new AbortController();
+    let cancelled = false;
+
+    async function drawMap() {
+      if (!mapNodeRef.current || !hasValidRoute) {
+        return;
+      }
+
+      setRouteSource("loading");
+
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+
+      const pickupLatLng = L.latLng(pickup.lat as number, pickup.lng as number);
+      const destinationLatLng = L.latLng(
+        destination.lat as number,
+        destination.lng as number
+      );
+
+      let routeLatLngs: L.LatLng[] = [pickupLatLng, destinationLatLng];
+      let nextRouteSource: RouteSource = "fallback";
+
+      try {
+        routeLatLngs = await fetchOsrmRoute(
+          { lat: pickup.lat as number, lng: pickup.lng as number },
+          { lat: destination.lat as number, lng: destination.lng as number },
+          abortController.signal
+        );
+
+        nextRouteSource = "osrm";
+      } catch (error) {
+        if (abortController.signal.aborted) {
+          return;
+        }
+
+        console.warn("OSRM route preview fallback:", error);
+        routeLatLngs = [pickupLatLng, destinationLatLng];
+        nextRouteSource = "fallback";
+      }
+
+      if (cancelled || !mapNodeRef.current) {
+        return;
+      }
+
+      const map = L.map(mapNodeRef.current, {
+        zoomControl: true,
+        attributionControl: true,
+        scrollWheelZoom: false,
+      });
+
+      mapRef.current = map;
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "© OpenStreetMap contributors",
+        maxZoom: 19,
+      }).addTo(map);
+
+      L.marker(pickupLatLng, { icon: markerIcon("P", "#0ea5e9") })
+        .addTo(map)
+        .bindPopup(pickup.label || "Pickup");
+
+      L.marker(destinationLatLng, { icon: markerIcon("D", "#16a34a") })
+        .addTo(map)
+        .bindPopup(destination.label || "Destination");
+
+      L.polyline(routeLatLngs, {
+        color: "#111827",
+        weight: 5,
+        opacity: 0.78,
+        dashArray: nextRouteSource === "osrm" ? undefined : "8 8",
+      }).addTo(map);
+
+      const bounds = L.latLngBounds(routeLatLngs);
+      map.fitBounds(bounds.pad(0.25));
+
+      setRouteSource(nextRouteSource);
+
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 120);
     }
 
-    const pickupLatLng = L.latLng(pickup.lat as number, pickup.lng as number);
-    const destinationLatLng = L.latLng(
-      destination.lat as number,
-      destination.lng as number
-    );
-
-    const map = L.map(mapNodeRef.current, {
-      zoomControl: true,
-      attributionControl: true,
-      scrollWheelZoom: false,
-    });
-
-    mapRef.current = map;
-
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap contributors",
-      maxZoom: 19,
-    }).addTo(map);
-
-    L.marker(pickupLatLng, { icon: markerIcon("P", "#0ea5e9") })
-      .addTo(map)
-      .bindPopup(pickup.label || "Pickup");
-
-    L.marker(destinationLatLng, { icon: markerIcon("D", "#16a34a") })
-      .addTo(map)
-      .bindPopup(destination.label || "Destination");
-
-    L.polyline([pickupLatLng, destinationLatLng], {
-      color: "#111827",
-      weight: 4,
-      opacity: 0.75,
-      dashArray: "8 8",
-    }).addTo(map);
-
-    const bounds = L.latLngBounds([pickupLatLng, destinationLatLng]);
-    map.fitBounds(bounds.pad(0.35));
-
-    setTimeout(() => {
-      map.invalidateSize();
-    }, 120);
+    void drawMap();
 
     return () => {
-      map.remove();
-      mapRef.current = null;
+      cancelled = true;
+      abortController.abort();
+
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
     };
   }, [
     hasValidRoute,
@@ -124,6 +210,19 @@ export default function RideMapPreview({
     destination.lng,
     destination.label,
   ]);
+
+  function getRouteSourceLabel() {
+    switch (routeSource) {
+      case "loading":
+        return "Loading route...";
+      case "osrm":
+        return "OSRM road route";
+      case "fallback":
+        return "Direct fallback route";
+      default:
+        return "Map preview";
+    }
+  }
 
   return (
     <div
@@ -148,7 +247,7 @@ export default function RideMapPreview({
         <div>
           <strong>{title}</strong>
           <div style={{ marginTop: 4, color: "#64748b", fontSize: 13 }}>
-            Free map preview powered by OpenStreetMap.
+            Free route preview powered by OpenStreetMap, Leaflet, and OSRM.
           </div>
         </div>
 
@@ -156,13 +255,13 @@ export default function RideMapPreview({
           style={{
             borderRadius: 999,
             padding: "6px 10px",
-            background: "#ecfdf5",
-            color: "#047857",
+            background: routeSource === "osrm" ? "#ecfdf5" : "#fff7ed",
+            color: routeSource === "osrm" ? "#047857" : "#9a3412",
             fontWeight: 800,
             fontSize: 12,
           }}
         >
-          OSM / Leaflet
+          {getRouteSourceLabel()}
         </span>
       </div>
 
