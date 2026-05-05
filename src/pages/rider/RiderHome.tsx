@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import ListingReadinessPanel from "../../components/ListingReadinessPanel";
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
@@ -8,12 +9,12 @@ const pageStyle: React.CSSProperties = {
 };
 
 const cardStyle: React.CSSProperties = {
-  maxWidth: 560,
+  maxWidth: 760,
   margin: "32px auto",
   background: "#ffffff",
-  borderRadius: 22,
+  borderRadius: 24,
   padding: 22,
-  boxShadow: "0 16px 45px rgba(15, 23, 42, 0.10)",
+  boxShadow: "0 18px 55px rgba(15, 23, 42, 0.12)",
   border: "1px solid #e5e7eb",
 };
 
@@ -26,38 +27,42 @@ const badgeStyle: React.CSSProperties = {
   background: "#e0f2fe",
   color: "#0369a1",
   fontSize: 13,
-  fontWeight: 700,
+  fontWeight: 800,
   marginBottom: 14,
 };
 
 const titleStyle: React.CSSProperties = {
   margin: 0,
   color: "#0f172a",
-  fontSize: 30,
-  lineHeight: 1.15,
+  fontSize: 32,
+  lineHeight: 1.12,
 };
 
 const subtitleStyle: React.CSSProperties = {
   marginTop: 10,
   color: "#475569",
   fontSize: 15,
-  lineHeight: 1.6,
+  lineHeight: 1.7,
 };
 
 const fieldGroupStyle: React.CSSProperties = {
-  marginTop: 16,
+  marginTop: 18,
+  padding: 16,
+  borderRadius: 18,
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
 };
 
 const labelStyle: React.CSSProperties = {
   display: "block",
   fontSize: 13,
-  fontWeight: 700,
+  fontWeight: 800,
   color: "#334155",
   marginBottom: 7,
 };
 
 const inputStyle: React.CSSProperties = {
-  padding: "13px 14px",
+  padding: "14px 14px",
   width: "100%",
   marginBottom: 12,
   borderRadius: 12,
@@ -69,13 +74,13 @@ const inputStyle: React.CSSProperties = {
 };
 
 const buttonStyle: React.CSSProperties = {
-  padding: 14,
+  padding: 15,
   width: "100%",
   background: "#0ea5e9",
   color: "white",
   border: "none",
-  borderRadius: 12,
-  fontWeight: 800,
+  borderRadius: 14,
+  fontWeight: 900,
   fontSize: 15,
   cursor: "pointer",
   boxShadow: "0 10px 20px rgba(14, 165, 233, 0.22)",
@@ -85,25 +90,72 @@ const helperStyle: React.CSSProperties = {
   fontSize: 13,
   color: "#64748b",
   marginTop: 12,
-  lineHeight: 1.55,
+  lineHeight: 1.6,
 };
 
 const featureGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "1fr",
+  gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
   gap: 10,
   marginTop: 18,
 };
 
 const featureStyle: React.CSSProperties = {
-  padding: 12,
-  borderRadius: 14,
+  padding: 13,
+  borderRadius: 16,
   background: "#f8fafc",
   border: "1px solid #e2e8f0",
   color: "#334155",
   fontSize: 13,
-  lineHeight: 1.45,
+  lineHeight: 1.5,
 };
+
+const quickGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+  gap: 8,
+  marginTop: 10,
+  marginBottom: 12,
+};
+
+const quickButtonStyle: React.CSSProperties = {
+  border: "1px solid #bae6fd",
+  borderRadius: 12,
+  padding: "10px 12px",
+  background: "#f0f9ff",
+  color: "#0369a1",
+  fontWeight: 800,
+  cursor: "pointer",
+};
+
+const stepGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+  gap: 10,
+  marginTop: 18,
+};
+
+const stepStyle: React.CSSProperties = {
+  padding: 12,
+  borderRadius: 16,
+  background: "#ecfdf5",
+  border: "1px solid #bbf7d0",
+  color: "#065f46",
+  fontSize: 13,
+  lineHeight: 1.5,
+};
+
+type DemoRoute = {
+  label: string;
+  pickup: string;
+  destination: string;
+};
+
+const demoRoutes: DemoRoute[] = [
+  { label: "Giza → Cairo", pickup: "Giza", destination: "Cairo" },
+  { label: "Cairo → Giza", pickup: "Cairo", destination: "Giza" },
+  { label: "Airport → City", pickup: "Cairo Airport", destination: "Cairo City Center" },
+];
 
 export default function RiderHome() {
   const navigate = useNavigate();
@@ -124,25 +176,70 @@ export default function RiderHome() {
     navigate(`/rider/ride?${params.toString()}`);
   }
 
+  function applyDemoRoute(route: DemoRoute) {
+    setPickup(route.pickup);
+    setDestination(route.destination);
+  }
+
   return (
     <main style={pageStyle}>
       <section style={cardStyle}>
+        <ListingReadinessPanel context="rider" compact />
+
         <div style={badgeStyle}>Pi-powered mobility</div>
 
         <h1 style={titleStyle}>Request a ride with TrueGo</h1>
 
         <p style={subtitleStyle}>
-          TrueGo helps Pi users request rides, view estimated pricing, and
-          connect with available drivers through a simple Pi Browser experience.
+          TrueGo helps Pi users request rides, review a transparent Test-Pi fare,
+          connect with available drivers, and complete the trip through a simple
+          Pi Browser experience.
         </p>
 
+        <div style={stepGridStyle}>
+          <div style={stepStyle}>
+            <strong>1. Enter trip</strong>
+            <br />
+            Add pickup and destination.
+          </div>
+          <div style={stepStyle}>
+            <strong>2. Review fare</strong>
+            <br />
+            See distance, time, and fractional Test-Pi price.
+          </div>
+          <div style={stepStyle}>
+            <strong>3. Driver accepts</strong>
+            <br />
+            The ride is assigned only after driver acceptance.
+          </div>
+          <div style={stepStyle}>
+            <strong>4. Pay with Pi</strong>
+            <br />
+            Complete payment after trip completion.
+          </div>
+        </div>
+
         <div style={fieldGroupStyle}>
+          <label style={labelStyle}>Quick demo routes</label>
+          <div style={quickGridStyle}>
+            {demoRoutes.map((route) => (
+              <button
+                key={route.label}
+                type="button"
+                onClick={() => applyDemoRoute(route)}
+                style={quickButtonStyle}
+              >
+                {route.label}
+              </button>
+            ))}
+          </div>
+
           <label style={labelStyle} htmlFor="pickup">
             Pickup location
           </label>
           <input
             id="pickup"
-            placeholder="Example: Khartoum Airport or 30.0444,31.2357"
+            placeholder="Example: Giza or 30.0444,31.2357"
             value={pickup}
             onChange={(event) => setPickup(event.target.value)}
             style={inputStyle}
@@ -153,34 +250,39 @@ export default function RiderHome() {
           </label>
           <input
             id="destination"
-            placeholder="Example: City center or direct coordinates"
+            placeholder="Example: Cairo or direct coordinates"
             value={destination}
             onChange={(event) => setDestination(event.target.value)}
             style={inputStyle}
           />
 
           <button type="button" onClick={handleFindRide} style={buttonStyle}>
-            Find Ride
+            Continue to fare estimate
           </button>
 
           <p style={helperStyle}>
-            Enter normal place names or direct coordinates. The next step will
-            show ride details, estimated price, and driver matching status.
+            For listing review, use short city names like Cairo and Giza or
+            direct coordinates. The next step shows the estimated route, fare,
+            vehicle type, and driver matching status.
           </p>
         </div>
 
         <div style={featureGridStyle}>
           <div style={featureStyle}>
-            <strong>Rider-first flow:</strong> the main app experience is focused
-            on requesting and tracking rides.
+            <strong>Rider-first flow:</strong> request and track rides from one
+            clear mobile-friendly path.
           </div>
           <div style={featureStyle}>
-            <strong>Pi ecosystem:</strong> designed for Pi Browser authentication
-            and future Pi-based service payments.
+            <strong>Pi Testnet ready:</strong> small fractional Test-Pi amounts
+            keep repeated review payments safe.
           </div>
           <div style={featureStyle}>
-            <strong>Clear status:</strong> follow the ride from search to driver
-            acceptance, arrival, progress, and completion.
+            <strong>Offer-based dispatch:</strong> drivers accept the ride before
+            assignment.
+          </div>
+          <div style={featureStyle}>
+            <strong>Admin visibility:</strong> ride, payment, and driver-review
+            status are visible in the dashboard.
           </div>
         </div>
       </section>

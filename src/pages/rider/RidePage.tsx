@@ -250,7 +250,26 @@ export default function RidePage() {
   return (
     <main style={pageStyle}>
       <section style={containerStyle}>
-      <ListingReadinessPanel context="rider" compact />
+        <ListingReadinessPanel context="rider" compact />
+
+        <div
+          style={{
+            marginTop: 14,
+            marginBottom: 16,
+            padding: 12,
+            borderRadius: 14,
+            background: "#f0f9ff",
+            border: "1px solid #bae6fd",
+            color: "#0369a1",
+            lineHeight: 1.6,
+            fontSize: 14,
+          }}
+        >
+          <strong>Rider review step:</strong> confirm the route, choose a vehicle,
+          calculate the estimate, then send the request to available drivers.
+          Payment is requested only after the trip is completed.
+        </div>
+
         <div style={eyebrowStyle}>Ride estimate</div>
 
         <h1 style={titleStyle}>Review your trip details</h1>
@@ -259,6 +278,22 @@ export default function RidePage() {
           Confirm the pickup, destination, vehicle type, and estimated Pi price
           before sending the request to available drivers.
         </p>
+
+        <div
+          style={{
+            marginBottom: 16,
+            padding: 12,
+            borderRadius: 14,
+            background: "#fff7ed",
+            border: "1px solid #fed7aa",
+            color: "#9a3412",
+            lineHeight: 1.6,
+            fontSize: 14,
+          }}
+        >
+          <strong>Test-Pi pricing note:</strong> the fare uses small fractional
+          Test-Pi values for safe listing review and repeated payment testing.
+        </div>
 
         <label style={labelStyle} htmlFor="pickup">
           Pickup location
@@ -337,6 +372,24 @@ export default function RidePage() {
                 <div style={summaryLabelStyle}>Estimated price</div>
                 <div style={summaryValueStyle}>{formatPiAmount(payableEstimatePi)}</div>
               </div>
+            </div>
+
+            <div
+              style={{
+                marginTop: 14,
+                marginBottom: 14,
+                padding: 12,
+                borderRadius: 14,
+                background: "#ecfdf5",
+                border: "1px solid #bbf7d0",
+                color: "#047857",
+                lineHeight: 1.6,
+                fontSize: 14,
+              }}
+            >
+              <strong>Driver dispatch note:</strong> after confirmation, TrueGo
+              sends an offer to an available driver. The ride becomes assigned
+              only when the driver accepts.
             </div>
 
             <button
