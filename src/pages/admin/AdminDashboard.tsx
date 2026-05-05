@@ -3,6 +3,7 @@ import { supabase } from "../../lib/supabase";
 import AdminDriverVerificationPanel from "./AdminDriverVerificationPanel";
 import ListingReadinessPanel from "../../components/ListingReadinessPanel";
 import { listRecentRides, subscribeToLatestRides, type RideRow } from "../../services/rideApi";
+import { formatPiAmount } from "../../lib/piPricing";
 
 type AdminTab = "rides" | "drivers";
 
@@ -48,7 +49,7 @@ function formatStatus(status: RideRow["status"]) {
 }
 
 function formatPi(value: number) {
-  return `${value.toFixed(8)} Pi`;
+  return formatPiAmount(value);
 }
 
 function getPaymentSnapshot(ride: RideRow): RidePaymentSnapshot {
@@ -136,6 +137,64 @@ function badgeStyle(background: string, color = "#ffffff"): React.CSSProperties 
     fontSize: 12,
   };
 }
+
+
+function adminNoticeStyle(): React.CSSProperties {
+  return {
+    marginTop: 14,
+    padding: 14,
+    borderRadius: 16,
+    background: "#f0f9ff",
+    border: "1px solid #bae6fd",
+    color: "#0369a1",
+    lineHeight: 1.6,
+    fontSize: 14,
+  };
+}
+
+function rideDetailGridStyle(): React.CSSProperties {
+  return {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+    gap: 10,
+    marginTop: 12,
+  };
+}
+
+function rideDetailItemStyle(): React.CSSProperties {
+  return {
+    padding: 12,
+    borderRadius: 12,
+    background: "#ffffff",
+    border: "1px solid #e5e7eb",
+    lineHeight: 1.5,
+  };
+}
+
+function monoTextStyle(): React.CSSProperties {
+  return {
+    marginTop: 6,
+    wordBreak: "break-all",
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    fontSize: 12,
+    color: "#334155",
+  };
+}
+
+function paymentBadgeColor(status: RidePaymentSnapshot["payment_status"]) {
+  switch (status) {
+    case "completed":
+      return "#2563eb";
+    case "approved":
+      return "#7c3aed";
+    case "failed":
+    case "cancelled":
+      return "#dc2626";
+    default:
+      return "#9ca3af";
+  }
+}
+
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<AdminTab>("rides");
@@ -241,6 +300,13 @@ export default function AdminDashboard() {
         Operations-only view for monitoring rides, driver assignment, and Pi payment status.
       </p>
 
+      <div style={adminNoticeStyle()}>
+        <strong>Admin operations checkpoint:</strong> ride/payment monitoring is
+        separated from driver verification. Use <strong>Rides & Payments</strong>{" "}
+        for trip and Test-Pi payment review, and <strong>Driver Verification</strong>{" "}
+        for KYC/document approval.
+      </div>
+
       <div style={statsGridStyle()}>
         <div style={statCardStyle()}>
           <div style={{ color: "#6b7280", fontSize: 14 }}>Total rides</div>
@@ -315,7 +381,27 @@ export default function AdminDashboard() {
 
       {activeTab === "rides" ? (
       <div style={sectionStyle()}>
-        <h2 style={{ marginTop: 0 }}>Recent rides</h2>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 12,
+            alignItems: "flex-start",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <h2 style={{ marginTop: 0, marginBottom: 6 }}>Rides & Payments</h2>
+            <p style={{ marginTop: 0, color: "#64748b", lineHeight: 1.6 }}>
+              Review recent rides, dispatch status, fare, Test-Pi payment state,
+              payment ID, and transaction hash.
+            </p>
+          </div>
+
+          <span style={badgeStyle("#111827")}>
+            Collected: {formatPi(stats.collectedPi)}
+          </span>
+        </div>
 
         {loading ? <p>Loading rides...</p> : null}
 
@@ -367,17 +453,80 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  <div style={{ marginTop: 12 }}><strong>Rider:</strong> {ride.rider_name ?? "Unknown rider"}</div>
-                  <div><strong>Driver:</strong> {ride.driver_name ?? "Not assigned"}</div>
-                  <div><strong>Pickup:</strong> {ride.pickup_text}</div>
-                  <div><strong>Destination:</strong> {ride.destination_text}</div>
-                  <div><strong>Distance:</strong> {ride.distance_km.toFixed(2)} km</div>
-                  <div><strong>Time:</strong> {ride.duration_min} min</div>
-                  <div><strong>Estimated fare:</strong> {formatPi(Number(ride.price_pi ?? 0))}</div>
-                  <div><strong>Payment status:</strong> {payment.payment_status ?? "unpaid"}</div>
-                  <div><strong>Payment amount:</strong> {payment.payment_amount_pi != null ? formatPi(Number(payment.payment_amount_pi)) : "Not paid yet"}</div>
-                  <div><strong>Payment ID:</strong> {payment.payment_id ?? "N/A"}</div>
-                  <div><strong>TXID:</strong> {payment.payment_txid ?? "N/A"}</div>
+                  <div style={rideDetailGridStyle()}>
+                    <div style={rideDetailItemStyle()}>
+                      <strong>Rider</strong>
+                      <div style={{ marginTop: 6 }}>{ride.rider_name ?? "Unknown rider"}</div>
+                    </div>
+
+                    <div style={rideDetailItemStyle()}>
+                      <strong>Driver</strong>
+                      <div style={{ marginTop: 6 }}>{ride.driver_name ?? "Not assigned"}</div>
+                    </div>
+
+                    <div style={rideDetailItemStyle()}>
+                      <strong>Pickup</strong>
+                      <div style={{ marginTop: 6 }}>{ride.pickup_text}</div>
+                    </div>
+
+                    <div style={rideDetailItemStyle()}>
+                      <strong>Destination</strong>
+                      <div style={{ marginTop: 6 }}>{ride.destination_text}</div>
+                    </div>
+
+                    <div style={rideDetailItemStyle()}>
+                      <strong>Distance / Time</strong>
+                      <div style={{ marginTop: 6 }}>
+                        {ride.distance_km.toFixed(2)} km · {ride.duration_min} min
+                      </div>
+                    </div>
+
+                    <div style={rideDetailItemStyle()}>
+                      <strong>Estimated fare</strong>
+                      <div style={{ marginTop: 6 }}>{formatPi(Number(ride.price_pi ?? 0))}</div>
+                    </div>
+
+                    <div style={rideDetailItemStyle()}>
+                      <strong>Payment status</strong>
+                      <div style={{ marginTop: 6 }}>
+                        <span style={badgeStyle(paymentBadgeColor(payment.payment_status))}>
+                          {payment.payment_status ?? "unpaid"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={rideDetailItemStyle()}>
+                      <strong>Payment amount</strong>
+                      <div style={{ marginTop: 6 }}>
+                        {payment.payment_amount_pi != null
+                          ? formatPi(Number(payment.payment_amount_pi))
+                          : "Not paid yet"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: 12,
+                      padding: 12,
+                      borderRadius: 12,
+                      background: isPaid ? "#ecfdf5" : "#fff7ed",
+                      border: isPaid ? "1px solid #bbf7d0" : "1px solid #fed7aa",
+                      color: isPaid ? "#047857" : "#9a3412",
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    <strong>Payment review:</strong>{" "}
+                    {isPaid
+                      ? "This ride has a completed Test-Pi payment record."
+                      : "Payment is pending or not created yet."}
+                    <div style={monoTextStyle()}>
+                      Payment ID: {payment.payment_id ?? "N/A"}
+                    </div>
+                    <div style={monoTextStyle()}>
+                      TXID: {payment.payment_txid ?? "N/A"}
+                    </div>
+                  </div>
                 </div>
               );
             })
