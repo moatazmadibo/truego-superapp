@@ -30,15 +30,11 @@ function parseCoordinates(value: string) {
     .map((part) => Number(part.trim()))
     .filter((part) => Number.isFinite(part));
 
-  if (parts.length !== 2) {
-    return null;
-  }
+  if (parts.length !== 2) return null;
 
   const [lat, lng] = parts;
 
-  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) {
-    return null;
-  }
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
 
   return { lat, lng };
 }
@@ -135,9 +131,15 @@ export default function MapLocationPicker({
   const pickupMarkerRef = useRef<L.Marker | null>(null);
   const destinationMarkerRef = useRef<L.Marker | null>(null);
   const routeLineRef = useRef<L.Polyline | null>(null);
-  const latestReverseControllerRef = useRef<AbortController | null>(null);
 
   const [pickMode, setPickMode] = useState<PickMode>("pickup");
+  const pickModeRef = useRef<PickMode>("pickup");
+
+  const reverseControllersRef = useRef<Record<PickMode, AbortController | null>>({
+    pickup: null,
+    destination: null,
+  });
+
   const [pickupAddress, setPickupAddress] = useState<PickedAddress | null>(null);
   const [destinationAddress, setDestinationAddress] =
     useState<PickedAddress | null>(null);
@@ -150,24 +152,32 @@ export default function MapLocationPicker({
     [destinationText]
   );
 
+  useEffect(() => {
+    pickModeRef.current = pickMode;
+  }, [pickMode]);
+
   async function handleMapPick(lat: number, lng: number, mode: PickMode) {
     const coordinates = formatCoordinates(lat, lng);
 
     if (mode === "pickup") {
       onPickupChange(coordinates);
-      setPickupAddress({ coordinates, label: "Looking up address..." });
+      setPickupAddress({ coordinates, label: "Looking up pickup address..." });
       setPickMode("destination");
     } else {
       onDestinationChange(coordinates);
-      setDestinationAddress({ coordinates, label: "Looking up address..." });
+      setDestinationAddress({
+        coordinates,
+        label: "Looking up destination address...",
+      });
     }
 
     setReverseLoading(mode);
     setReverseMessage("");
 
-    latestReverseControllerRef.current?.abort();
+    reverseControllersRef.current[mode]?.abort();
+
     const controller = new AbortController();
-    latestReverseControllerRef.current = controller;
+    reverseControllersRef.current[mode] = controller;
 
     try {
       const label = await reverseGeocode(lat, lng, controller.signal);
@@ -175,18 +185,16 @@ export default function MapLocationPicker({
       if (mode === "pickup") {
         setPickupAddress({
           coordinates,
-          label: label ?? "Address not available",
+          label: label ?? "Pickup address not available",
         });
       } else {
         setDestinationAddress({
           coordinates,
-          label: label ?? "Address not available",
+          label: label ?? "Destination address not available",
         });
       }
     } catch (error) {
-      if (controller.signal.aborted) {
-        return;
-      }
+      if (controller.signal.aborted) return;
 
       console.warn("Reverse geocoding fallback:", error);
       setReverseMessage(
@@ -194,19 +202,24 @@ export default function MapLocationPicker({
       );
 
       if (mode === "pickup") {
-        setPickupAddress({ coordinates, label: "Coordinates saved" });
+        setPickupAddress({ coordinates, label: "Pickup coordinates saved" });
       } else {
-        setDestinationAddress({ coordinates, label: "Coordinates saved" });
+        setDestinationAddress({
+          coordinates,
+          label: "Destination coordinates saved",
+        });
       }
     } finally {
-      setReverseLoading(null);
+      if (reverseControllersRef.current[mode] === controller) {
+        reverseControllersRef.current[mode] = null;
+      }
+
+      setReverseLoading((current) => (current === mode ? null : current));
     }
   }
 
   useEffect(() => {
-    if (!mapNodeRef.current || mapRef.current) {
-      return;
-    }
+    if (!mapNodeRef.current || mapRef.current) return;
 
     const map = L.map(mapNodeRef.current, {
       zoomControl: true,
@@ -222,7 +235,11 @@ export default function MapLocationPicker({
     }).addTo(map);
 
     map.on("click", (event: L.LeafletMouseEvent) => {
-      void handleMapPick(event.latlng.lat, event.latlng.lng, pickMode);
+      void handleMapPick(
+        event.latlng.lat,
+        event.latlng.lng,
+        pickModeRef.current
+      );
     });
 
     setTimeout(() => {
@@ -230,18 +247,18 @@ export default function MapLocationPicker({
     }, 120);
 
     return () => {
-      latestReverseControllerRef.current?.abort();
+      reverseControllersRef.current.pickup?.abort();
+      reverseControllersRef.current.destination?.abort();
+
       map.remove();
       mapRef.current = null;
     };
-  }, [pickMode]);
+  }, []);
 
   useEffect(() => {
     const map = mapRef.current;
 
-    if (!map) {
-      return;
-    }
+    if (!map) return;
 
     if (pickupMarkerRef.current) {
       pickupMarkerRef.current.remove();
@@ -387,7 +404,9 @@ export default function MapLocationPicker({
       {destinationAddress ? (
         <div style={addressBoxStyle()}>
           <strong>Destination preview:</strong> {destinationAddress.label}
-          <div style={{ color: "#64748b" }}>{destinationAddress.coordinates}</div>
+          <div style={{ color: "#64748b" }}>
+            {destinationAddress.coordinates}
+          </div>
         </div>
       ) : null}
 
