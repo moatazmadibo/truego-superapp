@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import RideTimeline from "../../components/RideTimeline";
 import DriverVerificationCard from "./DriverVerificationCard";
 import ListingReadinessPanel from "../../components/ListingReadinessPanel";
+
+type DriverTab = "operations" | "verification";
 import StatusBadge from "../../components/StatusBadge";
 import { formatPiAmount } from "../../lib/piPricing";
 import type { Ride } from "../../types/ride";
@@ -122,6 +124,20 @@ function buttonStyle(
   };
 }
 
+
+function tabButtonStyle(active: boolean): React.CSSProperties {
+  return {
+    border: "1px solid #cbd5e1",
+    borderRadius: 999,
+    padding: "10px 14px",
+    background: active ? "#111827" : "#ffffff",
+    color: active ? "#ffffff" : "#111827",
+    fontWeight: 800,
+    cursor: "pointer",
+    boxShadow: active ? "0 8px 20px rgba(15, 23, 42, 0.18)" : "none",
+  };
+}
+
 function detailMiniCardStyle(): React.CSSProperties {
   return {
     padding: 12,
@@ -134,6 +150,7 @@ function detailMiniCardStyle(): React.CSSProperties {
 }
 
 export default function DriverHome() {
+  const [activeTab, setActiveTab] = useState<DriverTab>("operations");
   const [selectedDriverId, setSelectedDriverId] = useState<string>(
     getStoredDriverSessionId
   );
@@ -454,6 +471,33 @@ export default function DriverHome() {
         reviews the upfront fare and accepts the offer.
       </div>
 
+      <div
+        style={{
+          display: "flex",
+          gap: 10,
+          flexWrap: "wrap",
+          marginTop: 6,
+          marginBottom: 16,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setActiveTab("operations")}
+          style={tabButtonStyle(activeTab === "operations")}
+        >
+          Ride Operations
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("verification")}
+          style={tabButtonStyle(activeTab === "verification")}
+        >
+          Driver Verification
+        </button>
+      </div>
+
+
       <div style={sectionStyle()}>
         <label
           htmlFor="driver-select"
@@ -573,10 +617,21 @@ export default function DriverHome() {
         </div>
       ) : null}
 
-      {!loading && selectedDriver ? (
-        <DriverVerificationCard driver={selectedDriver} />
+      {activeTab === "verification" ? (
+        !loading && selectedDriver ? (
+          <DriverVerificationCard driver={selectedDriver} />
+        ) : (
+          <div style={sectionStyle()}>
+            <h2 style={{ marginTop: 0 }}>Driver Verification</h2>
+            <p style={{ marginBottom: 0, color: "#475569", lineHeight: 1.6 }}>
+              Select a driver first to review verification status and upload documents.
+            </p>
+          </div>
+        )
       ) : null}
 
+      {activeTab === "operations" ? (
+        <>
       {!loading && selectedDriver && !currentRideRow ? (
         <div style={sectionStyle()}>
           <h2 style={{ marginTop: 0 }}>No active ride yet</h2>
@@ -731,6 +786,8 @@ export default function DriverHome() {
             <RideTimeline ride={currentRide} />
           </div>
         </div>
+      ) : null}
+        </>
       ) : null}
     </div>
   );
