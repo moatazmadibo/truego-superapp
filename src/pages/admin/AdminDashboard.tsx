@@ -52,6 +52,12 @@ function formatPi(value: number) {
   return formatPiAmount(value);
 }
 
+
+function formatDateTime(value?: string | null) {
+  return value ? new Date(value).toLocaleString() : "N/A";
+}
+
+
 function getPaymentSnapshot(ride: RideRow): RidePaymentSnapshot {
   const extended = ride as RideRow & RidePaymentSnapshot;
 
@@ -178,6 +184,26 @@ function monoTextStyle(): React.CSSProperties {
     fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
     fontSize: 12,
     color: "#334155",
+  };
+}
+
+
+function rideTimelineGridStyle(): React.CSSProperties {
+  return {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+    gap: 10,
+    marginTop: 12,
+  };
+}
+
+function timelineItemStyle(): React.CSSProperties {
+  return {
+    padding: 12,
+    borderRadius: 12,
+    background: "#f8fafc",
+    border: "1px solid #e5e7eb",
+    lineHeight: 1.5,
   };
 }
 
@@ -501,6 +527,46 @@ export default function AdminDashboard() {
                         {payment.payment_amount_pi != null
                           ? formatPi(Number(payment.payment_amount_pi))
                           : "Not paid yet"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: 12,
+                      padding: 12,
+                      borderRadius: 12,
+                      background: "#ffffff",
+                      border: "1px solid #e5e7eb",
+                    }}
+                  >
+                    <strong>Ride operation timeline</strong>
+                    <div style={rideTimelineGridStyle()}>
+                      <div style={timelineItemStyle()}>
+                        <strong>Created at</strong>
+                        <div style={{ marginTop: 6 }}>{formatDateTime(ride.created_at)}</div>
+                      </div>
+
+                      <div style={timelineItemStyle()}>
+                        <strong>Accepted at</strong>
+                        <div style={{ marginTop: 6 }}>{formatDateTime(ride.accepted_at)}</div>
+                      </div>
+
+                      <div style={timelineItemStyle()}>
+                        <strong>Started at</strong>
+                        <div style={{ marginTop: 6 }}>{formatDateTime(ride.started_at)}</div>
+                      </div>
+
+                      <div style={timelineItemStyle()}>
+                        <strong>Completed at</strong>
+                        <div style={{ marginTop: 6 }}>{formatDateTime(ride.completed_at)}</div>
+                      </div>
+
+                      <div style={timelineItemStyle()}>
+                        <strong>Payment completed at</strong>
+                        <div style={{ marginTop: 6 }}>
+                          {formatDateTime(payment.payment_completed_at)}
+                        </div>
                       </div>
                     </div>
                   </div>

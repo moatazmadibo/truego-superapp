@@ -151,6 +151,26 @@ function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleString() : "N/A";
 }
 
+
+function verificationTimelineGridStyle(): React.CSSProperties {
+  return {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+    gap: 10,
+    marginTop: 10,
+  };
+}
+
+function verificationTimelineItemStyle(): React.CSSProperties {
+  return {
+    padding: 12,
+    borderRadius: 12,
+    background: "#ffffff",
+    border: "1px solid #e5e7eb",
+    lineHeight: 1.5,
+  };
+}
+
 function getDocumentReviewState(docs: DemoDriverDocumentRow[]) {
   const uploadedTypes = new Set(docs.map((doc) => doc.document_type));
   const hasPassport = uploadedTypes.has("passport");
@@ -403,10 +423,32 @@ export default function AdminDriverVerificationPanel() {
               </span>
             </div>
 
-            <div style={{ marginTop: 10, lineHeight: 1.7 }}>
-              <div><strong>Submitted at:</strong> {formatDate(row.submitted_at)}</div>
-              <div><strong>Verified at:</strong> {formatDate(row.verified_at)}</div>
-              <div><strong>Updated at:</strong> {formatDate(row.updated_at)}</div>
+            <div
+              style={{
+                marginTop: 12,
+                padding: 12,
+                borderRadius: 12,
+                background: "#ffffff",
+                border: "1px solid #e5e7eb",
+              }}
+            >
+              <strong>Verification operation timeline</strong>
+              <div style={verificationTimelineGridStyle()}>
+                <div style={verificationTimelineItemStyle()}>
+                  <strong>Submitted at</strong>
+                  <div style={{ marginTop: 6 }}>{formatDate(row.submitted_at)}</div>
+                </div>
+
+                <div style={verificationTimelineItemStyle()}>
+                  <strong>Approved / verified at</strong>
+                  <div style={{ marginTop: 6 }}>{formatDate(row.verified_at)}</div>
+                </div>
+
+                <div style={verificationTimelineItemStyle()}>
+                  <strong>Last review update</strong>
+                  <div style={{ marginTop: 6 }}>{formatDate(row.updated_at)}</div>
+                </div>
+              </div>
             </div>
 
             {approvedButDocumentsIncomplete ? (
@@ -471,7 +513,7 @@ export default function AdminDriverVerificationPanel() {
                       <div><strong>Type:</strong> {formatDocumentType(document.document_type)}</div>
                       <div><strong>File:</strong> {document.file_name ?? document.file_path}</div>
                       <div><strong>Status:</strong> {document.status}</div>
-                      <div><strong>Uploaded:</strong> {formatDate(document.uploaded_at)}</div>
+                      <div><strong>Uploaded at:</strong> {formatDate(document.uploaded_at)}</div>
 
                       {isLegacyIdentity ? (
                         <div style={{ marginTop: 6, color: "#9a3412" }}>
