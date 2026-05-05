@@ -9,6 +9,7 @@ import {
 import { createRideAndAutoDispatch } from "../../services/rideApi";
 import { formatPiAmount } from "../../lib/piPricing";
 import { getStoredPiSession } from "../../lib/pi";
+import ListingReadinessPanel from "../../components/ListingReadinessPanel";
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
@@ -249,6 +250,7 @@ export default function RidePage() {
   return (
     <main style={pageStyle}>
       <section style={containerStyle}>
+      <ListingReadinessPanel context="rider" compact />
         <div style={eyebrowStyle}>Ride estimate</div>
 
         <h1 style={titleStyle}>Review your trip details</h1>

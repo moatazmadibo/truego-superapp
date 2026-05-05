@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
 import AdminDriverVerificationPanel from "./AdminDriverVerificationPanel";
+import ListingReadinessPanel from "../../components/ListingReadinessPanel";
 import { listRecentRides, subscribeToLatestRides, type RideRow } from "../../services/rideApi";
 
 type AdminTab = "rides" | "drivers";
@@ -234,6 +235,7 @@ export default function AdminDashboard() {
 
   return (
     <div style={pageStyle()}>
+      <ListingReadinessPanel context="admin" compact />
       <h1 style={{ marginTop: 0, marginBottom: 0 }}>TrueGo Admin Dashboard</h1>
       <p style={{ color: "#6b7280", marginTop: 8 }}>
         Operations-only view for monitoring rides, driver assignment, and Pi payment status.

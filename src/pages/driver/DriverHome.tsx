@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import RideTimeline from "../../components/RideTimeline";
 import DriverVerificationCard from "./DriverVerificationCard";
+import ListingReadinessPanel from "../../components/ListingReadinessPanel";
 import StatusBadge from "../../components/StatusBadge";
 import { formatPiAmount } from "../../lib/piPricing";
 import type { Ride } from "../../types/ride";
@@ -419,6 +420,8 @@ export default function DriverHome() {
   return (
     <div style={cardStyle()}>
       <h1 style={{ marginTop: 0, marginBottom: 16 }}>TrueGo Driver</h1>
+
+      <ListingReadinessPanel context="driver" compact />
 
       <div style={sectionStyle()}>
         <label

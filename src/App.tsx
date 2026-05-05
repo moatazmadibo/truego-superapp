@@ -14,6 +14,7 @@ import RidePage from "./pages/rider/RidePage";
 import RideStatus from "./pages/rider/RideStatus";
 import DriverHome from "./pages/driver/DriverHome";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import ListingReadinessPanel from "./components/ListingReadinessPanel";
 import {
   clearStoredPiSession,
   getStoredPiSession,
@@ -27,13 +28,14 @@ import { syncPiUser } from "./services/piAuthApi";
 
 function landingCardStyle(): React.CSSProperties {
   return {
-    maxWidth: 520,
-    margin: "60px auto",
+    maxWidth: 980,
+    margin: "40px auto",
     background: "#ffffff",
-    borderRadius: 16,
+    borderRadius: 22,
     padding: 24,
-    boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
-    textAlign: "center",
+    boxShadow: "0 18px 55px rgba(15, 23, 42, 0.12)",
+    textAlign: "left",
+    border: "1px solid #e5e7eb",
   };
 }
 
@@ -129,6 +131,135 @@ function infoBoxStyle(): React.CSSProperties {
     fontSize: 14,
   };
 }
+
+
+function featureCardStyle(): React.CSSProperties {
+  return {
+    padding: 16,
+    borderRadius: 16,
+    background: "#f8fafc",
+    border: "1px solid #e5e7eb",
+  };
+}
+
+function routeCardStyle(background: string): React.CSSProperties {
+  return {
+    padding: 18,
+    borderRadius: 18,
+    background,
+    color: "#ffffff",
+    textDecoration: "none",
+    display: "block",
+    boxShadow: "0 12px 28px rgba(15, 23, 42, 0.16)",
+  };
+}
+
+function LandingShowcase() {
+  return (
+    <div style={{ marginTop: 18 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 14,
+          marginTop: 18,
+        }}
+      >
+        <div style={featureCardStyle()}>
+          <div style={{ fontSize: 26 }}>🚕</div>
+          <h3 style={{ margin: "8px 0 6px" }}>Ride-hailing flow</h3>
+          <p style={{ margin: 0, color: "#475569", lineHeight: 1.6 }}>
+            A rider can request a trip, receive a fractional Test-Pi fare, and
+            complete payment after the ride.
+          </p>
+        </div>
+
+        <div style={featureCardStyle()}>
+          <div style={{ fontSize: 26 }}>🧑‍✈️</div>
+          <h3 style={{ margin: "8px 0 6px" }}>Driver operations</h3>
+          <p style={{ margin: 0, color: "#475569", lineHeight: 1.6 }}>
+            Drivers can go online, receive offers, accept or decline, start,
+            complete rides, and submit verification documents.
+          </p>
+        </div>
+
+        <div style={featureCardStyle()}>
+          <div style={{ fontSize: 26 }}>🛡️</div>
+          <h3 style={{ margin: "8px 0 6px" }}>Safety & verification</h3>
+          <p style={{ margin: 0, color: "#475569", lineHeight: 1.6 }}>
+            Admin can review identity proof, driving license, vehicle license,
+            vehicle photo, and profile photo before approval.
+          </p>
+        </div>
+
+        <div style={featureCardStyle()}>
+          <div style={{ fontSize: 26 }}>π</div>
+          <h3 style={{ margin: "8px 0 6px" }}>Pi Testnet payment</h3>
+          <p style={{ margin: 0, color: "#475569", lineHeight: 1.6 }}>
+            Payment uses Test-Pi with small fractional values suitable for safe
+            listing review and repeated testing.
+          </p>
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: 22,
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 14,
+        }}
+      >
+        <Link to="/rider" style={routeCardStyle("#0ea5e9")}>
+          <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.9 }}>
+            Rider app
+          </div>
+          <h3 style={{ margin: "8px 0" }}>Book a ride</h3>
+          <p style={{ margin: 0, lineHeight: 1.5 }}>
+            Create a trip, view fare estimate, and pay with Test-Pi.
+          </p>
+        </Link>
+
+        <Link to="/driver" style={routeCardStyle("#111827")}>
+          <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.9 }}>
+            Driver console
+          </div>
+          <h3 style={{ margin: "8px 0" }}>Accept ride offers</h3>
+          <p style={{ margin: 0, lineHeight: 1.5 }}>
+            Go online, handle offers, complete rides, and manage verification.
+          </p>
+        </Link>
+
+        <Link to="/admin" style={routeCardStyle("#16a34a")}>
+          <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.9 }}>
+            Admin dashboard
+          </div>
+          <h3 style={{ margin: "8px 0" }}>Review operations</h3>
+          <p style={{ margin: 0, lineHeight: 1.5 }}>
+            Monitor rides, payments, driver verification, and documents.
+          </p>
+        </Link>
+      </div>
+
+      <div
+        style={{
+          marginTop: 18,
+          padding: 14,
+          borderRadius: 16,
+          background: "#fff7ed",
+          border: "1px solid #fed7aa",
+          color: "#9a3412",
+          lineHeight: 1.7,
+        }}
+      >
+        <strong>Listing review note:</strong> TrueGo is currently configured as a
+        Pi Testnet demo. It uses demo drivers, fractional Test-Pi payments, and
+        private driver-document storage for review workflows.
+      </div>
+    </div>
+  );
+}
+
 
 function RequirePiAuth({ children }: { children: ReactNode }) {
   const location = useLocation();
@@ -266,6 +397,8 @@ function Landing() {
   return (
     <div style={{ padding: 20 }}>
       <div style={landingCardStyle()}>
+      <ListingReadinessPanel context="landing" />
+      <LandingShowcase />
         <h1 style={{ marginTop: 0, marginBottom: 8 }}>TrueGo</h1>
 
         <p style={{ marginTop: 0, color: "#4b5563" }}>
