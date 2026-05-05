@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ListingReadinessPanel from "../../components/ListingReadinessPanel";
+import MapLocationPicker from "../../components/MapLocationPicker";
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
@@ -234,6 +235,13 @@ export default function RiderHome() {
             ))}
           </div>
 
+          <MapLocationPicker
+            pickupText={pickup}
+            destinationText={destination}
+            onPickupChange={setPickup}
+            onDestinationChange={setDestination}
+          />
+
           <label style={labelStyle} htmlFor="pickup">
             Pickup location
           </label>
@@ -261,8 +269,8 @@ export default function RiderHome() {
           </button>
 
           <p style={helperStyle}>
-            For listing review, use short city names like Cairo and Giza or
-            direct coordinates. The next step shows the estimated route, fare,
+            You can type place names, paste coordinates, or click on the map to
+            choose pickup and destination. The next step shows the route, fare,
             vehicle type, and driver matching status.
           </p>
         </div>
@@ -281,8 +289,8 @@ export default function RiderHome() {
             assignment.
           </div>
           <div style={featureStyle}>
-            <strong>Admin visibility:</strong> ride, payment, and driver-review
-            status are visible in the dashboard.
+            <strong>Free maps:</strong> location picking and route previews use
+            OpenStreetMap, Leaflet, and OSRM.
           </div>
         </div>
       </section>
