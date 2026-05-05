@@ -10,6 +10,7 @@ import { createRideAndAutoDispatch } from "../../services/rideApi";
 import { formatPiAmount } from "../../lib/piPricing";
 import { getStoredPiSession } from "../../lib/pi";
 import ListingReadinessPanel from "../../components/ListingReadinessPanel";
+import RideMapPreview from "../../components/RideMapPreview";
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
@@ -391,6 +392,20 @@ export default function RidePage() {
               sends an offer to an available driver. The ride becomes assigned
               only when the driver accepts.
             </div>
+
+            <RideMapPreview
+              title="Estimated route preview"
+              pickup={{
+                lat: estimate.pickup.lat,
+                lng: estimate.pickup.lng,
+                label: pickupText,
+              }}
+              destination={{
+                lat: estimate.destination.lat,
+                lng: estimate.destination.lng,
+                label: destinationText,
+              }}
+            />
 
             <button
               type="button"

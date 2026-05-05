@@ -4,6 +4,7 @@ import type { Ride } from "../../types/ride";
 import RideTimeline from "../../components/RideTimeline";
 import StatusBadge from "../../components/StatusBadge";
 import ListingReadinessPanel from "../../components/ListingReadinessPanel";
+import RideMapPreview from "../../components/RideMapPreview";
 import {
   getRideById,
   retryDemoRideDispatch,
@@ -663,6 +664,20 @@ export default function RideStatus() {
             </div>
           </div>
         </div>
+
+        <RideMapPreview
+          title="Ride route preview"
+          pickup={{
+            lat: ride.pickup.lat,
+            lng: ride.pickup.lng,
+            label: ride.pickupText,
+          }}
+          destination={{
+            lat: ride.destination.lat,
+            lng: ride.destination.lng,
+            label: ride.destinationText,
+          }}
+        />
       </div>
 
       {rideRow.status === "completed" || payment.payment_id ? (
