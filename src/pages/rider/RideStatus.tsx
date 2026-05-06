@@ -168,6 +168,18 @@ function getStatusMessage(status: RideRow["status"]): string {
   }
 }
 
+
+function formatRouteSource(source?: RideRow["route_source"]) {
+  switch (source) {
+    case "osrm":
+      return "OSRM road route";
+    case "fallback":
+      return "Fallback estimate";
+    default:
+      return "Not recorded";
+  }
+}
+
 function getPaymentSnapshot(row: RideRow | null): RidePaymentSnapshot {
   if (!row) {
     return {};
@@ -655,6 +667,11 @@ export default function RideStatus() {
           <div style={detailItemStyle()}>
             <strong>Vehicle</strong>
             <div style={{ marginTop: 6 }}>{ride.vehicleType}</div>
+          </div>
+
+          <div style={detailItemStyle()}>
+            <strong>Route source</strong>
+            <div style={{ marginTop: 6 }}>{formatRouteSource(rideRow.route_source)}</div>
           </div>
 
           <div style={detailItemStyle()}>

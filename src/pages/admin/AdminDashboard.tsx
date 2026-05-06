@@ -58,6 +58,18 @@ function formatDateTime(value?: string | null) {
 }
 
 
+function formatRouteSource(source?: RideRow["route_source"]) {
+  switch (source) {
+    case "osrm":
+      return "OSRM road route";
+    case "fallback":
+      return "Fallback estimate";
+    default:
+      return "Not recorded";
+  }
+}
+
+
 function getPaymentSnapshot(ride: RideRow): RidePaymentSnapshot {
   const extended = ride as RideRow & RidePaymentSnapshot;
 
@@ -510,6 +522,11 @@ export default function AdminDashboard() {
                     <div style={rideDetailItemStyle()}>
                       <strong>Estimated fare</strong>
                       <div style={{ marginTop: 6 }}>{formatPi(Number(ride.price_pi ?? 0))}</div>
+                    </div>
+
+                    <div style={rideDetailItemStyle()}>
+                      <strong>Route source</strong>
+                      <div style={{ marginTop: 6 }}>{formatRouteSource(ride.route_source)}</div>
                     </div>
 
                     <div style={rideDetailItemStyle()}>

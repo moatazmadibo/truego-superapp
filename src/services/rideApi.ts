@@ -30,6 +30,7 @@ export interface RideRow {
   distance_km: number;
   duration_min: number;
   price_pi: number;
+  route_source: "osrm" | "fallback" | null;
   driver_payout_pi: number | null;
   pricing_breakdown: Record<string, unknown> | null;
   vehicle_type: VehicleType;
@@ -68,6 +69,7 @@ export interface CreateRideInput {
   distance_km: number;
   duration_min: number;
   price_pi: number;
+  route_source?: "osrm" | "fallback" | null;
   driver_payout_pi?: number | null;
   pricing_breakdown?: Record<string, unknown> | null;
   vehicle_type: VehicleType;
@@ -149,6 +151,7 @@ export async function createRide(input: CreateRideInput): Promise<RideRow> {
       distance_km: input.distance_km,
       duration_min: input.duration_min,
       price_pi: input.price_pi,
+      route_source: input.route_source ?? null,
       driver_payout_pi: input.driver_payout_pi ?? null,
       pricing_breakdown: input.pricing_breakdown ?? null,
       vehicle_type: input.vehicle_type,

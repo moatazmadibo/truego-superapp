@@ -233,6 +233,7 @@ export default function RidePage() {
         distance_km: estimate.distanceKm,
         duration_min: estimate.durationMin,
         price_pi: payableEstimatePi,
+        route_source: estimate.routeSource,
         vehicle_type: vehicleType,
         status: "searching",
       });
