@@ -7,6 +7,7 @@ export interface RouteEstimate {
   distanceKm: number;
   durationMin: number;
   pricePi: number;
+  routeSource: "osrm" | "fallback";
 }
 
 const BASE_FARE: Record<VehicleType, number> = {
@@ -23,6 +24,14 @@ const PER_MIN: Record<VehicleType, number> = {
   car: 0.08,
   motorcycle: 0.05,
 };
+
+const nominatimBaseUrl =
+  (import.meta.env.VITE_NOMINATIM_BASE_URL as string | undefined) ||
+  "https://nominatim.openstreetmap.org";
+
+const osrmBaseUrl =
+  (import.meta.env.VITE_OSRM_BASE_URL as string | undefined) ||
+  "https://router.project-osrm.org";
 
 function parseLatLng(value: string): LatLng | null {
   const match = value.match(
@@ -86,7 +95,7 @@ async function geocodeLocation(
 
   try {
     const url =
-      "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=" +
+      `${nominatimBaseUrl}/search?format=jsonv2&limit=1&q=` +
       encodeURIComponent(text);
 
     const response = await fetch(url, {
@@ -119,10 +128,14 @@ async function geocodeLocation(
 async function getRouteMetrics(
   pickup: LatLng,
   destination: LatLng
-): Promise<{ distanceKm: number; durationMin: number }> {
+): Promise<{
+  distanceKm: number;
+  durationMin: number;
+  source: RouteEstimate["routeSource"];
+}> {
   try {
     const url =
-      `https://router.project-osrm.org/route/v1/driving/` +
+      `${osrmBaseUrl}/route/v1/driving/` +
       `${pickup.lng},${pickup.lat};${destination.lng},${destination.lat}` +
       `?overview=false`;
 
@@ -145,6 +158,7 @@ async function getRouteMetrics(
     return {
       distanceKm: Number((route.distance / 1000).toFixed(2)),
       durationMin: Math.max(1, Math.ceil(route.duration / 60)),
+      source: "osrm",
     };
   } catch {
     const distanceKm = Number(haversineDistanceKm(pickup, destination).toFixed(2));
@@ -153,6 +167,7 @@ async function getRouteMetrics(
     return {
       distanceKm,
       durationMin,
+      source: "fallback",
     };
   }
 }
@@ -190,5 +205,6 @@ export async function calculateRouteEstimate(
       metrics.durationMin,
       vehicleType
     ),
+    routeSource: metrics.source,
   };
 }

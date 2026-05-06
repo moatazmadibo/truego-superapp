@@ -373,6 +373,32 @@ export default function RidePage() {
                 <div style={summaryLabelStyle}>Estimated price</div>
                 <div style={summaryValueStyle}>{formatPiAmount(payableEstimatePi)}</div>
               </div>
+
+              <div style={summaryItemStyle}>
+                <div style={summaryLabelStyle}>Route source</div>
+                <div style={summaryValueStyle}>
+                  {estimate.routeSource === "osrm" ? "OSRM road route" : "Fallback estimate"}
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                marginTop: 14,
+                marginBottom: 14,
+                padding: 12,
+                borderRadius: 14,
+                background: "#f0f9ff",
+                border: "1px solid #bae6fd",
+                color: "#0369a1",
+                lineHeight: 1.6,
+                fontSize: 14,
+              }}
+            >
+              <strong>Route source note:</strong>{" "}
+              {estimate.routeSource === "osrm"
+                ? "Distance and time are based on an OSRM road route."
+                : "OSRM was unavailable, so TrueGo used a safe fallback estimate."}
             </div>
 
             <div
