@@ -5,6 +5,7 @@ import RideTimeline from "../../components/RideTimeline";
 import StatusBadge from "../../components/StatusBadge";
 import ListingReadinessPanel from "../../components/ListingReadinessPanel";
 import RideMapPreview from "../../components/RideMapPreview";
+import RiderDriverLiveLocationCard from "./RiderDriverLiveLocationCard";
 import {
   getRideById,
   retryDemoRideDispatch,
@@ -684,6 +685,21 @@ export default function RideStatus() {
 
         <RideMapPreview
           title="Ride route preview"
+          pickup={{
+            lat: ride.pickup.lat,
+            lng: ride.pickup.lng,
+            label: ride.pickupText,
+          }}
+          destination={{
+            lat: ride.destination.lat,
+            lng: ride.destination.lng,
+            label: ride.destinationText,
+          }}
+        />
+
+        <RiderDriverLiveLocationCard
+          demoDriverId={rideRow.demo_driver_id}
+          rideStatus={rideRow.status}
           pickup={{
             lat: ride.pickup.lat,
             lng: ride.pickup.lng,

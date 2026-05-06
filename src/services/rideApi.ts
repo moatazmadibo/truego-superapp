@@ -50,6 +50,11 @@ export interface DemoDriverRow {
   rating: number;
   lat: number | null;
   lng: number | null;
+  current_lat: number | null;
+  current_lng: number | null;
+  location_updated_at: string | null;
+  heading: number | null;
+  speed_kph: number | null;
   last_seen_at: string | null;
   created_at: string;
   updated_at: string;

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import RideTimeline from "../../components/RideTimeline";
 import DriverVerificationCard from "./DriverVerificationCard";
 import DriverVehicleProfileCard from "./DriverVehicleProfileCard";
+import DriverLiveLocationTracker from "./DriverLiveLocationTracker";
 import ListingReadinessPanel from "../../components/ListingReadinessPanel";
 
 type DriverTab = "operations" | "verification";
@@ -273,6 +274,13 @@ export default function DriverHome() {
     return mapRideRowToRide(currentRideRow);
   }, [currentRideRow]);
 
+  const liveLocationTrackingEnabled =
+    !!selectedDriver &&
+    !!currentRideRow &&
+    ["driver_assigned", "driver_arriving", "in_progress"].includes(
+      currentRideRow.status
+    );
+
   useEffect(() => {
     if (!currentRideRow || currentRideRow.status !== "offer_sent") {
       return;
@@ -497,6 +505,14 @@ export default function DriverHome() {
           Driver Verification
         </button>
       </div>
+
+      {selectedDriver ? (
+        <DriverLiveLocationTracker
+          driverId={selectedDriver.id}
+          enabled={liveLocationTrackingEnabled}
+          showStatus={activeTab === "operations"}
+        />
+      ) : null}
 
       {activeTab === "verification" ? (
         <div
