@@ -3,6 +3,7 @@ import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { supabase } from "../../lib/supabase";
 import type { RideStage } from "../../services/rideApi";
+import RouteEtaSummary from "../../components/RouteEtaSummary";
 
 type MapPoint = {
   lat: number;
@@ -440,6 +441,14 @@ export default function RiderDriverLiveLocationCard({
             destination={destination}
             driver={driver}
             rideStatus={rideStatus}
+          />
+
+          <RouteEtaSummary
+            startLat={Number(driver.current_lat)}
+            startLng={Number(driver.current_lng)}
+            targetLat={rideStatus === "in_progress" ? destination.lat : pickup.lat}
+            targetLng={rideStatus === "in_progress" ? destination.lng : pickup.lng}
+            targetLabel={rideStatus === "in_progress" ? "destination" : "pickup"}
           />
 
           <div style={noticeStyle()}>
