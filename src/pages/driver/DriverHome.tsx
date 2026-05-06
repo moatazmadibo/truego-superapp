@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import RideTimeline from "../../components/RideTimeline";
 import DriverVerificationCard from "./DriverVerificationCard";
+import DriverVehicleProfileCard from "./DriverVehicleProfileCard";
 import ListingReadinessPanel from "../../components/ListingReadinessPanel";
 
 type DriverTab = "operations" | "verification";
@@ -642,7 +643,10 @@ export default function DriverHome() {
 
       {activeTab === "verification" ? (
         !loading && selectedDriver ? (
-          <DriverVerificationCard driver={selectedDriver} />
+          <>
+            <DriverVehicleProfileCard driver={selectedDriver} />
+            <DriverVerificationCard driver={selectedDriver} />
+          </>
         ) : (
           <div style={sectionStyle()}>
             <h2 style={{ marginTop: 0 }}>Driver Verification</h2>

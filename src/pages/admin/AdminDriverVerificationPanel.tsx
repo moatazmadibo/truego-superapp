@@ -49,6 +49,12 @@ type DemoDriverOperationalRow = {
   is_online: boolean;
   is_available: boolean;
   rating: number;
+  vehicle_make: string | null;
+  vehicle_model: string | null;
+  vehicle_color: string | null;
+  vehicle_plate: string | null;
+  vehicle_year: number | null;
+  vehicle_license_expires_at: string | null;
 };
 
 const REQUIRED_DOCUMENTS: Array<{ type: DocumentType; label: string }> = [
@@ -278,7 +284,7 @@ export default function AdminDriverVerificationPanel() {
 
       const { data: driversData, error: driversError } = await supabase
         .from("demo_drivers")
-        .select("id, display_name, vehicle_type, is_online, is_available, rating")
+        .select("id, display_name, vehicle_type, is_online, is_available, rating, vehicle_make, vehicle_model, vehicle_color, vehicle_plate, vehicle_year, vehicle_license_expires_at")
         .in("id", ids);
 
       if (driversError) {
@@ -447,6 +453,25 @@ export default function AdminDriverVerificationPanel() {
                   <strong>Operational status:</strong>{" "}
                   {driversById[row.demo_driver_id]?.is_online ? "Online" : "Offline"} /{" "}
                   {driversById[row.demo_driver_id]?.is_available ? "Available" : "Busy"}
+                </div>
+                <div>
+                  <strong>Vehicle profile:</strong>{" "}
+                  {[
+                    driversById[row.demo_driver_id]?.vehicle_make,
+                    driversById[row.demo_driver_id]?.vehicle_model,
+                    driversById[row.demo_driver_id]?.vehicle_year,
+                    driversById[row.demo_driver_id]?.vehicle_color,
+                  ]
+                    .filter(Boolean)
+                    .join(" ") || "Not completed"}
+                </div>
+                <div>
+                  <strong>Plate number:</strong>{" "}
+                  {driversById[row.demo_driver_id]?.vehicle_plate ?? "Not set"}
+                </div>
+                <div>
+                  <strong>Vehicle license expiry:</strong>{" "}
+                  {driversById[row.demo_driver_id]?.vehicle_license_expires_at ?? "Not set"}
                 </div>
               </div>
 
