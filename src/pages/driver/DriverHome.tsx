@@ -511,6 +511,31 @@ export default function DriverHome() {
           driverId={selectedDriver.id}
           enabled={liveLocationTrackingEnabled}
           showStatus={activeTab === "operations"}
+          demoStartLat={
+            currentRideRow?.status === "in_progress"
+              ? currentRideRow.pickup_lat
+              : currentRideRow?.destination_lat
+          }
+          demoStartLng={
+            currentRideRow?.status === "in_progress"
+              ? currentRideRow.pickup_lng
+              : currentRideRow?.destination_lng
+          }
+          targetLat={
+            currentRideRow?.status === "in_progress"
+              ? currentRideRow.destination_lat
+              : currentRideRow?.pickup_lat
+          }
+          targetLng={
+            currentRideRow?.status === "in_progress"
+              ? currentRideRow.destination_lng
+              : currentRideRow?.pickup_lng
+          }
+          targetLabel={
+            currentRideRow?.status === "in_progress"
+              ? "destination"
+              : "pickup"
+          }
         />
       ) : null}
 
