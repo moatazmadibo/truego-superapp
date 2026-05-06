@@ -42,6 +42,15 @@ type DemoDriverDocumentRow = {
   uploaded_at: string;
 };
 
+type DemoDriverOperationalRow = {
+  id: string;
+  display_name: string;
+  vehicle_type: "car" | "motorcycle";
+  is_online: boolean;
+  is_available: boolean;
+  rating: number;
+};
+
 const REQUIRED_DOCUMENTS: Array<{ type: DocumentType; label: string }> = [
   { type: "driving_license", label: "Driving license" },
   { type: "vehicle_license", label: "Vehicle license" },
@@ -207,6 +216,7 @@ function getDocumentReviewState(docs: DemoDriverDocumentRow[]) {
 export default function AdminDriverVerificationPanel() {
   const [rows, setRows] = useState<DemoDriverVerificationRow[]>([]);
   const [documentsByDriver, setDocumentsByDriver] = useState<Record<string, DemoDriverDocumentRow[]>>({});
+  const [driversById, setDriversById] = useState<Record<string, DemoDriverOperationalRow>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [actionKey, setActionKey] = useState("");
@@ -266,6 +276,21 @@ export default function AdminDriverVerificationPanel() {
         .in("demo_driver_id", ids)
         .order("uploaded_at", { ascending: false });
 
+      const { data: driversData, error: driversError } = await supabase
+        .from("demo_drivers")
+        .select("id, display_name, vehicle_type, is_online, is_available, rating")
+        .in("id", ids);
+
+      if (driversError) {
+        setError(driversError.message);
+      } else {
+        const mappedDrivers: Record<string, DemoDriverOperationalRow> = {};
+        for (const driver of (driversData ?? []) as DemoDriverOperationalRow[]) {
+          mappedDrivers[driver.id] = driver;
+        }
+        setDriversById(mappedDrivers);
+      }
+
       if (docsError) {
         setError(docsError.message);
       } else {
@@ -278,6 +303,7 @@ export default function AdminDriverVerificationPanel() {
       }
     } else {
       setDocumentsByDriver({});
+      setDriversById({});
     }
 
     setLoading(false);
@@ -407,6 +433,21 @@ export default function AdminDriverVerificationPanel() {
               <div>
                 <div><strong>Driver:</strong> {row.driver_name}</div>
                 <div><strong>Demo driver ID:</strong> {row.demo_driver_id}</div>
+                <div>
+                  <strong>Vehicle:</strong>{" "}
+                  {driversById[row.demo_driver_id]?.vehicle_type ?? "Not recorded"}
+                </div>
+                <div>
+                  <strong>Rating:</strong>{" "}
+                  {driversById[row.demo_driver_id]?.rating != null
+                    ? driversById[row.demo_driver_id].rating.toFixed(1)
+                    : "N/A"}
+                </div>
+                <div>
+                  <strong>Operational status:</strong>{" "}
+                  {driversById[row.demo_driver_id]?.is_online ? "Online" : "Offline"} /{" "}
+                  {driversById[row.demo_driver_id]?.is_available ? "Available" : "Busy"}
+                </div>
               </div>
 
               <span

@@ -70,6 +70,18 @@ function formatRouteSource(source?: RideRow["route_source"]) {
 }
 
 
+function formatVehicleType(vehicleType?: string | null) {
+  switch (vehicleType) {
+    case "car":
+      return "Car";
+    case "motorcycle":
+      return "Motorcycle";
+    default:
+      return vehicleType ?? "Not recorded";
+  }
+}
+
+
 function getPaymentSnapshot(ride: RideRow): RidePaymentSnapshot {
   const extended = ride as RideRow & RidePaymentSnapshot;
 
@@ -503,6 +515,16 @@ export default function AdminDashboard() {
                     </div>
 
                     <div style={rideDetailItemStyle()}>
+                      <strong>Vehicle</strong>
+                      <div style={{ marginTop: 6 }}>{formatVehicleType(ride.vehicle_type)}</div>
+                    </div>
+
+                    <div style={rideDetailItemStyle()}>
+                      <strong>Demo driver ID</strong>
+                      <div style={{ marginTop: 6 }}>{ride.demo_driver_id ?? "Not assigned"}</div>
+                    </div>
+
+                    <div style={rideDetailItemStyle()}>
                       <strong>Pickup</strong>
                       <div style={{ marginTop: 6 }}>{ride.pickup_text}</div>
                     </div>
@@ -522,6 +544,15 @@ export default function AdminDashboard() {
                     <div style={rideDetailItemStyle()}>
                       <strong>Estimated fare</strong>
                       <div style={{ marginTop: 6 }}>{formatPi(Number(ride.price_pi ?? 0))}</div>
+                    </div>
+
+                    <div style={rideDetailItemStyle()}>
+                      <strong>Driver payout</strong>
+                      <div style={{ marginTop: 6 }}>
+                        {ride.driver_payout_pi != null
+                          ? formatPi(Number(ride.driver_payout_pi))
+                          : "Not calculated yet"}
+                      </div>
                     </div>
 
                     <div style={rideDetailItemStyle()}>
