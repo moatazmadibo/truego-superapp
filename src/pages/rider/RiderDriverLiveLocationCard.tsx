@@ -28,6 +28,18 @@ type RiderDriverLiveLocationCardProps = {
   destination: MapPoint;
 };
 
+type OsrmRouteResponse = {
+  routes?: Array<{
+    geometry?: {
+      coordinates?: Array<[number, number]>;
+    };
+  }>;
+};
+
+const osrmBaseUrl =
+  (import.meta.env.VITE_OSRM_BASE_URL as string | undefined) ||
+  "https://router.project-osrm.org";
+
 function markerIcon(label: string, background: string) {
   return L.divIcon({
     className: "",
@@ -84,6 +96,31 @@ function noticeStyle(): React.CSSProperties {
   };
 }
 
+async function fetchOsrmPolyline(
+  start: L.LatLng,
+  end: L.LatLng
+): Promise<L.LatLng[]> {
+  const url =
+    `${osrmBaseUrl}/route/v1/driving/` +
+    `${start.lng},${start.lat};${end.lng},${end.lat}` +
+    "?overview=full&geometries=geojson";
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`OSRM live route failed: ${response.status}`);
+  }
+
+  const data = (await response.json()) as OsrmRouteResponse;
+  const coordinates = data.routes?.[0]?.geometry?.coordinates ?? [];
+
+  if (coordinates.length < 2) {
+    throw new Error("OSRM returned no live route geometry.");
+  }
+
+  return coordinates.map(([lng, lat]) => L.latLng(lat, lng));
+}
+
 function LiveDriverMap({
   pickup,
   destination,
@@ -97,19 +134,20 @@ function LiveDriverMap({
 }) {
   const mapNodeRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
+  const pickupMarkerRef = useRef<L.Marker | null>(null);
+  const destinationMarkerRef = useRef<L.Marker | null>(null);
+  const driverMarkerRef = useRef<L.Marker | null>(null);
+  const tripLineRef = useRef<L.Polyline | null>(null);
+  const driverRouteLineRef = useRef<L.Polyline | null>(null);
 
   useEffect(() => {
     if (
       !mapNodeRef.current ||
+      mapRef.current ||
       driver.current_lat == null ||
       driver.current_lng == null
     ) {
       return;
-    }
-
-    if (mapRef.current) {
-      mapRef.current.remove();
-      mapRef.current = null;
     }
 
     const pickupLatLng = L.latLng(pickup.lat, pickup.lng);
@@ -132,33 +170,23 @@ function LiveDriverMap({
       maxZoom: 19,
     }).addTo(map);
 
-    L.marker(pickupLatLng, { icon: markerIcon("P", "#0ea5e9") })
+    pickupMarkerRef.current = L.marker(pickupLatLng, {
+      icon: markerIcon("P", "#0ea5e9"),
+    })
       .addTo(map)
       .bindPopup(pickup.label);
 
-    L.marker(destinationLatLng, { icon: markerIcon("D", "#16a34a") })
+    destinationMarkerRef.current = L.marker(destinationLatLng, {
+      icon: markerIcon("D", "#16a34a"),
+    })
       .addTo(map)
       .bindPopup(destination.label);
 
-    L.marker(driverLatLng, { icon: markerIcon("🚗", "#111827") })
+    driverMarkerRef.current = L.marker(driverLatLng, {
+      icon: markerIcon("🚗", "#111827"),
+    })
       .addTo(map)
       .bindPopup(driver.display_name || "Driver");
-
-    L.polyline([pickupLatLng, destinationLatLng], {
-      color: "#94a3b8",
-      weight: 3,
-      opacity: 0.65,
-      dashArray: "8 8",
-    }).addTo(map);
-
-    const targetLatLng =
-      rideStatus === "in_progress" ? destinationLatLng : pickupLatLng;
-
-    L.polyline([driverLatLng, targetLatLng], {
-      color: rideStatus === "in_progress" ? "#16a34a" : "#0ea5e9",
-      weight: 5,
-      opacity: 0.78,
-    }).addTo(map);
 
     map.fitBounds(
       L.latLngBounds([pickupLatLng, destinationLatLng, driverLatLng]).pad(0.25)
@@ -182,6 +210,100 @@ function LiveDriverMap({
     pickup.lat,
     pickup.lng,
     pickup.label,
+  ]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+
+    if (
+      !map ||
+      driver.current_lat == null ||
+      driver.current_lng == null ||
+      !driverMarkerRef.current
+    ) {
+      return;
+    }
+
+    const liveMap = map;
+
+    const pickupLatLng = L.latLng(pickup.lat, pickup.lng);
+    const destinationLatLng = L.latLng(destination.lat, destination.lng);
+    const driverLatLng = L.latLng(
+      Number(driver.current_lat),
+      Number(driver.current_lng)
+    );
+
+    driverMarkerRef.current.setLatLng(driverLatLng);
+    driverMarkerRef.current.setPopupContent(driver.display_name || "Driver");
+
+    if (tripLineRef.current) {
+      tripLineRef.current.remove();
+      tripLineRef.current = null;
+    }
+
+    tripLineRef.current = L.polyline([pickupLatLng, destinationLatLng], {
+      color: "#94a3b8",
+      weight: 3,
+      opacity: 0.65,
+      dashArray: "8 8",
+    }).addTo(map);
+
+    const targetLatLng =
+      rideStatus === "in_progress" ? destinationLatLng : pickupLatLng;
+
+    let cancelled = false;
+
+    async function drawDriverRoute() {
+      if (driverRouteLineRef.current) {
+        driverRouteLineRef.current.remove();
+        driverRouteLineRef.current = null;
+      }
+
+      try {
+        const route = await fetchOsrmPolyline(driverLatLng, targetLatLng);
+
+        if (cancelled) return;
+
+        driverRouteLineRef.current = L.polyline(route, {
+          color: rideStatus === "in_progress" ? "#16a34a" : "#0ea5e9",
+          weight: 5,
+          opacity: 0.82,
+        }).addTo(liveMap);
+
+        liveMap.fitBounds(
+          L.latLngBounds([pickupLatLng, destinationLatLng, driverLatLng]).pad(0.25)
+        );
+      } catch (error) {
+        console.warn("Live driver OSRM fallback:", error);
+
+        if (cancelled) return;
+
+        driverRouteLineRef.current = L.polyline([driverLatLng, targetLatLng], {
+          color: rideStatus === "in_progress" ? "#16a34a" : "#0ea5e9",
+          weight: 5,
+          opacity: 0.82,
+          dashArray: "8 8",
+        }).addTo(liveMap);
+
+        liveMap.fitBounds(
+          L.latLngBounds([pickupLatLng, destinationLatLng, driverLatLng]).pad(0.25)
+        );
+      }
+    }
+
+    void drawDriverRoute();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    destination.lat,
+    destination.lng,
+    driver.current_lat,
+    driver.current_lng,
+    driver.display_name,
+    pickup.lat,
+    pickup.lng,
     rideStatus,
   ]);
 
@@ -216,6 +338,7 @@ export default function RiderDriverLiveLocationCard({
     }
 
     let mounted = true;
+    let pollingId: number | null = null;
 
     async function loadDriverLocation() {
       setError("");
@@ -239,6 +362,10 @@ export default function RiderDriverLiveLocationCard({
 
     void loadDriverLocation();
 
+    pollingId = window.setInterval(() => {
+      void loadDriverLocation();
+    }, 2500);
+
     const channel = supabase
       .channel(`driver-live-location-${demoDriverId}`)
       .on(
@@ -257,6 +384,11 @@ export default function RiderDriverLiveLocationCard({
 
     return () => {
       mounted = false;
+
+      if (pollingId != null) {
+        window.clearInterval(pollingId);
+      }
+
       void supabase.removeChannel(channel);
     };
   }, [demoDriverId, rideStatus]);
@@ -280,8 +412,8 @@ export default function RiderDriverLiveLocationCard({
           <strong>Driver live location</strong>
           <div style={{ marginTop: 4, color: "#64748b", fontSize: 13 }}>
             {rideStatus === "in_progress"
-              ? "Trip in progress. Driver is moving toward the destination."
-              : "Driver is moving toward the pickup point."}
+              ? "Trip in progress. Driver route is drawn toward the destination."
+              : "Driver route is drawn toward the pickup point."}
           </div>
         </div>
 
@@ -295,7 +427,7 @@ export default function RiderDriverLiveLocationCard({
             fontSize: 12,
           }}
         >
-          Supabase Realtime
+          Live + OSRM
         </span>
       </div>
 
@@ -327,7 +459,7 @@ export default function RiderDriverLiveLocationCard({
       ) : (
         <div style={noticeStyle()}>
           Waiting for the driver to share live location. The marker will appear
-          here after the driver grants location permission.
+          here after the driver grants location permission or starts demo movement.
         </div>
       )}
     </div>

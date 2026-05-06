@@ -12,6 +12,23 @@ type DriverLiveLocationTrackerProps = {
   targetLabel?: string;
 };
 
+type RoutePoint = {
+  lat: number;
+  lng: number;
+};
+
+type OsrmRouteResponse = {
+  routes?: Array<{
+    geometry?: {
+      coordinates?: Array<[number, number]>;
+    };
+  }>;
+};
+
+const osrmBaseUrl =
+  (import.meta.env.VITE_OSRM_BASE_URL as string | undefined) ||
+  "https://router.project-osrm.org";
+
 function cardStyle(): React.CSSProperties {
   return {
     marginTop: 16,
@@ -42,6 +59,69 @@ function buttonStyle(background: string, disabled = false): React.CSSProperties 
 
 function isValidNumber(value?: number | null) {
   return typeof value === "number" && Number.isFinite(value);
+}
+
+function fallbackRoutePoints(
+  startLat: number,
+  startLng: number,
+  endLat: number,
+  endLng: number
+): RoutePoint[] {
+  const points: RoutePoint[] = [];
+  const steps = 30;
+
+  for (let step = 0; step <= steps; step += 1) {
+    const progress = step / steps;
+
+    points.push({
+      lat: startLat + (endLat - startLat) * progress,
+      lng: startLng + (endLng - startLng) * progress,
+    });
+  }
+
+  return points;
+}
+
+async function fetchOsrmRoutePoints(
+  startLat: number,
+  startLng: number,
+  endLat: number,
+  endLng: number
+): Promise<RoutePoint[]> {
+  const url =
+    `${osrmBaseUrl}/route/v1/driving/` +
+    `${startLng},${startLat};${endLng},${endLat}` +
+    "?overview=full&geometries=geojson";
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`OSRM route failed: ${response.status}`);
+  }
+
+  const data = (await response.json()) as OsrmRouteResponse;
+  const coordinates = data.routes?.[0]?.geometry?.coordinates ?? [];
+
+  if (coordinates.length < 2) {
+    throw new Error("OSRM returned no route geometry.");
+  }
+
+  return coordinates.map(([lng, lat]) => ({ lat, lng }));
+}
+
+function sampleRoutePoints(points: RoutePoint[], maxPoints = 45) {
+  if (points.length <= maxPoints) {
+    return points;
+  }
+
+  const sampled: RoutePoint[] = [];
+
+  for (let i = 0; i < maxPoints; i += 1) {
+    const index = Math.round((i / (maxPoints - 1)) * (points.length - 1));
+    sampled.push(points[index]);
+  }
+
+  return sampled;
 }
 
 export default function DriverLiveLocationTracker({
@@ -83,9 +163,7 @@ export default function DriverLiveLocationTracker({
     if (error) {
       setStatus(`Live location update failed: ${error.message}`);
     } else {
-      setStatus(
-        `${sourceLabel}. Last update: ${new Date().toLocaleTimeString()}`
-      );
+      setStatus(`${sourceLabel}. Last update: ${new Date().toLocaleTimeString()}`);
     }
   }
 
@@ -99,7 +177,7 @@ export default function DriverLiveLocationTracker({
     setStatus("Demo movement stopped. Real GPS tracking remains available.");
   }
 
-  function startDemoMovement() {
+  async function startDemoMovement() {
     if (
       !isValidNumber(demoStartLat) ||
       !isValidNumber(demoStartLng) ||
@@ -125,28 +203,49 @@ export default function DriverLiveLocationTracker({
     const endLat = Number(targetLat);
     const endLng = Number(targetLng);
 
-    const steps = 24;
-    let step = 0;
-
     setDemoMoving(true);
-    setStatus(`Demo movement started toward ${targetLabel}.`);
+    setStatus(`Preparing OSRM demo route toward ${targetLabel}...`);
 
-    void sendLocation(startLat, startLng, null, 18, "Demo driver location active");
+    let routePoints: RoutePoint[];
+
+    try {
+      routePoints = await fetchOsrmRoutePoints(startLat, startLng, endLat, endLng);
+      routePoints = sampleRoutePoints(routePoints, 45);
+      setStatus(`Demo movement started on OSRM route toward ${targetLabel}.`);
+    } catch (error) {
+      console.warn("Demo movement OSRM fallback:", error);
+      routePoints = fallbackRoutePoints(startLat, startLng, endLat, endLng);
+      setStatus(`OSRM unavailable. Demo movement uses fallback path toward ${targetLabel}.`);
+    }
+
+    let index = 0;
+
+    await sendLocation(
+      routePoints[0].lat,
+      routePoints[0].lng,
+      null,
+      18,
+      "Demo driver location active"
+    );
 
     demoIntervalRef.current = window.setInterval(() => {
-      step += 1;
+      index += 1;
 
-      const progress = Math.min(step / steps, 1);
-      const lat = startLat + (endLat - startLat) * progress;
-      const lng = startLng + (endLng - startLng) * progress;
+      const point = routePoints[Math.min(index, routePoints.length - 1)];
 
-      void sendLocation(lat, lng, null, 18, "Demo driver location moving");
+      void sendLocation(
+        point.lat,
+        point.lng,
+        null,
+        18,
+        "Demo driver location moving"
+      );
 
-      if (progress >= 1) {
+      if (index >= routePoints.length - 1) {
         stopDemoMovement();
         setStatus(`Demo movement reached ${targetLabel}.`);
       }
-    }, 2500);
+    }, 1200);
   }
 
   useEffect(() => {
@@ -221,18 +320,22 @@ export default function DriverLiveLocationTracker({
       <strong>Driver live location:</strong> {status}
       <div style={{ marginTop: 6 }}>
         Location sharing is active only during assigned, arriving, or in-progress
-        rides.
+        rides. Demo movement follows an OSRM road route when available.
       </div>
 
       {enabled ? (
         <div>
           <button
             type="button"
-            onClick={startDemoMovement}
+            onClick={() => {
+              void startDemoMovement();
+            }}
             disabled={demoMoving}
             style={buttonStyle("#0f766e", demoMoving)}
           >
-            {demoMoving ? "Demo movement running..." : `Start demo movement to ${targetLabel}`}
+            {demoMoving
+              ? "Demo movement running..."
+              : `Start demo movement to ${targetLabel}`}
           </button>
 
           <button
