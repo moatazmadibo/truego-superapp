@@ -3,6 +3,7 @@ import RideTimeline from "../../components/RideTimeline";
 import DriverVerificationCard from "./DriverVerificationCard";
 import DriverVehicleProfileCard from "./DriverVehicleProfileCard";
 import DriverLiveLocationTracker from "./DriverLiveLocationTracker";
+import DriverRideMapCard from "./DriverRideMapCard";
 import ListingReadinessPanel from "../../components/ListingReadinessPanel";
 
 type DriverTab = "operations" | "verification";
@@ -537,6 +538,10 @@ export default function DriverHome() {
               : "pickup"
           }
         />
+      ) : null}
+
+      {activeTab === "operations" && selectedDriver && currentRideRow ? (
+        <DriverRideMapCard driverId={selectedDriver.id} ride={currentRideRow} />
       ) : null}
 
       {activeTab === "verification" ? (
