@@ -25,7 +25,10 @@ import {
 import { createPiPayment } from "../../services/piPlatform";
 import {
   approvePiRidePayment,
+  clearRidePiPaymentAttempt,
   completePiRidePayment,
+  prepareRidePiPaymentRetry,
+  registerRidePiPaymentAttempt,
 } from "../../services/piPaymentApi";
 
 type RidePaymentSnapshot = {
@@ -215,6 +218,49 @@ function formatPaymentStatus(status?: RidePaymentSnapshot["payment_status"]) {
   }
 }
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
+function getPiPaymentIdentifier(payment: unknown): string | null {
+  if (!payment || typeof payment !== "object") {
+    return null;
+  }
+
+  const possiblePayment = payment as {
+    identifier?: unknown;
+    paymentId?: unknown;
+    id?: unknown;
+  };
+
+  if (typeof possiblePayment.identifier === "string") {
+    return possiblePayment.identifier;
+  }
+
+  if (typeof possiblePayment.paymentId === "string") {
+    return possiblePayment.paymentId;
+  }
+
+  if (typeof possiblePayment.id === "string") {
+    return possiblePayment.id;
+  }
+
+  return null;
+}
+
+function isRidePaid(row: RideRow | null): boolean {
+  const snapshot = getPaymentSnapshot(row);
+
+  return Boolean(
+    snapshot.payment_status === "completed" ||
+      snapshot.payment_completed_at
+  );
+}
+
 export default function RideStatus() {
   const params = useParams<{ rideId: string }>();
   const rideId = params.rideId ?? "";
@@ -313,21 +359,74 @@ export default function RideStatus() {
   const canRetryDispatch =
     rideRow?.status === "no_driver_available" || rideRow?.status === "cancelled";
 
-  const isPaid = payment.payment_status === "completed";
+  const isPaid =
+    payment.payment_status === "completed" || Boolean(payment.payment_completed_at);
+
+  const hasBlockchainLinkedPayment =
+    Boolean(payment.payment_id && payment.payment_txid) && !isPaid;
+
+  const canRetryPiCompletion =
+    Boolean(ride && payment.payment_id && payment.payment_txid) &&
+    payment.payment_status === "approved" &&
+    !isPaid;
 
   const canPayWithPi =
     Boolean(ride && piSession) &&
     payablePi > 0 &&
     rideRow?.status === "completed" &&
-    !isPaid;
+    !isPaid &&
+    !hasBlockchainLinkedPayment;
 
-  async function refreshCurrentRide() {
+  async function refreshCurrentRide(): Promise<RideRow | null> {
     if (!rideId) {
-      return;
+      return null;
     }
 
     const data = await getRideById(rideId);
     setRideRow(data);
+
+    return data;
+  }
+
+  async function handleRetryPiCompletion() {
+    if (!ride || !payment.payment_id || !payment.payment_txid) {
+      return;
+    }
+
+    setPaymentLoading(true);
+    setErrorMessage("");
+    setPaymentMessage("Retrying Pi payment confirmation...");
+
+    try {
+      const result = await completePiRidePayment({
+        rideId: ride.id,
+        paymentId: payment.payment_id,
+        txid: payment.payment_txid,
+        amountPi: payment.payment_amount_pi ?? payablePi,
+      });
+
+      if (result?.pendingVerification) {
+        setPaymentMessage(
+          "Payment is still pending Pi verification. Do not pay again. Please try confirmation again later."
+        );
+      } else {
+        setPaymentMessage("Payment completed successfully.");
+      }
+
+      await refreshCurrentRide();
+    } catch (error) {
+      const message = getErrorMessage(
+        error,
+        "Failed to retry Pi payment confirmation."
+      );
+
+      setErrorMessage(message);
+      setPaymentMessage(
+        "Could not confirm the transaction yet. Do not pay again if your wallet shows a transaction ID."
+      );
+    } finally {
+      setPaymentLoading(false);
+    }
   }
 
   async function handleRetryDispatch() {
@@ -361,6 +460,28 @@ export default function RideStatus() {
       return;
     }
 
+    if (isPaid || payment.payment_completed_at) {
+      setPaymentMessage("Payment has already been completed.");
+      return;
+    }
+
+    if (hasBlockchainLinkedPayment) {
+      setPaymentMessage(
+        "This payment already has a transaction ID. Do not pay again. Use Retry Pi confirmation."
+      );
+      return;
+    }
+
+    if (rideRow?.status !== "completed") {
+      setErrorMessage("Payment is available only after the trip is completed.");
+      return;
+    }
+
+    if (payablePi <= 0) {
+      setErrorMessage("Invalid payment amount.");
+      return;
+    }
+
     setPaymentLoading(true);
     setErrorMessage("");
     setPaymentMessage("Preparing Pi payment access...");
@@ -369,6 +490,13 @@ export default function RideStatus() {
       const paymentLogin = await ensurePiPaymentsScope();
       saveStoredPiSession(paymentLogin.session);
 
+      setPaymentMessage("Preparing a fresh Pi payment attempt...");
+      const preparedRide = await prepareRidePiPaymentRetry({
+        rideId: ride.id,
+        reason: "Starting new Pi payment attempt",
+      });
+
+      setRideRow(preparedRide as RideRow);
       setPaymentMessage("Opening Pi payment flow...");
 
       createPiPayment(
@@ -386,40 +514,140 @@ export default function RideStatus() {
         },
         {
           onReadyForServerApproval: async (paymentId) => {
-            setPaymentMessage("Approving payment on TrueGo server...");
-            await approvePiRidePayment({
-              rideId: ride.id,
-              paymentId,
-              amountPi: payablePi,
-            });
-            setPaymentMessage("Payment approved. Waiting for blockchain confirmation...");
-            await refreshCurrentRide();
+            try {
+              setPaymentMessage("Registering Pi payment attempt...");
+              await registerRidePiPaymentAttempt({
+                rideId: ride.id,
+                paymentId,
+              });
+
+              setPaymentMessage("Approving payment on TrueGo server...");
+              await approvePiRidePayment({
+                rideId: ride.id,
+                paymentId,
+                amountPi: payablePi,
+              });
+
+              setPaymentMessage(
+                "Payment approved. Waiting for blockchain confirmation..."
+              );
+              await refreshCurrentRide();
+            } catch (error) {
+              const message = getErrorMessage(
+                error,
+                "TrueGo could not approve the Pi payment."
+              );
+
+              try {
+                await clearRidePiPaymentAttempt({
+                  rideId: ride.id,
+                  paymentId,
+                  reason: message,
+                });
+                await refreshCurrentRide();
+              } catch (clearError) {
+                console.error("Failed to reset Pi payment attempt:", clearError);
+              }
+
+              setErrorMessage(message);
+              setPaymentMessage("Payment attempt was reset. Please try again.");
+              setPaymentLoading(false);
+            }
           },
           onReadyForServerCompletion: async (paymentId, txid) => {
-            setPaymentMessage("Completing Pi payment...");
-            await completePiRidePayment({
-              rideId: ride.id,
-              paymentId,
-              txid,
-              amountPi: payablePi,
-            });
-            setPaymentMessage("Payment completed successfully.");
-            await refreshCurrentRide();
+            try {
+              setPaymentMessage("Completing Pi payment...");
+              const completeResult = await completePiRidePayment({
+                rideId: ride.id,
+                paymentId,
+                txid,
+                amountPi: payablePi,
+              });
+
+              if (completeResult?.pendingVerification) {
+                setPaymentMessage(
+                  "Payment reached the Pi blockchain, but verification is still pending. Do not pay again. Please retry confirmation or refresh this page."
+                );
+                await refreshCurrentRide();
+                return;
+              }
+
+              setPaymentMessage("Payment completed successfully.");
+              await refreshCurrentRide();
+            } catch (error) {
+              const message = getErrorMessage(
+                error,
+                "Pi payment may have completed, but TrueGo could not confirm it."
+              );
+
+              setErrorMessage(message);
+              setPaymentMessage(
+                "Please refresh this page before trying again. Do not pay twice if the wallet shows a completed payment."
+              );
+              await refreshCurrentRide();
+            } finally {
+              setPaymentLoading(false);
+            }
+          },
+          onCancel: async (paymentId) => {
+            try {
+              await clearRidePiPaymentAttempt({
+                rideId: ride.id,
+                paymentId,
+                reason: "User cancelled Pi payment",
+              });
+              await refreshCurrentRide();
+            } catch (error) {
+              console.error("Failed to clear cancelled Pi payment:", error);
+            }
+
+            setPaymentMessage("Payment was cancelled. You can try again.");
             setPaymentLoading(false);
           },
-          onCancel: () => {
-            setPaymentMessage("Payment was cancelled.");
-            setPaymentLoading(false);
-          },
-          onError: (error) => {
-            setErrorMessage(error.message || "Pi payment failed.");
-            setPaymentLoading(false);
+          onError: async (error, payment) => {
+            const message = getErrorMessage(
+              error,
+              "Pi payment failed, expired, or timed out."
+            );
+
+            setPaymentMessage("Checking payment status before retry...");
+
+            try {
+              const latestRide = await refreshCurrentRide();
+
+              if (isRidePaid(latestRide)) {
+                setPaymentMessage("Payment completed successfully.");
+                setPaymentLoading(false);
+                return;
+              }
+
+              await clearRidePiPaymentAttempt({
+                rideId: ride.id,
+                paymentId: getPiPaymentIdentifier(payment),
+                reason: message,
+              });
+
+              await refreshCurrentRide();
+              setErrorMessage(message);
+              setPaymentMessage("Payment attempt was reset. You can try again.");
+            } catch (clearError) {
+              const clearMessage = getErrorMessage(
+                clearError,
+                "Pi payment failed and TrueGo could not reset the attempt."
+              );
+
+              setErrorMessage(clearMessage);
+              setPaymentMessage(
+                "Please refresh the page before trying another payment."
+              );
+            } finally {
+              setPaymentLoading(false);
+            }
           },
         }
       );
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Pi payment could not start.";
+      const message = getErrorMessage(error, "Pi payment could not start.");
       setErrorMessage(message);
       setPaymentLoading(false);
     }
@@ -800,6 +1028,39 @@ export default function RideStatus() {
         </div>
       ) : null}
 
+      {canRetryPiCompletion ? (
+        <div style={sectionStyle()}>
+          <h3 style={{ marginTop: 0 }}>Pi payment confirmation</h3>
+
+          <div
+            style={{
+              marginBottom: 12,
+              padding: 12,
+              borderRadius: 14,
+              background: "#fff7ed",
+              border: "1px solid #fed7aa",
+              color: "#9a3412",
+              lineHeight: 1.6,
+              fontSize: 14,
+            }}
+          >
+            Your wallet shows a transaction ID. Do not pay again. Use this
+            button to retry server confirmation for the existing transaction.
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              void handleRetryPiCompletion();
+            }}
+            disabled={paymentLoading}
+            style={actionButtonStyle("#7c3aed", paymentLoading)}
+          >
+            {paymentLoading ? "Confirming..." : "Retry Pi confirmation"}
+          </button>
+        </div>
+      ) : null}
+
       <div style={sectionStyle()}>
         <RideTimeline ride={ride} />
       </div>
@@ -817,13 +1078,15 @@ export default function RideStatus() {
         }}
       >
         <strong>Available rider actions:</strong>{" "}
-        {canPayWithPi
-          ? "Your ride is completed. You can now pay safely with Test-Pi."
-          : isPaid
-            ? "Payment has already been completed."
-            : canRetryDispatch
-              ? "No driver accepted this ride yet. You can retry dispatch."
-              : "Continue monitoring this page while the ride progresses."}
+        {canRetryPiCompletion
+          ? "Payment has a transaction ID. Do not pay again. Retry Pi confirmation instead."
+          : canPayWithPi
+            ? "Your ride is completed. You can now pay safely with Test-Pi."
+            : isPaid
+              ? "Payment has already been completed."
+              : canRetryDispatch
+                ? "No driver accepted this ride yet. You can retry dispatch."
+                : "Continue monitoring this page while the ride progresses."}
       </div>
 
       <div
