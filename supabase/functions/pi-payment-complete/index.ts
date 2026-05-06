@@ -6,40 +6,32 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+function json(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ error: "Method not allowed" }, 405);
   }
 
   try {
     const { rideId, paymentId, txid, amountPi } = await req.json();
 
     if (!rideId || !paymentId || !txid) {
-      return new Response(
-        JSON.stringify({ error: "Missing rideId, paymentId, or txid" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+      return json({ error: "Missing rideId, paymentId, or txid" }, 400);
     }
 
     const piApiKey = Deno.env.get("PI_API_KEY");
     if (!piApiKey) {
-      return new Response(
-        JSON.stringify({ error: "Missing PI_API_KEY secret" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+      return json({ error: "Missing PI_API_KEY secret" }, 500);
     }
 
     const admin = createClient(
@@ -50,49 +42,71 @@ Deno.serve(async (req) => {
     const { data: existingRide, error: existingRideError } = await admin
       .from("rides")
       .select(
-        "id, payment_status, payment_id, payment_txid, payment_amount_pi, payment_completed_at"
+        "id, status, payment_status, payment_id, payment_txid, payment_amount_pi, payment_completed_at"
       )
       .eq("id", rideId)
       .single();
 
     if (existingRideError || !existingRide) {
-      return new Response(
-        JSON.stringify({ error: "Ride not found" }),
-        {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    if (existingRide.payment_status === "completed") {
-      return new Response(
-        JSON.stringify({
-          ok: true,
-          alreadyCompleted: true,
-          ride: existingRide,
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+      return json({ error: "Ride not found" }, 404);
     }
 
     if (
+      existingRide.payment_status === "completed" ||
+      existingRide.payment_completed_at
+    ) {
+      return json({
+        ok: true,
+        alreadyCompleted: true,
+        ride: existingRide,
+      });
+    }
+
+    /*
+      If there is an old approved payment_id without txid,
+      allow this completion call to replace it.
+      If there is already a different txid, block to avoid mixing payments.
+    */
+    if (
       existingRide.payment_id &&
       existingRide.payment_id !== paymentId &&
-      ["approved", "completed"].includes(existingRide.payment_status ?? "")
+      existingRide.payment_txid &&
+      existingRide.payment_txid !== txid
     ) {
-      return new Response(
-        JSON.stringify({
-          error: "Ride already linked to a different payment",
-        }),
+      return json(
         {
-          status: 409,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+          error: "Ride already has a different blockchain transaction",
+          existingPaymentId: existingRide.payment_id,
+          existingTxid: existingRide.payment_txid,
+        },
+        409
       );
+    }
+
+    /*
+      Save payment_id + txid before contacting Pi complete.
+      This protects us from Payment Verification Failed screens:
+      the app will not lose the txid and will not ask the rider to pay again.
+    */
+    const { data: recordedRide, error: recordError } = await admin
+      .from("rides")
+      .update({
+        payment_provider: "pi",
+        payment_id: paymentId,
+        payment_txid: txid,
+        payment_status: "approved",
+        payment_amount_pi: amountPi ?? existingRide.payment_amount_pi ?? null,
+        payment_last_error: null,
+        payment_last_error_at: null,
+      })
+      .eq("id", rideId)
+      .select(
+        "id, payment_status, payment_id, payment_txid, payment_amount_pi, payment_completed_at"
+      )
+      .single();
+
+    if (recordError) {
+      return json({ error: recordError.message }, 500);
     }
 
     const piResponse = await fetch(
@@ -110,17 +124,33 @@ Deno.serve(async (req) => {
     const piResponseText = await piResponse.text();
 
     if (!piResponse.ok) {
-      return new Response(
-        JSON.stringify({
-          error: "Pi complete failed",
-          status: piResponse.status,
-          details: piResponseText,
-        }),
-        {
-          status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+      const details = `Pi complete verification failed: ${piResponse.status} ${piResponseText}`;
+
+      const { data: pendingRide } = await admin
+        .from("rides")
+        .update({
+          payment_provider: "pi",
+          payment_id: paymentId,
+          payment_txid: txid,
+          payment_status: "approved",
+          payment_amount_pi: amountPi ?? existingRide.payment_amount_pi ?? null,
+          payment_last_error: details,
+          payment_last_error_at: new Date().toISOString(),
+        })
+        .eq("id", rideId)
+        .select(
+          "id, payment_status, payment_id, payment_txid, payment_amount_pi, payment_completed_at"
+        )
+        .single();
+
+      return json({
+        ok: false,
+        pendingVerification: true,
+        error: "Pi complete verification failed",
+        status: piResponse.status,
+        details: piResponseText,
+        ride: pendingRide ?? recordedRide,
+      });
     }
 
     const { data, error } = await admin
@@ -130,8 +160,10 @@ Deno.serve(async (req) => {
         payment_id: paymentId,
         payment_txid: txid,
         payment_status: "completed",
-        payment_amount_pi: amountPi ?? null,
+        payment_amount_pi: amountPi ?? existingRide.payment_amount_pi ?? null,
         payment_completed_at: new Date().toISOString(),
+        payment_last_error: null,
+        payment_last_error_at: null,
       })
       .eq("id", rideId)
       .select(
@@ -140,29 +172,17 @@ Deno.serve(async (req) => {
       .single();
 
     if (error) {
-      return new Response(JSON.stringify({ error: error.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: error.message }, 500);
     }
 
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        ride: data,
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return json({
+      ok: true,
+      ride: data,
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unexpected pi complete error";
 
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ error: message }, 500);
   }
 });
