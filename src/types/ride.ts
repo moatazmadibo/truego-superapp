@@ -1,12 +1,14 @@
 export type RideStatus =
   | "searching"
+  | "collecting_offers"
   | "offer_sent"
   | "driver_assigned"
   | "driver_arriving"
   | "in_progress"
   | "completed"
   | "cancelled"
-  | "no_driver_available";
+  | "no_driver_available"
+  | "offers_expired";
 
 export type VehicleType = "car" | "motorcycle";
 

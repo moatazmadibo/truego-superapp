@@ -4,13 +4,15 @@ export type VehicleType = "car" | "motorcycle";
 
 export type RideStage =
   | "searching"
+  | "collecting_offers"
   | "offer_sent"
   | "driver_assigned"
   | "driver_arriving"
   | "in_progress"
   | "completed"
   | "cancelled"
-  | "no_driver_available";
+  | "no_driver_available"
+  | "offers_expired";
 
 export interface RideRow {
   id: string;
@@ -48,6 +50,38 @@ export interface RideRow {
   payment_attempt_count?: number | null;
   payment_last_error?: string | null;
   payment_last_error_at?: string | null;
+}
+
+export type RideDriverOfferStatus =
+  | "submitted"
+  | "shown"
+  | "accepted"
+  | "rejected"
+  | "expired"
+  | "withdrawn";
+
+export interface RideDriverOfferRow {
+  id: string;
+  ride_id: string;
+  demo_driver_id: string;
+  driver_name: string;
+  driver_rating: number | null;
+  driver_photo_path: string | null;
+  vehicle_type: VehicleType | null;
+  vehicle_make: string | null;
+  vehicle_model: string | null;
+  vehicle_year: number | null;
+  vehicle_color: string | null;
+  vehicle_plate: string | null;
+  rider_initial_price_pi: number;
+  offer_price_pi: number;
+  eta_minutes: number | null;
+  driver_note: string | null;
+  offer_status: RideDriverOfferStatus;
+  shown_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface DemoDriverRow {
@@ -411,6 +445,122 @@ export async function listRecentRides(limit = 20): Promise<RideRow[]> {
   }
 
   return (data as RideRow[]) ?? [];
+}
+
+export async function prepareRideForDriverOffers(
+  rideId: string,
+  offerWindowSeconds = 120
+): Promise<RideRow> {
+  const { data, error } = await supabase.rpc("prepare_ride_for_driver_offers", {
+    p_ride_id: rideId,
+    p_offer_window_seconds: offerWindowSeconds,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data as RideRow;
+}
+
+export async function listRideDriverOffers(
+  rideId: string
+): Promise<RideDriverOfferRow[]> {
+  const { data, error } = await supabase
+    .from("ride_driver_offers")
+    .select("*")
+    .eq("ride_id", rideId)
+    .in("offer_status", ["submitted", "shown"])
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data as RideDriverOfferRow[]) ?? [];
+}
+
+export async function listOpenRideOfferRequestsForDriver(
+  driverId: string
+): Promise<RideRow[]> {
+  const { data, error } = await supabase
+    .from("rides")
+    .select("*")
+    .eq("status", "collecting_offers")
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  if (error) {
+    throw error;
+  }
+
+  const rows = ((data as RideRow[]) ?? []).filter((ride) => {
+    return ride.demo_driver_id !== driverId;
+  });
+
+  return rows;
+}
+
+export async function submitDemoDriverRideOffer(input: {
+  rideId: string;
+  driverId: string;
+  offerPricePi: number;
+  driverNote?: string | null;
+  etaMinutes?: number | null;
+}): Promise<RideDriverOfferRow> {
+  const { data, error } = await supabase.rpc("submit_demo_driver_ride_offer", {
+    p_ride_id: input.rideId,
+    p_demo_driver_id: input.driverId,
+    p_offer_price_pi: input.offerPricePi,
+    p_driver_note: input.driverNote ?? null,
+    p_eta_minutes: input.etaMinutes ?? null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data as RideDriverOfferRow;
+}
+
+export async function rejectRideDriverOffer(
+  offerId: string
+): Promise<RideDriverOfferRow> {
+  const { data, error } = await supabase.rpc("reject_ride_driver_offer", {
+    p_offer_id: offerId,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data as RideDriverOfferRow;
+}
+
+export async function acceptRideDriverOffer(offerId: string): Promise<RideRow> {
+  const { data, error } = await supabase.rpc("accept_ride_driver_offer", {
+    p_offer_id: offerId,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data as RideRow;
+}
+
+export async function expireRideDriverOfferWindow(
+  rideId: string
+): Promise<RideRow> {
+  const { data, error } = await supabase.rpc("expire_ride_driver_offer_window", {
+    p_ride_id: rideId,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data as RideRow;
 }
 
 export async function listDemoDrivers(): Promise<DemoDriverRow[]> {
