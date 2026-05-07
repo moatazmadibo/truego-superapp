@@ -424,6 +424,9 @@ export default function AdminDriverVerificationPanel() {
         const reviewState = getDocumentReviewState(docs);
         const approvedButDocumentsIncomplete =
           row.verification_status === "approved" && !reviewState.canApprove;
+        const isAlreadyApproved = row.verification_status === "approved";
+        const approveDisabled =
+          isActionLoading || !reviewState.canApprove || isAlreadyApproved;
 
         return (
           <div key={row.demo_driver_id} style={cardStyle()}>
@@ -633,11 +636,17 @@ export default function AdminDriverVerificationPanel() {
                 onClick={() => {
                   void reviewDriver(row, "approved");
                 }}
-                disabled={isActionLoading || !reviewState.canApprove}
-                title={!reviewState.canApprove ? "Upload all required documents before approval." : undefined}
-                style={buttonStyle("#16a34a", isActionLoading || !reviewState.canApprove)}
+                disabled={approveDisabled}
+                title={
+                  isAlreadyApproved
+                    ? "Driver is already approved."
+                    : !reviewState.canApprove
+                      ? "Upload all required documents before approval."
+                      : undefined
+                }
+                style={buttonStyle("#16a34a", approveDisabled)}
               >
-                Approve
+                {isAlreadyApproved ? "Approved" : "Approve"}
               </button>
 
               <button
@@ -662,6 +671,12 @@ export default function AdminDriverVerificationPanel() {
                 Reject
               </button>
             </div>
+
+            {isAlreadyApproved ? (
+              <p style={{ marginBottom: 0, color: "#047857" }}>
+                Driver is already approved. Approval button is disabled unless the driver is moved back to review.
+              </p>
+            ) : null}
 
             {!reviewState.canApprove ? (
               <p style={{ marginBottom: 0, color: "#9a3412" }}>
