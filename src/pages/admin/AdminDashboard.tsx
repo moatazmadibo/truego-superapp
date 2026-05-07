@@ -14,6 +14,9 @@ type RidePaymentSnapshot = {
   payment_txid?: string | null;
   payment_amount_pi?: number | null;
   payment_completed_at?: string | null;
+  payment_attempt_count?: number | null;
+  payment_last_error?: string | null;
+  payment_last_error_at?: string | null;
 };
 
 type DashboardStats = {
@@ -92,6 +95,9 @@ function getPaymentSnapshot(ride: RideRow): RidePaymentSnapshot {
     payment_txid: extended.payment_txid ?? null,
     payment_amount_pi: extended.payment_amount_pi ?? null,
     payment_completed_at: extended.payment_completed_at ?? null,
+    payment_attempt_count: extended.payment_attempt_count ?? null,
+    payment_last_error: extended.payment_last_error ?? null,
+    payment_last_error_at: extended.payment_last_error_at ?? null,
   };
 }
 
@@ -243,6 +249,69 @@ function paymentBadgeColor(status: RidePaymentSnapshot["payment_status"]) {
     default:
       return "#9ca3af";
   }
+}
+
+function getPaymentReview(payment: RidePaymentSnapshot) {
+  const isCompleted =
+    payment.payment_status === "completed" || Boolean(payment.payment_completed_at);
+
+  const hasTxid = Boolean(payment.payment_txid);
+
+  if (isCompleted) {
+    return {
+      label: "Paid",
+      badgeBackground: "#2563eb",
+      background: "#ecfdf5",
+      border: "1px solid #bbf7d0",
+      color: "#047857",
+      message: "This ride has a completed Test-Pi payment record.",
+    };
+  }
+
+  if (payment.payment_status === "approved" && hasTxid) {
+    return {
+      label: "Needs Pi confirmation",
+      badgeBackground: "#f59e0b",
+      background: "#fffbeb",
+      border: "1px solid #fde68a",
+      color: "#92400e",
+      message:
+        "Payment has a blockchain transaction ID and needs server confirmation retry. Do not ask the rider to pay again.",
+    };
+  }
+
+  if (payment.payment_status === "approved") {
+    return {
+      label: "Approved",
+      badgeBackground: paymentBadgeColor(payment.payment_status),
+      background: "#f5f3ff",
+      border: "1px solid #ddd6fe",
+      color: "#5b21b6",
+      message:
+        "Payment has been approved by the TrueGo server and is waiting for Pi blockchain completion.",
+    };
+  }
+
+  if (payment.payment_status === "failed" || payment.payment_status === "cancelled") {
+    return {
+      label: payment.payment_status === "cancelled" ? "Cancelled" : "Failed",
+      badgeBackground: paymentBadgeColor(payment.payment_status),
+      background: "#fef2f2",
+      border: "1px solid #fecaca",
+      color: "#b91c1c",
+      message:
+        "Payment attempt did not complete. If there is no transaction ID, the rider can try again.",
+    };
+  }
+
+  return {
+    label: "Unpaid",
+    badgeBackground: paymentBadgeColor(payment.payment_status),
+    background: "#fff7ed",
+    border: "1px solid #fed7aa",
+    color: "#9a3412",
+    message: "Payment is pending or not created yet.",
+  };
 }
 
 
@@ -474,7 +543,7 @@ export default function AdminDashboard() {
         {!loading && !error && rides.length > 0
           ? rides.map((ride) => {
               const payment = getPaymentSnapshot(ride);
-              const isPaid = payment.payment_status === "completed";
+              const paymentReview = getPaymentReview(payment);
 
               return (
                 <div key={ride.id} style={rideCardStyle()}>
@@ -497,8 +566,8 @@ export default function AdminDashboard() {
                         {formatStatus(ride.status)}
                       </span>
 
-                      <span style={badgeStyle(isPaid ? "#2563eb" : "#9ca3af")}>
-                        {isPaid ? "Paid" : "Unpaid"}
+                      <span style={badgeStyle(paymentReview.badgeBackground)}>
+                        {paymentReview.label}
                       </span>
                     </div>
                   </div>
@@ -563,9 +632,12 @@ export default function AdminDashboard() {
                     <div style={rideDetailItemStyle()}>
                       <strong>Payment status</strong>
                       <div style={{ marginTop: 6 }}>
-                        <span style={badgeStyle(paymentBadgeColor(payment.payment_status))}>
-                          {payment.payment_status ?? "unpaid"}
+                        <span style={badgeStyle(paymentReview.badgeBackground)}>
+                          {paymentReview.label}
                         </span>
+                        <div style={{ marginTop: 6, color: "#64748b", fontSize: 12 }}>
+                          Raw status: {payment.payment_status ?? "unpaid"}
+                        </div>
                       </div>
                     </div>
 
@@ -624,22 +696,33 @@ export default function AdminDashboard() {
                       marginTop: 12,
                       padding: 12,
                       borderRadius: 12,
-                      background: isPaid ? "#ecfdf5" : "#fff7ed",
-                      border: isPaid ? "1px solid #bbf7d0" : "1px solid #fed7aa",
-                      color: isPaid ? "#047857" : "#9a3412",
+                      background: paymentReview.background,
+                      border: paymentReview.border,
+                      color: paymentReview.color,
                       lineHeight: 1.6,
                     }}
                   >
                     <strong>Payment review:</strong>{" "}
-                    {isPaid
-                      ? "This ride has a completed Test-Pi payment record."
-                      : "Payment is pending or not created yet."}
+{paymentReview.message}
                     <div style={monoTextStyle()}>
                       Payment ID: {payment.payment_id ?? "N/A"}
                     </div>
                     <div style={monoTextStyle()}>
                       TXID: {payment.payment_txid ?? "N/A"}
                     </div>
+                    <div style={monoTextStyle()}>
+                      Attempts: {payment.payment_attempt_count ?? 0}
+                    </div>
+                    {payment.payment_last_error ? (
+                      <div style={monoTextStyle()}>
+                        Last error: {payment.payment_last_error}
+                      </div>
+                    ) : null}
+                    {payment.payment_last_error_at ? (
+                      <div style={monoTextStyle()}>
+                        Last error at: {formatDateTime(payment.payment_last_error_at)}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               );

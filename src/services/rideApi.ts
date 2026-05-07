@@ -39,6 +39,15 @@ export interface RideRow {
   accepted_at: string | null;
   started_at: string | null;
   completed_at: string | null;
+  payment_status?: "unpaid" | "approved" | "completed" | "cancelled" | "failed" | null;
+  payment_provider?: string | null;
+  payment_id?: string | null;
+  payment_txid?: string | null;
+  payment_amount_pi?: number | null;
+  payment_completed_at?: string | null;
+  payment_attempt_count?: number | null;
+  payment_last_error?: string | null;
+  payment_last_error_at?: string | null;
 }
 
 export interface DemoDriverRow {
