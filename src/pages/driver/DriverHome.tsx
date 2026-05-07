@@ -4,6 +4,7 @@ import DriverVerificationCard from "./DriverVerificationCard";
 import DriverVehicleProfileCard from "./DriverVehicleProfileCard";
 import DriverLiveLocationTracker from "./DriverLiveLocationTracker";
 import DriverRideMapCard from "./DriverRideMapCard";
+import DriverOpenOfferRequestsCard from "./DriverOpenOfferRequestsCard";
 import ListingReadinessPanel from "../../components/ListingReadinessPanel";
 
 type DriverTab = "operations" | "verification";
@@ -706,14 +707,23 @@ export default function DriverHome() {
       {activeTab === "operations" ? (
         <>
       {!loading && selectedDriver && !currentRideRow ? (
-        <div style={sectionStyle()}>
-          <h2 style={{ marginTop: 0 }}>No active ride yet</h2>
-          <p style={{ marginBottom: 0, color: "#475569", lineHeight: 1.6 }}>
-            You are online and ready. New ride offers will appear here with
-            upfront fare, driver payout, pickup, and destination details before
-            you accept.
-          </p>
-        </div>
+        <>
+          <div style={sectionStyle()}>
+            <h2 style={{ marginTop: 0 }}>No active ride yet</h2>
+            <p style={{ marginBottom: 0, color: "#475569", lineHeight: 1.6 }}>
+              You are online and ready. In the new offer flow, open rider
+              requests appear below so you can accept the suggested fare or
+              submit a higher counter-offer.
+            </p>
+          </div>
+
+          <DriverOpenOfferRequestsCard
+            driver={selectedDriver}
+            onOfferSubmitted={() => {
+              void loadAll();
+            }}
+          />
+        </>
       ) : null}
 
       {!loading && currentRideRow && currentRide ? (
