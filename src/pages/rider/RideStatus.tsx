@@ -6,6 +6,7 @@ import StatusBadge from "../../components/StatusBadge";
 import ListingReadinessPanel from "../../components/ListingReadinessPanel";
 import RideMapPreview from "../../components/RideMapPreview";
 import RiderDriverLiveLocationCard from "./RiderDriverLiveLocationCard";
+import RiderIncomingDriverOfferCard from "./RiderIncomingDriverOfferCard";
 import NearbyActiveDriversMapCard from "./NearbyActiveDriversMapCard";
 import {
   getRideById,
@@ -154,6 +155,8 @@ function getStatusMessage(status: RideRow["status"]): string {
   switch (status) {
     case "searching":
       return "We are searching for the best nearby driver for your trip.";
+    case "collecting_offers":
+      return "Your request is open. Available drivers can now send offers.";
     case "offer_sent":
       return "A ride offer has been sent to a nearby driver. Waiting for response.";
     case "driver_assigned":
@@ -168,6 +171,8 @@ function getStatusMessage(status: RideRow["status"]): string {
       return "This ride was cancelled.";
     case "no_driver_available":
       return "No driver accepted the trip. You can retry dispatch now.";
+    case "offers_expired":
+      return "Driver offers expired. You can send the request again or cancel.";
     default:
       return status;
   }
@@ -1059,6 +1064,15 @@ export default function RideStatus() {
             {paymentLoading ? "Confirming..." : "Retry Pi confirmation"}
           </button>
         </div>
+      ) : null}
+
+      {rideRow?.status === "collecting_offers" ? (
+        <RiderIncomingDriverOfferCard
+          ride={rideRow}
+          onRideUpdated={(updatedRide) => {
+            setRideRow(updatedRide);
+          }}
+        />
       ) : null}
 
       <div style={sectionStyle()}>
