@@ -322,8 +322,22 @@ export default function DriverVerificationCard({ driver }: { driver: DemoDriverR
     if (insertError) {
       setError(insertError.message);
     } else {
+      if (documentType === "profile_photo") {
+        await supabase
+          .from("demo_drivers")
+          .update({
+            profile_photo_path: filePath,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", driver.id);
+      }
+
       setSelectedFile(null);
-      setMessage("Document uploaded successfully.");
+      setMessage(
+        documentType === "profile_photo"
+          ? "Profile photo uploaded and linked to driver profile."
+          : "Document uploaded successfully."
+      );
       await loadDocuments();
     }
 

@@ -65,6 +65,14 @@ export interface DemoDriverRow {
   heading: number | null;
   speed_kph: number | null;
   last_seen_at: string | null;
+  vehicle_make: string | null;
+  vehicle_model: string | null;
+  vehicle_color: string | null;
+  vehicle_plate: string | null;
+  vehicle_year: number | null;
+  vehicle_license_expires_at: string | null;
+  driver_license_expires_at: string | null;
+  profile_photo_path: string | null;
   created_at: string;
   updated_at: string;
 }

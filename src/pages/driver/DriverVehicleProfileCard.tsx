@@ -12,6 +12,8 @@ type VehicleProfileRow = {
   vehicle_plate: string | null;
   vehicle_year: number | null;
   vehicle_license_expires_at: string | null;
+  driver_license_expires_at: string | null;
+  profile_photo_path: string | null;
 };
 
 function sectionStyle(): React.CSSProperties {
@@ -78,6 +80,8 @@ export default function DriverVehicleProfileCard({ driver }: { driver: DemoDrive
   const [vehiclePlate, setVehiclePlate] = useState("");
   const [vehicleYear, setVehicleYear] = useState("");
   const [licenseExpiry, setLicenseExpiry] = useState("");
+  const [driverLicenseExpiry, setDriverLicenseExpiry] = useState("");
+  const [profilePhotoPath, setProfilePhotoPath] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -92,6 +96,8 @@ export default function DriverVehicleProfileCard({ driver }: { driver: DemoDrive
     setVehiclePlate(row.vehicle_plate ?? "");
     setVehicleYear(row.vehicle_year != null ? String(row.vehicle_year) : "");
     setLicenseExpiry(row.vehicle_license_expires_at ?? "");
+    setDriverLicenseExpiry(row.driver_license_expires_at ?? "");
+    setProfilePhotoPath(row.profile_photo_path ?? "");
   }
 
   useEffect(() => {
@@ -148,6 +154,8 @@ export default function DriverVehicleProfileCard({ driver }: { driver: DemoDrive
         p_vehicle_plate: vehiclePlate,
         p_vehicle_year: parsedYear,
         p_vehicle_license_expires_at: licenseExpiry || null,
+        p_driver_license_expires_at: driverLicenseExpiry || null,
+        p_profile_photo_path: profilePhotoPath || null,
       }
     );
 
@@ -239,6 +247,46 @@ export default function DriverVehicleProfileCard({ driver }: { driver: DemoDrive
         onChange={(event) => setLicenseExpiry(event.target.value)}
         style={inputStyle()}
       />
+
+      <label style={labelStyle()} htmlFor="driver-license-expiry">
+        Driver license expiry
+      </label>
+      <input
+        id="driver-license-expiry"
+        type="date"
+        value={driverLicenseExpiry}
+        onChange={(event) => setDriverLicenseExpiry(event.target.value)}
+        style={inputStyle()}
+      />
+
+      <label style={labelStyle()} htmlFor="profile-photo-path">
+        Profile photo path
+      </label>
+      <input
+        id="profile-photo-path"
+        value={profilePhotoPath}
+        onChange={(event) => setProfilePhotoPath(event.target.value)}
+        placeholder="Example: ahmed/profile_photo/..."
+        style={inputStyle()}
+      />
+
+      <div
+        style={{
+          marginTop: 12,
+          padding: 12,
+          borderRadius: 12,
+          background: profilePhotoPath ? "#ecfdf5" : "#f8fafc",
+          border: profilePhotoPath ? "1px solid #bbf7d0" : "1px solid #e5e7eb",
+          color: profilePhotoPath ? "#047857" : "#475569",
+          lineHeight: 1.6,
+          fontSize: 14,
+        }}
+      >
+        <strong>Profile photo:</strong>{" "}
+        {profilePhotoPath
+          ? "Profile photo path is linked to this driver profile."
+          : "No profile photo path linked yet. Upload a profile_photo document first, then link its file path here."}
+      </div>
 
       {error ? <div style={messageStyle("error")}>{error}</div> : null}
       {message ? <div style={messageStyle("success")}>{message}</div> : null}
