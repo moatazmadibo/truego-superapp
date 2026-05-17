@@ -12,6 +12,7 @@ import {
 import RiderApp from "./apps/rider/RiderApp";
 import DriverApp from "./apps/driver/DriverApp";
 import AdminApp from "./apps/admin/AdminApp";
+import AdminAccessGate from "./components/admin/AdminAccessGate";
 import ListingReadinessPanel from "./components/ListingReadinessPanel";
 import {
   clearStoredPiSession,
@@ -561,9 +562,9 @@ function App() {
           <Route
             path="/admin/*"
             element={
-              <RequirePiAuth>
+              <AdminAccessGate>
                 <AdminApp />
-              </RequirePiAuth>
+              </AdminAccessGate>
             }
           />
         ) : null}
