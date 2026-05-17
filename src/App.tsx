@@ -158,7 +158,15 @@ function routeCardStyle(background: string): React.CSSProperties {
   };
 }
 
-function LandingShowcase() {
+function LandingShowcase({
+  appMode,
+}: {
+  appMode: ReturnType<typeof getTrueGoAppMode>;
+}) {
+  const showRider = isAppModeEnabled(appMode, "rider");
+  const showDriver = isAppModeEnabled(appMode, "driver");
+  const showAdmin = isAppModeEnabled(appMode, "admin");
+
   return (
     <div style={{ marginTop: 18 }}>
       <div
@@ -169,41 +177,49 @@ function LandingShowcase() {
           marginTop: 18,
         }}
       >
-        <div style={featureCardStyle()}>
-          <div style={{ fontSize: 26 }}>🚕</div>
-          <h3 style={{ margin: "8px 0 6px" }}>Ride-hailing flow</h3>
-          <p style={{ margin: 0, color: "#475569", lineHeight: 1.6 }}>
-            A rider can request a trip, receive a fractional Test-Pi fare, and
-            complete payment after the ride.
-          </p>
-        </div>
+        {showRider ? (
+          <div style={featureCardStyle()}>
+            <div style={{ fontSize: 26 }}>🚕</div>
+            <h3 style={{ margin: "8px 0 6px" }}>Rider ride-hailing flow</h3>
+            <p style={{ margin: 0, color: "#475569", lineHeight: 1.6 }}>
+              Request a ride, suggest a fare, review incoming driver offers,
+              select the best offer, track the driver, and pay with Test-Pi.
+            </p>
+          </div>
+        ) : null}
 
-        <div style={featureCardStyle()}>
-          <div style={{ fontSize: 26 }}>🧑‍✈️</div>
-          <h3 style={{ margin: "8px 0 6px" }}>Driver operations</h3>
-          <p style={{ margin: 0, color: "#475569", lineHeight: 1.6 }}>
-            Drivers can go online, receive offers, accept or decline, start,
-            complete rides, and submit verification documents.
-          </p>
-        </div>
+        {showDriver ? (
+          <div style={featureCardStyle()}>
+            <div style={{ fontSize: 26 }}>🧑‍✈️</div>
+            <h3 style={{ margin: "8px 0 6px" }}>Driver operations</h3>
+            <p style={{ margin: 0, color: "#475569", lineHeight: 1.6 }}>
+              Go online, review rider requests, accept the same fare or submit
+              quick counter-offers, start and complete rides, and manage verification.
+            </p>
+          </div>
+        ) : null}
 
-        <div style={featureCardStyle()}>
-          <div style={{ fontSize: 26 }}>🛡️</div>
-          <h3 style={{ margin: "8px 0 6px" }}>Safety & verification</h3>
-          <p style={{ margin: 0, color: "#475569", lineHeight: 1.6 }}>
-            Admin can review identity proof, driving license, vehicle license,
-            vehicle photo, and profile photo before approval.
-          </p>
-        </div>
+        {showAdmin ? (
+          <div style={featureCardStyle()}>
+            <div style={{ fontSize: 26 }}>🛡️</div>
+            <h3 style={{ margin: "8px 0 6px" }}>Admin operations</h3>
+            <p style={{ margin: 0, color: "#475569", lineHeight: 1.6 }}>
+              Monitor rides, Test-Pi payments, TXIDs, driver verification,
+              documents, and live ride movement from one operations dashboard.
+            </p>
+          </div>
+        ) : null}
 
-        <div style={featureCardStyle()}>
-          <div style={{ fontSize: 26 }}>π</div>
-          <h3 style={{ margin: "8px 0 6px" }}>Pi Testnet payment</h3>
-          <p style={{ margin: 0, color: "#475569", lineHeight: 1.6 }}>
-            Payment uses Test-Pi with small fractional values suitable for safe
-            listing review and repeated testing.
-          </p>
-        </div>
+        {showRider ? (
+          <div style={featureCardStyle()}>
+            <div style={{ fontSize: 26 }}>π</div>
+            <h3 style={{ margin: "8px 0 6px" }}>Pi Testnet payment</h3>
+            <p style={{ margin: 0, color: "#475569", lineHeight: 1.6 }}>
+              Payment uses small fractional Test-Pi values suitable for safe
+              listing review and repeated testing.
+            </p>
+          </div>
+        ) : null}
       </div>
 
       <div
@@ -214,35 +230,41 @@ function LandingShowcase() {
           gap: 14,
         }}
       >
-        <Link to="/rider" style={routeCardStyle("#0ea5e9")}>
-          <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.9 }}>
-            Rider app
-          </div>
-          <h3 style={{ margin: "8px 0" }}>Book a ride</h3>
-          <p style={{ margin: 0, lineHeight: 1.5 }}>
-            Create a trip, view fare estimate, and pay with Test-Pi.
-          </p>
-        </Link>
+        {showRider ? (
+          <Link to="/rider" style={routeCardStyle("#0ea5e9")}>
+            <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.9 }}>
+              Rider app
+            </div>
+            <h3 style={{ margin: "8px 0" }}>Book a ride</h3>
+            <p style={{ margin: 0, lineHeight: 1.5 }}>
+              Create a trip, review driver offers, track the ride, and pay with Test-Pi.
+            </p>
+          </Link>
+        ) : null}
 
-        <Link to="/driver" style={routeCardStyle("#111827")}>
-          <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.9 }}>
-            Driver console
-          </div>
-          <h3 style={{ margin: "8px 0" }}>Accept ride offers</h3>
-          <p style={{ margin: 0, lineHeight: 1.5 }}>
-            Go online, handle offers, complete rides, and manage verification.
-          </p>
-        </Link>
+        {showDriver ? (
+          <Link to="/driver" style={routeCardStyle("#111827")}>
+            <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.9 }}>
+              Driver app
+            </div>
+            <h3 style={{ margin: "8px 0" }}>Handle ride requests</h3>
+            <p style={{ margin: 0, lineHeight: 1.5 }}>
+              Go online, submit quick offers, and manage ride operations.
+            </p>
+          </Link>
+        ) : null}
 
-        <Link to="/admin" style={routeCardStyle("#16a34a")}>
-          <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.9 }}>
-            Admin dashboard
-          </div>
-          <h3 style={{ margin: "8px 0" }}>Review operations</h3>
-          <p style={{ margin: 0, lineHeight: 1.5 }}>
-            Monitor rides, payments, driver verification, and documents.
-          </p>
-        </Link>
+        {showAdmin ? (
+          <Link to="/admin" style={routeCardStyle("#16a34a")}>
+            <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.9 }}>
+              Admin platform
+            </div>
+            <h3 style={{ margin: "8px 0" }}>Monitor operations</h3>
+            <p style={{ margin: 0, lineHeight: 1.5 }}>
+              Review rides, payments, driver verification, and live ride monitoring.
+            </p>
+          </Link>
+        ) : null}
       </div>
 
       <div
@@ -256,9 +278,14 @@ function LandingShowcase() {
           lineHeight: 1.7,
         }}
       >
-        <strong>Listing review note:</strong> TrueGo is currently configured as a
-        Pi Testnet demo. It uses demo drivers, fractional Test-Pi payments, and
-        private driver-document storage for review workflows.
+        <strong>Listing review note:</strong>{" "}
+        {appMode === "rider"
+          ? "TrueGo Rider is configured as a Pi Testnet rider app for requesting rides, reviewing driver offers, tracking trips, and paying with Test-Pi."
+          : appMode === "driver"
+          ? "TrueGo Driver is configured as a Pi Testnet driver app for reviewing rider requests, submitting offers, managing ride operations, and completing verification."
+          : appMode === "admin"
+          ? "TrueGo Admin is configured as an operations platform for monitoring rides, payments, driver verification, and live ride tracking."
+          : "TrueGo is currently configured as a Pi Testnet demo with Rider, Driver, and Admin experiences for review workflows."}
       </div>
     </div>
   );
@@ -406,7 +433,7 @@ function Landing() {
     <div style={{ padding: 20 }}>
       <div style={landingCardStyle()}>
       <ListingReadinessPanel context="landing" />
-      <LandingShowcase />
+      <LandingShowcase appMode={appMode} />
         <h1 style={{ marginTop: 0, marginBottom: 8 }}>TrueGo</h1>
 
         <p style={{ marginTop: 0, color: "#4b5563" }}>
