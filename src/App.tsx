@@ -9,11 +9,9 @@ import {
   useNavigate,
 } from "react-router-dom";
 
-import RiderHome from "./pages/rider/RiderHome";
-import RidePage from "./pages/rider/RidePage";
-import RideStatus from "./pages/rider/RideStatus";
-import DriverHome from "./pages/driver/DriverHome";
-import AdminDashboard from "./pages/admin/AdminDashboard";
+import RiderApp from "./apps/rider/RiderApp";
+import DriverApp from "./apps/driver/DriverApp";
+import AdminApp from "./apps/admin/AdminApp";
 import ListingReadinessPanel from "./components/ListingReadinessPanel";
 import {
   clearStoredPiSession,
@@ -497,42 +495,26 @@ function App() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route
-          path="/rider"
+          path="/rider/*"
           element={
             <RequirePiAuth>
-              <RiderHome />
+              <RiderApp />
             </RequirePiAuth>
           }
         />
         <Route
-          path="/rider/ride"
+          path="/driver/*"
           element={
             <RequirePiAuth>
-              <RidePage />
+              <DriverApp />
             </RequirePiAuth>
           }
         />
         <Route
-          path="/rider/status/:rideId"
+          path="/admin/*"
           element={
             <RequirePiAuth>
-              <RideStatus />
-            </RequirePiAuth>
-          }
-        />
-        <Route
-          path="/driver"
-          element={
-            <RequirePiAuth>
-              <DriverHome />
-            </RequirePiAuth>
-          }
-        />
-        <Route
-          path="/admin"
-          element={
-            <RequirePiAuth>
-              <AdminDashboard />
+              <AdminApp />
             </RequirePiAuth>
           }
         />
