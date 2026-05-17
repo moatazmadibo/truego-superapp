@@ -23,6 +23,12 @@ import {
   type StoredPiSession,
 } from "./lib/pi";
 import { syncPiUser } from "./services/piAuthApi";
+import {
+  getAppModeHomePath,
+  getAppModeLabel,
+  getTrueGoAppMode,
+  isAppModeEnabled,
+} from "./config/appMode";
 
 function landingCardStyle(): React.CSSProperties {
   return {
@@ -284,6 +290,10 @@ function Landing() {
   const [authError, setAuthError] = useState("");
   const [serverWarning, setServerWarning] = useState("");
 
+  const appMode = getTrueGoAppMode();
+  const appHomePath = getAppModeHomePath(appMode);
+  const appHomeLabel = getAppModeLabel(appMode);
+
   const pendingPath = useMemo(() => {
     const maybeFrom = (location.state as { from?: string } | null)?.from;
     return maybeFrom && maybeFrom !== "/" ? maybeFrom : null;
@@ -474,8 +484,8 @@ function Landing() {
         </div>
 
         <div style={{ marginTop: 24 }}>
-          <Link to="/rider" style={linkStyle("#0ea5e9", !session)}>
-            Continue to Rider App
+          <Link to={appHomePath} style={linkStyle("#0ea5e9", !session)}>
+            {appHomeLabel}
           </Link>
         </div>
 
@@ -490,34 +500,48 @@ function Landing() {
 }
 
 function App() {
+  const appMode = getTrueGoAppMode();
+  const appHomePath = getAppModeHomePath(appMode);
+
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Landing />} />
-        <Route
-          path="/rider/*"
-          element={
-            <RequirePiAuth>
-              <RiderApp />
-            </RequirePiAuth>
-          }
-        />
-        <Route
-          path="/driver/*"
-          element={
-            <RequirePiAuth>
-              <DriverApp />
-            </RequirePiAuth>
-          }
-        />
-        <Route
-          path="/admin/*"
-          element={
-            <RequirePiAuth>
-              <AdminApp />
-            </RequirePiAuth>
-          }
-        />
+
+        {isAppModeEnabled(appMode, "rider") ? (
+          <Route
+            path="/rider/*"
+            element={
+              <RequirePiAuth>
+                <RiderApp />
+              </RequirePiAuth>
+            }
+          />
+        ) : null}
+
+        {isAppModeEnabled(appMode, "driver") ? (
+          <Route
+            path="/driver/*"
+            element={
+              <RequirePiAuth>
+                <DriverApp />
+              </RequirePiAuth>
+            }
+          />
+        ) : null}
+
+        {isAppModeEnabled(appMode, "admin") ? (
+          <Route
+            path="/admin/*"
+            element={
+              <RequirePiAuth>
+                <AdminApp />
+              </RequirePiAuth>
+            }
+          />
+        ) : null}
+
+        <Route path="*" element={<Navigate to={appHomePath} replace />} />
       </Routes>
     </BrowserRouter>
   );

@@ -7,6 +7,14 @@ import {
   type RideRow,
 } from "../../services/rideApi";
 
+const QUICK_INCREASES = [
+  { label: "Same fare", multiplier: 1 },
+  { label: "+5%", multiplier: 1.05 },
+  { label: "+10%", multiplier: 1.1 },
+  { label: "+15%", multiplier: 1.15 },
+  { label: "+20%", multiplier: 1.2 },
+];
+
 function sectionStyle(): React.CSSProperties {
   return {
     marginTop: 16,
@@ -53,6 +61,25 @@ function buttonStyle(background: string, disabled = false): React.CSSProperties 
   };
 }
 
+function quickButtonStyle(disabled = false): React.CSSProperties {
+  return {
+    border: "1px solid #cbd5e1",
+    borderRadius: 14,
+    padding: "11px 12px",
+    background: "#ffffff",
+    color: "#111827",
+    fontWeight: 900,
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.6 : 1,
+    minWidth: 110,
+    textAlign: "left",
+  };
+}
+
+function calculateOffer(basePrice: number, multiplier: number) {
+  return Number((basePrice * multiplier).toFixed(8));
+}
+
 export default function DriverOpenOfferRequestsCard({
   driver,
   onOfferSubmitted,
@@ -61,7 +88,7 @@ export default function DriverOpenOfferRequestsCard({
   onOfferSubmitted?: () => void;
 }) {
   const [requests, setRequests] = useState<RideRow[]>([]);
-  const [offerPrices, setOfferPrices] = useState<Record<string, string>>({});
+  const [customOfferPrices, setCustomOfferPrices] = useState<Record<string, string>>({});
   const [etaMinutes, setEtaMinutes] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -77,7 +104,7 @@ export default function DriverOpenOfferRequestsCard({
       const rows = await listOpenRideOfferRequestsForDriver(driver.id);
       setRequests(rows);
 
-      setOfferPrices((current) => {
+      setCustomOfferPrices((current) => {
         const copy = { ...current };
 
         for (const ride of rows) {
@@ -111,18 +138,15 @@ export default function DriverOpenOfferRequestsCard({
     };
   }, [driver.id]);
 
-  async function submitOffer(ride: RideRow, useSuggestedFare: boolean) {
+  async function submitOffer(ride: RideRow, offerPricePi: number) {
     const suggestedFare = Number(ride.price_pi ?? 0);
-    const rawPrice = useSuggestedFare
-      ? suggestedFare
-      : Number(offerPrices[ride.id] ?? 0);
 
-    if (!Number.isFinite(rawPrice) || rawPrice <= 0) {
+    if (!Number.isFinite(offerPricePi) || offerPricePi <= 0) {
       setError("Enter a valid offer amount.");
       return;
     }
 
-    if (rawPrice < suggestedFare) {
+    if (offerPricePi < suggestedFare) {
       setError("Offer cannot be lower than the rider's suggested fare.");
       return;
     }
@@ -147,12 +171,12 @@ export default function DriverOpenOfferRequestsCard({
       await submitDemoDriverRideOffer({
         rideId: ride.id,
         driverId: driver.id,
-        offerPricePi: rawPrice,
+        offerPricePi,
         etaMinutes: parsedEta,
         driverNote: notes[ride.id] || null,
       });
 
-      setMessage("Offer submitted to rider.");
+      setMessage(`Offer submitted to rider: ${formatPiAmount(offerPricePi)}`);
       await loadRequests();
       onOfferSubmitted?.();
     } catch (submitError) {
@@ -170,8 +194,8 @@ export default function DriverOpenOfferRequestsCard({
     <div style={sectionStyle()}>
       <h2 style={{ marginTop: 0 }}>Open ride requests</h2>
       <p style={{ marginTop: 6, color: "#475569", lineHeight: 1.6 }}>
-        Available rider requests are shown here in the inDrive-style flow.
-        Accept the suggested fare or submit a higher counter-offer.
+        Available rider requests are shown here in the TrueGo offer flow.
+        Use quick buttons instead of typing small Pi fractions manually.
       </p>
 
       {!driver.is_online ? (
@@ -231,6 +255,8 @@ export default function DriverOpenOfferRequestsCard({
       {requests.map((ride) => {
         const actionLoading = actionRideId === ride.id;
         const suggestedFare = Number(ride.price_pi ?? 0);
+        const disabled =
+          actionLoading || !driver.is_online || !driver.is_available;
 
         return (
           <div key={ride.id} style={requestCardStyle()}>
@@ -289,20 +315,49 @@ export default function DriverOpenOfferRequestsCard({
               </div>
             </div>
 
-            <label style={{ display: "block", marginTop: 12, fontWeight: 800 }}>
-              Your offer amount Pi
-            </label>
-            <input
-              value={offerPrices[ride.id] ?? ""}
-              onChange={(event) =>
-                setOfferPrices((current) => ({
-                  ...current,
-                  [ride.id]: event.target.value,
-                }))
-              }
-              inputMode="decimal"
-              style={inputStyle()}
-            />
+            <div
+              style={{
+                marginTop: 14,
+                padding: 12,
+                borderRadius: 14,
+                background: "#f8fafc",
+                border: "1px solid #e5e7eb",
+              }}
+            >
+              <strong>Quick offer buttons</strong>
+              <div
+                style={{
+                  marginTop: 10,
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+                  gap: 10,
+                }}
+              >
+                {QUICK_INCREASES.map((option) => {
+                  const offerPrice = calculateOffer(
+                    suggestedFare,
+                    option.multiplier
+                  );
+
+                  return (
+                    <button
+                      key={option.label}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => {
+                        void submitOffer(ride, offerPrice);
+                      }}
+                      style={quickButtonStyle(disabled)}
+                    >
+                      <div>{option.label}</div>
+                      <div style={{ marginTop: 4, color: "#64748b", fontSize: 12 }}>
+                        {formatPiAmount(offerPrice)}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
             <label style={{ display: "block", marginTop: 12, fontWeight: 800 }}>
               ETA minutes
@@ -335,46 +390,42 @@ export default function DriverOpenOfferRequestsCard({
               style={inputStyle()}
             />
 
-            <div
-              style={{
-                display: "flex",
-                gap: 10,
-                flexWrap: "wrap",
-                marginTop: 14,
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  void submitOffer(ride, true);
-                }}
-                disabled={
-                  actionLoading || !driver.is_online || !driver.is_available
-                }
-                style={buttonStyle(
-                  "#16a34a",
-                  actionLoading || !driver.is_online || !driver.is_available
-                )}
-              >
-                Accept suggested fare
-              </button>
+            <details style={{ marginTop: 12 }}>
+              <summary style={{ cursor: "pointer", fontWeight: 800 }}>
+                Advanced custom Pi offer
+              </summary>
 
-              <button
-                type="button"
-                onClick={() => {
-                  void submitOffer(ride, false);
-                }}
-                disabled={
-                  actionLoading || !driver.is_online || !driver.is_available
+              <label style={{ display: "block", marginTop: 12, fontWeight: 800 }}>
+                Custom offer amount Pi
+              </label>
+              <input
+                value={customOfferPrices[ride.id] ?? ""}
+                onChange={(event) =>
+                  setCustomOfferPrices((current) => ({
+                    ...current,
+                    [ride.id]: event.target.value,
+                  }))
                 }
-                style={buttonStyle(
-                  "#7c3aed",
-                  actionLoading || !driver.is_online || !driver.is_available
-                )}
-              >
-                {actionLoading ? "Submitting..." : "Submit counter-offer"}
-              </button>
-            </div>
+                inputMode="decimal"
+                style={inputStyle()}
+              />
+
+              <div style={{ marginTop: 10 }}>
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => {
+                    void submitOffer(
+                      ride,
+                      Number(customOfferPrices[ride.id] ?? 0)
+                    );
+                  }}
+                  style={buttonStyle("#111827", disabled)}
+                >
+                  Submit custom offer
+                </button>
+              </div>
+            </details>
           </div>
         );
       })}
