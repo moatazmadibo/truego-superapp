@@ -563,6 +563,38 @@ export async function expireRideDriverOfferWindow(
   return data as RideRow;
 }
 
+
+export async function resendRideDriverOfferRequest(input: {
+  rideId: string;
+  newPricePi: number;
+  offerWindowSeconds?: number;
+}): Promise<RideRow> {
+  const { data, error } = await supabase.rpc("resend_ride_driver_offer_request", {
+    p_ride_id: input.rideId,
+    p_new_price_pi: input.newPricePi,
+    p_offer_window_seconds: input.offerWindowSeconds ?? 120,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data as RideRow;
+}
+
+
+export async function cancelRideRequest(rideId: string): Promise<RideRow> {
+  const { data, error } = await supabase.rpc("cancel_ride_request", {
+    p_ride_id: rideId,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data as RideRow;
+}
+
 export async function listDemoDrivers(): Promise<DemoDriverRow[]> {
   const { data, error } = await supabase
     .from("demo_drivers")

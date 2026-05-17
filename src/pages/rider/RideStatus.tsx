@@ -6,6 +6,7 @@ import TrueGoLiveMapCard from "../../components/TrueGoLiveMapCard";
 import StatusBadge from "../../components/StatusBadge";
 import ListingReadinessPanel from "../../components/ListingReadinessPanel";
 import RiderIncomingDriverOfferCard from "./RiderIncomingDriverOfferCard";
+import RiderOfferOutcomeActions from "./RiderOfferOutcomeActions";
 import {
   getRideById,
   retryDemoRideDispatch,
@@ -363,8 +364,7 @@ export default function RideStatus() {
   }, [ride]);
 
   const piSession = useMemo(() => getStoredPiSession(), []);
-  const canRetryDispatch =
-    rideRow?.status === "no_driver_available" || rideRow?.status === "cancelled";
+  const canRetryDispatch = rideRow?.status === "cancelled";
 
   const isPaid =
     payment.payment_status === "completed" || Boolean(payment.payment_completed_at);
@@ -1029,6 +1029,16 @@ export default function RideStatus() {
 
       {rideRow?.status === "collecting_offers" ? (
         <RiderIncomingDriverOfferCard
+          ride={rideRow}
+          onRideUpdated={(updatedRide) => {
+            setRideRow(updatedRide);
+          }}
+        />
+      ) : null}
+
+      {rideRow?.status === "no_driver_available" ||
+      rideRow?.status === "offers_expired" ? (
+        <RiderOfferOutcomeActions
           ride={rideRow}
           onRideUpdated={(updatedRide) => {
             setRideRow(updatedRide);
