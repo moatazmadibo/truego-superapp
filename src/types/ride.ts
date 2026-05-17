@@ -44,4 +44,6 @@ export interface Ride {
   acceptedAt?: number;
   startedAt?: number;
   completedAt?: number;
+  paymentStatus?: "unpaid" | "approved" | "completed" | "cancelled" | "failed" | null;
+  paymentCompletedAt?: number;
 }

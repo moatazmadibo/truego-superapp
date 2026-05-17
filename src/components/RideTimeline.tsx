@@ -48,34 +48,58 @@ function TimelineItem({
         }}
       />
       <div>
-        <div style={{ fontWeight: 600, color: active ? "#111827" : "#6b7280" }}>
+        <div style={{ fontWeight: 700, color: active ? "#111827" : "#6b7280" }}>
           {label}
         </div>
-        <div style={{ color: "#6b7280", fontSize: 14 }}>{timeLabel}</div>
+        <div style={{ color: "#6b7280", fontSize: 14, marginTop: 2 }}>
+          {timeLabel}
+        </div>
       </div>
     </div>
   );
 }
 
 export default function RideTimeline({ ride }: RideTimelineProps) {
-  const offerSentActive = isActive(ride.status, [
+  const requestSentActive = isActive(ride.status, [
+    "collecting_offers",
     "offer_sent",
     "driver_assigned",
     "driver_arriving",
     "in_progress",
     "completed",
+    "offers_expired",
+    "no_driver_available",
   ]);
 
-  const acceptedActive = isActive(ride.status, [
+  const offersReceivedActive = isActive(ride.status, [
+    "collecting_offers",
     "driver_assigned",
     "driver_arriving",
     "in_progress",
     "completed",
   ]);
 
-  const startedActive = isActive(ride.status, ["in_progress", "completed"]);
-  const completedActive = ride.status === "completed";
+  const riderSelectedOfferActive = isActive(ride.status, [
+    "driver_assigned",
+    "driver_arriving",
+    "in_progress",
+    "completed",
+  ]);
+
+  const driverArrivingActive = isActive(ride.status, [
+    "driver_arriving",
+    "in_progress",
+    "completed",
+  ]);
+
+  const tripInProgressActive = isActive(ride.status, ["in_progress", "completed"]);
+  const tripCompletedActive = ride.status === "completed";
+
+  const paymentCompletedActive =
+    ride.paymentStatus === "completed" || Boolean(ride.paymentCompletedAt);
+
   const noDriverAvailable = ride.status === "no_driver_available";
+  const offersExpired = ride.status === "offers_expired";
 
   return (
     <div
@@ -89,39 +113,83 @@ export default function RideTimeline({ ride }: RideTimelineProps) {
       <h3 style={{ marginTop: 0, marginBottom: 18 }}>Trip timeline</h3>
 
       <TimelineItem
-        label="Ride created"
+        label="Request created"
         active
         timeLabel={formatTimestamp(ride.createdAt)}
       />
 
       <TimelineItem
-        label="Offer sent to driver"
-        active={offerSentActive}
+        label="Request sent to drivers"
+        active={requestSentActive}
         timeLabel={
-          offerSentActive
-            ? ride.status === "offer_sent"
-              ? "Waiting for driver response"
-              : "Offer processed"
+          requestSentActive
+            ? ride.status === "collecting_offers"
+              ? "Collecting driver offers"
+              : ride.status === "offer_sent"
+                ? "Waiting for driver response"
+                : "Request processed"
             : "Pending"
         }
       />
 
       <TimelineItem
-        label="Driver accepted"
-        active={acceptedActive}
-        timeLabel={acceptedActive ? formatTimestamp(ride.acceptedAt) : "Pending"}
+        label="Driver offers received"
+        active={offersReceivedActive}
+        timeLabel={
+          offersReceivedActive
+            ? ride.status === "collecting_offers"
+              ? "Review incoming offers"
+              : "Offer received"
+            : "Pending"
+        }
       />
 
       <TimelineItem
-        label="Trip started"
-        active={startedActive}
-        timeLabel={startedActive ? formatTimestamp(ride.startedAt) : "Pending"}
+        label="Rider selected offer"
+        active={riderSelectedOfferActive}
+        timeLabel={
+          riderSelectedOfferActive
+            ? formatTimestamp(ride.acceptedAt)
+            : "Pending"
+        }
+      />
+
+      <TimelineItem
+        label="Driver arriving"
+        active={driverArrivingActive}
+        timeLabel={
+          driverArrivingActive
+            ? ride.status === "driver_arriving"
+              ? "Driver is on the way"
+              : "Driver arrived / trip progressed"
+            : "Pending"
+        }
+      />
+
+      <TimelineItem
+        label="Trip in progress"
+        active={tripInProgressActive}
+        timeLabel={
+          tripInProgressActive ? formatTimestamp(ride.startedAt) : "Pending"
+        }
       />
 
       <TimelineItem
         label="Trip completed"
-        active={completedActive}
-        timeLabel={completedActive ? formatTimestamp(ride.completedAt) : "Pending"}
+        active={tripCompletedActive}
+        timeLabel={
+          tripCompletedActive ? formatTimestamp(ride.completedAt) : "Pending"
+        }
+      />
+
+      <TimelineItem
+        label="Pi payment completed"
+        active={paymentCompletedActive}
+        timeLabel={
+          paymentCompletedActive
+            ? formatTimestamp(ride.paymentCompletedAt)
+            : "Pending"
+        }
       />
 
       {noDriverAvailable ? (
@@ -133,10 +201,30 @@ export default function RideTimeline({ ride }: RideTimelineProps) {
             background: "#fef2f2",
             border: "1px solid #fecaca",
             color: "#b91c1c",
-            fontWeight: 600,
+            fontWeight: 700,
+            lineHeight: 1.6,
           }}
         >
-          No driver accepted the request within the search window.
+          No driver responded to the rider&apos;s initial fare. The rider can
+          increase the offer and send the request again.
+        </div>
+      ) : null}
+
+      {offersExpired ? (
+        <div
+          style={{
+            marginTop: 8,
+            padding: 12,
+            borderRadius: 12,
+            background: "#fff7ed",
+            border: "1px solid #fed7aa",
+            color: "#9a3412",
+            fontWeight: 700,
+            lineHeight: 1.6,
+          }}
+        >
+          Driver offers expired without rider selection. The rider can resend
+          the request or cancel the ride.
         </div>
       ) : null}
     </div>

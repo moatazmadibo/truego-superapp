@@ -148,6 +148,10 @@ function mapRideRowToRide(row: RideRow): Ride {
     acceptedAt: row.accepted_at ? Date.parse(row.accepted_at) : undefined,
     startedAt: row.started_at ? Date.parse(row.started_at) : undefined,
     completedAt: row.completed_at ? Date.parse(row.completed_at) : undefined,
+    paymentStatus: row.payment_status ?? null,
+    paymentCompletedAt: row.payment_completed_at
+      ? Date.parse(row.payment_completed_at)
+      : undefined,
   };
 }
 
