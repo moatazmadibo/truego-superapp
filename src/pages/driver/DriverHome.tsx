@@ -3,7 +3,7 @@ import RideTimeline from "../../components/RideTimeline";
 import DriverVerificationCard from "./DriverVerificationCard";
 import DriverVehicleProfileCard from "./DriverVehicleProfileCard";
 import DriverLiveLocationTracker from "./DriverLiveLocationTracker";
-import DriverRideMapCard from "./DriverRideMapCard";
+import TrueGoLiveMapCard from "../../components/TrueGoLiveMapCard";
 import DriverOpenOfferRequestsCard from "./DriverOpenOfferRequestsCard";
 import ListingReadinessPanel from "../../components/ListingReadinessPanel";
 
@@ -546,7 +546,11 @@ export default function DriverHome() {
       ) : null}
 
       {activeTab === "operations" && selectedDriver && currentRideRow ? (
-        <DriverRideMapCard driverId={selectedDriver.id} ride={currentRideRow} />
+        <TrueGoLiveMapCard
+          ride={currentRideRow}
+          viewer="driver"
+          selectedDriverId={selectedDriver.id}
+        />
       ) : null}
 
       {activeTab === "verification" ? (
