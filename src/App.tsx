@@ -531,6 +531,23 @@ function App() {
   const appMode = getTrueGoAppMode();
   const appHomePath = getAppModeHomePath(appMode);
 
+  if (appMode === "admin") {
+    return (
+      <BrowserRouter>
+        <Routes>
+          <Route
+            path="/*"
+            element={
+              <AdminAccessGate>
+                <AdminApp />
+              </AdminAccessGate>
+            }
+          />
+        </Routes>
+      </BrowserRouter>
+    );
+  }
+
   return (
     <BrowserRouter>
       <Routes>
