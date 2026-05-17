@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
 import AdminDriverVerificationPanel from "./AdminDriverVerificationPanel";
 import ListingReadinessPanel from "../../components/ListingReadinessPanel";
+import TrueGoLiveMapCard from "../../components/TrueGoLiveMapCard";
 import { listRecentRides, subscribeToLatestRides, type RideRow } from "../../services/rideApi";
 import { formatPiAmount } from "../../lib/piPricing";
 
-type AdminTab = "rides" | "drivers";
+type AdminTab = "rides" | "drivers" | "monitor";
 
 type RidePaymentSnapshot = {
   payment_status?: "unpaid" | "approved" | "completed" | "cancelled" | "failed" | null;
@@ -32,6 +33,8 @@ function formatStatus(status: RideRow["status"]) {
   switch (status) {
     case "searching":
       return "Searching";
+    case "collecting_offers":
+      return "Collecting driver offers";
     case "offer_sent":
       return "Offer sent";
     case "driver_assigned":
@@ -46,6 +49,8 @@ function formatStatus(status: RideRow["status"]) {
       return "Cancelled";
     case "no_driver_available":
       return "No driver available";
+    case "offers_expired":
+      return "Offers expired";
     default:
       return status;
   }
@@ -317,6 +322,7 @@ function getPaymentReview(payment: RidePaymentSnapshot) {
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<AdminTab>("rides");
+  const [selectedMonitorRideId, setSelectedMonitorRideId] = useState("");
   const [rides, setRides] = useState<RideRow[]>([]);
   const [stats, setStats] = useState<DashboardStats>({
     total: 0,
@@ -411,6 +417,23 @@ export default function AdminDashboard() {
     return unsubscribe;
   }, []);
 
+
+  const activeMonitorRides = rides.filter((ride) =>
+    [
+      "collecting_offers",
+      "driver_assigned",
+      "driver_arriving",
+      "in_progress",
+      "completed",
+    ].includes(ride.status)
+  );
+
+  const monitorRide =
+    rides.find((ride) => ride.id === selectedMonitorRideId) ??
+    activeMonitorRides[0] ??
+    rides[0] ??
+    null;
+
   return (
     <div style={pageStyle()}>
       <ListingReadinessPanel context="admin" compact />
@@ -494,9 +517,112 @@ export default function AdminDashboard() {
         >
           Driver Verification
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("monitor")}
+          style={tabButtonStyle(activeTab === "monitor")}
+        >
+          Live Ride Monitor
+        </button>
       </div>
 
       {activeTab === "drivers" ? <AdminDriverVerificationPanel /> : null}
+
+      {activeTab === "monitor" ? (
+        <div style={sectionStyle()}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              alignItems: "flex-start",
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <h2 style={{ marginTop: 0, marginBottom: 6 }}>Live Ride Monitor</h2>
+              <p style={{ marginTop: 0, color: "#64748b", lineHeight: 1.6 }}>
+                Select an active or recent ride and monitor pickup, destination,
+                selected driver, route, status, and payment state on the unified TrueGo map.
+              </p>
+            </div>
+
+            <span style={badgeStyle("#111827")}>
+              {activeMonitorRides.length} active / trackable
+            </span>
+          </div>
+
+          {rides.length > 0 ? (
+            <>
+              <label
+                htmlFor="admin-live-ride-select"
+                style={{ display: "block", marginTop: 12, fontWeight: 800 }}
+              >
+                Select ride to monitor
+              </label>
+
+              <select
+                id="admin-live-ride-select"
+                value={monitorRide?.id ?? ""}
+                onChange={(event) => setSelectedMonitorRideId(event.target.value)}
+                style={{
+                  width: "100%",
+                  marginTop: 6,
+                  padding: 12,
+                  borderRadius: 12,
+                  border: "1px solid #cbd5e1",
+                  font: "inherit",
+                }}
+              >
+                {rides.map((ride) => (
+                  <option key={ride.id} value={ride.id}>
+                    {formatStatus(ride.status)} · {ride.pickup_text} → {ride.destination_text} · {ride.driver_name ?? "No driver"} · {ride.id}
+                  </option>
+                ))}
+              </select>
+
+              {monitorRide ? (
+                <>
+                  <div style={rideDetailGridStyle()}>
+                    <div style={rideDetailItemStyle()}>
+                      <strong>Ride status</strong>
+                      <div style={{ marginTop: 6 }}>{formatStatus(monitorRide.status)}</div>
+                    </div>
+
+                    <div style={rideDetailItemStyle()}>
+                      <strong>Driver</strong>
+                      <div style={{ marginTop: 6 }}>{monitorRide.driver_name ?? "Not assigned"}</div>
+                    </div>
+
+                    <div style={rideDetailItemStyle()}>
+                      <strong>Fare</strong>
+                      <div style={{ marginTop: 6 }}>
+                        {formatPi(Number(monitorRide.price_pi ?? 0))}
+                      </div>
+                    </div>
+
+                    <div style={rideDetailItemStyle()}>
+                      <strong>Payment</strong>
+                      <div style={{ marginTop: 6 }}>
+                        {getPaymentReview(getPaymentSnapshot(monitorRide)).label}
+                      </div>
+                    </div>
+                  </div>
+
+                  <TrueGoLiveMapCard
+                    ride={monitorRide}
+                    viewer="admin"
+                    selectedDriverId={monitorRide.demo_driver_id}
+                  />
+                </>
+              ) : null}
+            </>
+          ) : (
+            <p style={{ color: "#64748b" }}>No rides available to monitor yet.</p>
+          )}
+        </div>
+      ) : null}
 
       {activeTab === "rides" ? (
       <div style={sectionStyle()}>
