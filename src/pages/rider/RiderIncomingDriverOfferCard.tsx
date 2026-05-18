@@ -3,6 +3,7 @@ import { supabase } from "../../lib/supabase";
 import { formatPiAmount } from "../../lib/piPricing";
 import {
   acceptRideDriverOffer,
+  expireRideDriverOfferWindow,
   listRideDriverOffers,
   rejectRideDriverOffer,
   type RideDriverOfferRow,
@@ -107,6 +108,74 @@ export default function RiderIncomingDriverOfferCard({
       window.clearInterval(intervalId);
     };
   }, [ride.id, ride.status]);
+
+  useEffect(() => {
+    if (ride.status !== "collecting_offers" || !ride.offer_expires_at) {
+      return;
+    }
+
+    const rideIdForExpiry = ride.id;
+    const expiresAt = Date.parse(ride.offer_expires_at);
+
+    if (!Number.isFinite(expiresAt)) {
+      return;
+    }
+
+    let cancelled = false;
+    let expiryInProgress = false;
+
+    async function expireIfNeeded() {
+      if (cancelled || expiryInProgress || Date.now() < expiresAt + 750) {
+        return;
+      }
+
+      expiryInProgress = true;
+      setError("");
+
+      try {
+        const updatedRide = await expireRideDriverOfferWindow(rideIdForExpiry);
+
+        if (!cancelled) {
+          onRideUpdated(updatedRide);
+        }
+      } catch (expiryError) {
+        const text =
+          expiryError instanceof Error
+            ? expiryError.message
+            : "Failed to expire driver offer window.";
+
+        if (!cancelled) {
+          setError(text);
+        }
+
+        console.error("Failed to expire driver offer window from rider offer card:", expiryError);
+      } finally {
+        expiryInProgress = false;
+      }
+    }
+
+    void expireIfNeeded();
+
+    const intervalId = window.setInterval(() => {
+      void expireIfNeeded();
+    }, 3000);
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        void expireIfNeeded();
+      }
+    };
+
+    window.addEventListener("focus", handleVisibilityChange);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", handleVisibilityChange);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [ride.id, ride.offer_expires_at, ride.status, onRideUpdated]);
 
   useEffect(() => {
     let cancelled = false;
