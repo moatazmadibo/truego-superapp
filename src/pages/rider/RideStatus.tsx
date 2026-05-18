@@ -447,15 +447,42 @@ export default function RideStatus() {
     !isPaid &&
     !hasBlockchainLinkedPayment;
 
+  async function normalizeExpiredOfferWindow(row: RideRow): Promise<RideRow> {
+    if (row.status !== "collecting_offers" || !row.offer_expires_at) {
+      return row;
+    }
+
+    const expiresAt = Date.parse(row.offer_expires_at);
+
+    if (!Number.isFinite(expiresAt) || Date.now() < expiresAt + 750) {
+      return row;
+    }
+
+    try {
+      return await expireRideDriverOfferWindow(row.id);
+    } catch (error) {
+      console.error("Failed to normalize expired offer window:", error);
+      return row;
+    }
+  }
+
   async function refreshCurrentRide(): Promise<RideRow | null> {
     if (!rideId) {
       return null;
     }
 
     const data = await getRideById(rideId);
-    setRideRow(data);
 
-    return data;
+    if (!data) {
+      setRideRow(null);
+      return null;
+    }
+
+    const normalizedRide = await normalizeExpiredOfferWindow(data);
+
+    setRideRow(normalizedRide);
+
+    return normalizedRide;
   }
 
   async function handleRetryPiCompletion() {
