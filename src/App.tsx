@@ -447,7 +447,12 @@ function Landing() {
           {session ? (
             <>
               <div style={{ color: "#111827" }}>
-                Connected as <strong>@{session.username}</strong>
+                Connected as{" "}
+                <strong>
+                  {session.username
+                    ? `@${session.username}`
+                    : `Pi user ${session.uid.slice(0, 8)}...`}
+                </strong>
               </div>
               <div style={{ color: "#6b7280", fontSize: 14, marginTop: 4 }}>
                 Connected at {new Date(session.authenticatedAt).toLocaleString()}

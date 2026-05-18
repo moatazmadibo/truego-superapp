@@ -373,8 +373,15 @@ export default function RideStatus() {
     }
 
     let cancelled = false;
+    let expiryInProgress = false;
 
-    async function expireOfferWindow() {
+    async function expireOfferWindowIfNeeded() {
+      if (cancelled || expiryInProgress || Date.now() < expiresAt + 750) {
+        return;
+      }
+
+      expiryInProgress = true;
+
       try {
         const updatedRide = await expireRideDriverOfferWindow(rideIdForExpiry);
 
@@ -383,17 +390,31 @@ export default function RideStatus() {
         }
       } catch (error) {
         console.error("Failed to expire ride driver offer window:", error);
+      } finally {
+        expiryInProgress = false;
       }
     }
 
-    const delayMs = Math.max(0, expiresAt - Date.now() + 750);
-    const timeoutId = window.setTimeout(() => {
-      void expireOfferWindow();
-    }, delayMs);
+    void expireOfferWindowIfNeeded();
+
+    const intervalId = window.setInterval(() => {
+      void expireOfferWindowIfNeeded();
+    }, 5000);
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        void expireOfferWindowIfNeeded();
+      }
+    };
+
+    window.addEventListener("focus", handleVisibilityChange);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       cancelled = true;
-      window.clearTimeout(timeoutId);
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", handleVisibilityChange);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [rideRow?.id, rideRow?.offer_expires_at, rideRow?.status]);
 

@@ -449,7 +449,7 @@ export async function listRecentRides(limit = 20): Promise<RideRow[]> {
 
 export async function prepareRideForDriverOffers(
   rideId: string,
-  offerWindowSeconds = 120
+  offerWindowSeconds = 60
 ): Promise<RideRow> {
   const { data, error } = await supabase.rpc("prepare_ride_for_driver_offers", {
     p_ride_id: rideId,
@@ -572,7 +572,7 @@ export async function resendRideDriverOfferRequest(input: {
   const { data, error } = await supabase.rpc("resend_ride_driver_offer_request", {
     p_ride_id: input.rideId,
     p_new_price_pi: input.newPricePi,
-    p_offer_window_seconds: input.offerWindowSeconds ?? 120,
+    p_offer_window_seconds: input.offerWindowSeconds ?? 60,
   });
 
   if (error) {

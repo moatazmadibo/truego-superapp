@@ -64,7 +64,7 @@ export default function RiderOfferOutcomeActions({
       const updatedRide = await resendRideDriverOfferRequest({
         rideId: ride.id,
         newPricePi: isNoDriverAvailable ? fare : originalFare,
-        offerWindowSeconds: 120,
+        offerWindowSeconds: 60,
       });
 
       onRideUpdated(updatedRide);
