@@ -8,6 +8,7 @@ import ListingReadinessPanel from "../../components/ListingReadinessPanel";
 import RiderIncomingDriverOfferCard from "./RiderIncomingDriverOfferCard";
 import RiderOfferOutcomeActions from "./RiderOfferOutcomeActions";
 import {
+  expireRideDriverOfferWindow,
   getRideById,
   retryDemoRideDispatch,
   subscribeToRide,
@@ -354,6 +355,47 @@ export default function RideStatus() {
   }, [rideRow]);
 
   const payment = useMemo(() => getPaymentSnapshot(rideRow), [rideRow]);
+
+  useEffect(() => {
+    if (
+      !rideRow ||
+      rideRow.status !== "collecting_offers" ||
+      !rideRow.offer_expires_at
+    ) {
+      return;
+    }
+
+    const rideIdForExpiry = rideRow.id;
+    const expiresAt = Date.parse(rideRow.offer_expires_at);
+
+    if (!Number.isFinite(expiresAt)) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function expireOfferWindow() {
+      try {
+        const updatedRide = await expireRideDriverOfferWindow(rideIdForExpiry);
+
+        if (!cancelled) {
+          setRideRow(updatedRide);
+        }
+      } catch (error) {
+        console.error("Failed to expire ride driver offer window:", error);
+      }
+    }
+
+    const delayMs = Math.max(0, expiresAt - Date.now() + 750);
+    const timeoutId = window.setTimeout(() => {
+      void expireOfferWindow();
+    }, delayMs);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [rideRow?.id, rideRow?.offer_expires_at, rideRow?.status]);
 
   const payablePi = useMemo(() => {
     if (!ride) {
