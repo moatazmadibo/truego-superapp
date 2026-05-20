@@ -6,6 +6,7 @@ import DriverLiveLocationTracker from "./DriverLiveLocationTracker";
 import TrueGoLiveMapCard from "../../components/TrueGoLiveMapCard";
 import DriverOpenOfferRequestsCard from "./DriverOpenOfferRequestsCard";
 import ListingReadinessPanel from "../../components/ListingReadinessPanel";
+import PiSessionBanner from "../../components/PiSessionBanner";
 
 type DriverTab = "operations" | "verification";
 import StatusBadge from "../../components/StatusBadge";
@@ -467,6 +468,8 @@ export default function DriverHome() {
       <h1 style={{ marginTop: 0, marginBottom: 16 }}>TrueGo Driver</h1>
 
       <ListingReadinessPanel context="driver" compact />
+
+      <PiSessionBanner appLabel="TrueGo Driver" />
 
       <div
         style={{
