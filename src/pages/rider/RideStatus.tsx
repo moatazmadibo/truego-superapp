@@ -6,6 +6,7 @@ import TrueGoLiveMapCard from "../../components/TrueGoLiveMapCard";
 import StatusBadge from "../../components/StatusBadge";
 import ListingReadinessPanel from "../../components/ListingReadinessPanel";
 import PiSessionBanner from "../../components/PiSessionBanner";
+import OfferWindowCountdown from "../../components/OfferWindowCountdown";
 import RiderIncomingDriverOfferCard from "./RiderIncomingDriverOfferCard";
 import RiderOfferOutcomeActions from "./RiderOfferOutcomeActions";
 import {
@@ -824,6 +825,10 @@ export default function RideStatus() {
 
       <div style={sectionStyle()}>
         <p style={{ margin: 0, fontWeight: 600 }}>{rideRow ? getStatusMessage(rideRow.status) : "Loading ride status..."}</p>
+
+        {rideRow.status === "collecting_offers" ? (
+          <OfferWindowCountdown offerExpiresAt={rideRow.offer_expires_at} />
+        ) : null}
 
         {errorMessage ? (
           <div
