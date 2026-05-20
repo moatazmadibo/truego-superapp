@@ -59,6 +59,30 @@ function detailPillStyle(): React.CSSProperties {
   };
 }
 
+function formatCountdown(seconds: number): string {
+  const safeSeconds = Math.max(0, seconds);
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainingSeconds = safeSeconds % 60;
+
+  return `${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
+}
+
+function countdownPillStyle(secondsRemaining: number | null): React.CSSProperties {
+  const isEndingSoon = secondsRemaining != null && secondsRemaining <= 15;
+
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    borderRadius: 999,
+    padding: "8px 12px",
+    background: isEndingSoon ? "#fef2f2" : "#eef2ff",
+    color: isEndingSoon ? "#b91c1c" : "#3730a3",
+    fontWeight: 900,
+    fontSize: 13,
+    border: isEndingSoon ? "1px solid #fecaca" : "1px solid #c7d2fe",
+  };
+}
+
 export default function RiderIncomingDriverOfferCard({
   ride,
   onRideUpdated,
@@ -72,8 +96,35 @@ export default function RiderIncomingDriverOfferCard({
   const [actionLoading, setActionLoading] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
 
   const activeOffer = offers[0] ?? null;
+
+  useEffect(() => {
+    if (ride.status !== "collecting_offers" || !ride.offer_expires_at) {
+      setSecondsRemaining(null);
+      return;
+    }
+
+    const expiresAt = Date.parse(ride.offer_expires_at);
+
+    if (!Number.isFinite(expiresAt)) {
+      setSecondsRemaining(null);
+      return;
+    }
+
+    function tick() {
+      setSecondsRemaining(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)));
+    }
+
+    tick();
+
+    const intervalId = window.setInterval(tick, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [ride.offer_expires_at, ride.status]);
 
   async function loadOffers() {
     if (ride.status !== "collecting_offers") {
@@ -282,6 +333,12 @@ export default function RiderIncomingDriverOfferCard({
         >
           Collecting offers
         </span>
+
+        {secondsRemaining != null ? (
+          <span style={countdownPillStyle(secondsRemaining)}>
+            Closes in {formatCountdown(secondsRemaining)}
+          </span>
+        ) : null}
       </div>
 
       {loading && offers.length === 0 ? (
