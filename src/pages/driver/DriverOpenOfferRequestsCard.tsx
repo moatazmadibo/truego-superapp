@@ -270,52 +270,106 @@ export default function DriverOpenOfferRequestsCard({
                 justifyContent: "space-between",
                 gap: 12,
                 flexWrap: "wrap",
+                alignItems: "flex-start",
               }}
             >
-              <div>
-                <strong>Ride request</strong>
-                <div style={{ marginTop: 6, color: "#475569" }}>
-                  {ride.pickup_text} → {ride.destination_text}
+              <div style={{ flex: "1 1 240px" }}>
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    borderRadius: 999,
+                    padding: "6px 10px",
+                    background: "#eef2ff",
+                    color: "#3730a3",
+                    fontWeight: 900,
+                    fontSize: 12,
+                    marginBottom: 10,
+                  }}
+                >
+                  New rider request
+                </div>
+
+                <div style={{ display: "grid", gap: 8, color: "#334155" }}>
+                  <div>
+                    <strong style={{ color: "#0f172a" }}>Pickup</strong>
+                    <div style={{ marginTop: 3, lineHeight: 1.45 }}>
+                      {ride.pickup_text}
+                    </div>
+                  </div>
+
+                  <div>
+                    <strong style={{ color: "#0f172a" }}>Destination</strong>
+                    <div style={{ marginTop: 3, lineHeight: 1.45 }}>
+                      {ride.destination_text}
+                    </div>
+                  </div>
                 </div>
               </div>
 
               <span
                 style={{
-                  padding: "6px 10px",
+                  padding: "8px 12px",
                   borderRadius: 999,
                   background: "#7c3aed",
                   color: "#ffffff",
-                  fontWeight: 800,
+                  fontWeight: 900,
                   fontSize: 12,
+                  boxShadow: "0 10px 20px rgba(124, 58, 237, 0.22)",
                 }}
               >
-                Collecting offers
+                Open for offers
               </span>
             </div>
 
             <div
               style={{
-                marginTop: 12,
+                marginTop: 14,
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                gridTemplateColumns: "repeat(auto-fit, minmax(135px, 1fr))",
                 gap: 10,
               }}
             >
-              <div>
-                <strong>Suggested fare</strong>
-                <div>{formatPiAmount(suggestedFare)}</div>
+              <div
+                style={{
+                  padding: 12,
+                  borderRadius: 16,
+                  background: "#ecfdf5",
+                  border: "1px solid #bbf7d0",
+                }}
+              >
+                <strong style={{ color: "#065f46" }}>Suggested fare</strong>
+                <div style={{ marginTop: 6, fontWeight: 900, color: "#064e3b" }}>
+                  {formatPiAmount(suggestedFare)}
+                </div>
               </div>
 
-              <div>
+              <div
+                style={{
+                  padding: 12,
+                  borderRadius: 16,
+                  background: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                }}
+              >
                 <strong>Distance / time</strong>
-                <div>
+                <div style={{ marginTop: 6, color: "#475569" }}>
                   {ride.distance_km.toFixed(2)} km · {ride.duration_min} min
                 </div>
               </div>
 
-              <div>
+              <div
+                style={{
+                  padding: 12,
+                  borderRadius: 16,
+                  background: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                }}
+              >
                 <strong>Vehicle type</strong>
-                <div>{ride.vehicle_type}</div>
+                <div style={{ marginTop: 6, color: "#475569" }}>
+                  {ride.vehicle_type}
+                </div>
               </div>
             </div>
 
