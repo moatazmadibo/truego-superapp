@@ -18,33 +18,36 @@ const QUICK_INCREASES = [
 function sectionStyle(): React.CSSProperties {
   return {
     marginTop: 16,
-    padding: 16,
-    borderRadius: 12,
-    background: "#f8fafc",
+    padding: 18,
+    borderRadius: 24,
+    background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
     border: "1px solid #e5e7eb",
+    boxShadow: "0 18px 45px rgba(15, 23, 42, 0.08)",
   };
 }
 
 function requestCardStyle(): React.CSSProperties {
   return {
-    marginTop: 12,
-    padding: 14,
-    borderRadius: 14,
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 22,
     background: "#ffffff",
-    border: "1px solid #e5e7eb",
-    boxShadow: "0 8px 20px rgba(15, 23, 42, 0.06)",
+    border: "1px solid #e2e8f0",
+    boxShadow: "0 18px 40px rgba(15, 23, 42, 0.10)",
   };
 }
 
 function inputStyle(): React.CSSProperties {
   return {
     width: "100%",
-    padding: "10px 12px",
-    borderRadius: 10,
+    padding: "12px 14px",
+    borderRadius: 14,
     border: "1px solid #cbd5e1",
     boxSizing: "border-box",
     font: "inherit",
     marginTop: 6,
+    background: "#ffffff",
+    outline: "none",
   };
 }
 
@@ -63,16 +66,17 @@ function buttonStyle(background: string, disabled = false): React.CSSProperties 
 
 function quickButtonStyle(disabled = false): React.CSSProperties {
   return {
-    border: "1px solid #cbd5e1",
-    borderRadius: 14,
-    padding: "11px 12px",
-    background: "#ffffff",
-    color: "#111827",
+    border: "1px solid #dbeafe",
+    borderRadius: 18,
+    padding: "14px 12px",
+    background: disabled ? "#f1f5f9" : "linear-gradient(180deg, #ffffff 0%, #eff6ff 100%)",
+    color: "#0f172a",
     fontWeight: 900,
     cursor: disabled ? "not-allowed" : "pointer",
     opacity: disabled ? 0.6 : 1,
-    minWidth: 110,
+    minWidth: 0,
     textAlign: "left",
+    boxShadow: disabled ? "none" : "0 10px 22px rgba(37, 99, 235, 0.08)",
   };
 }
 
