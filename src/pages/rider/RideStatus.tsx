@@ -5,6 +5,7 @@ import RideTimeline from "../../components/RideTimeline";
 import TrueGoLiveMapCard from "../../components/TrueGoLiveMapCard";
 import StatusBadge from "../../components/StatusBadge";
 import ListingReadinessPanel from "../../components/ListingReadinessPanel";
+import PiSessionBanner from "../../components/PiSessionBanner";
 import RiderIncomingDriverOfferCard from "./RiderIncomingDriverOfferCard";
 import RiderOfferOutcomeActions from "./RiderOfferOutcomeActions";
 import {
@@ -753,94 +754,6 @@ export default function RideStatus() {
   if (loading) {
     return (
       <div style={containerStyle()}>
-      <ListingReadinessPanel context="rider" compact />
-
-      <div
-        style={{
-          marginTop: 14,
-          padding: 16,
-          borderRadius: 18,
-          background: "linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%)",
-          color: "#ffffff",
-          boxShadow: "0 12px 28px rgba(15, 23, 42, 0.18)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 12,
-            alignItems: "center",
-            flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <div
-              style={{
-                display: "inline-flex",
-                padding: "6px 10px",
-                borderRadius: 999,
-                background: "rgba(255,255,255,0.15)",
-                fontSize: 12,
-                fontWeight: 900,
-                marginBottom: 8,
-              }}
-            >
-              Live ride status
-            </div>
-
-            <h1 style={{ margin: 0, fontSize: 26 }}>Track your TrueGo ride</h1>
-
-            <p style={{ marginTop: 8, marginBottom: 0, lineHeight: 1.6 }}>
-              {rideRow ? getStatusMessage(rideRow.status) : "Loading ride status..."}
-            </p>
-          </div>
-
-          {ride ? <StatusBadge status={ride.status} /> : null}
-        </div>
-
-        <div
-          style={{
-            marginTop: 14,
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-            gap: 10,
-          }}
-        >
-          <div
-            style={{
-              padding: 12,
-              borderRadius: 14,
-              background: "rgba(255,255,255,0.12)",
-            }}
-          >
-            <strong>Fare</strong>
-            <div style={{ marginTop: 6 }}>{formatPiAmount(payablePi)}</div>
-          </div>
-
-          <div
-            style={{
-              padding: 12,
-              borderRadius: 14,
-              background: "rgba(255,255,255,0.12)",
-            }}
-          >
-            <strong>Payment</strong>
-            <div style={{ marginTop: 6 }}>{formatPaymentStatus(payment.payment_status)}</div>
-          </div>
-
-          <div
-            style={{
-              padding: 12,
-              borderRadius: 14,
-              background: "rgba(255,255,255,0.12)",
-            }}
-          >
-            <strong>Driver</strong>
-            <div style={{ marginTop: 6 }}>{rideRow?.driver_name ?? "Waiting"}</div>
-          </div>
-        </div>
-      </div>
         <h2 style={{ marginTop: 0 }}>Ride Status</h2>
         <p style={{ marginBottom: 0 }}>Loading ride...</p>
       </div>
@@ -886,6 +799,10 @@ export default function RideStatus() {
 
   return (
     <div style={containerStyle()}>
+      <ListingReadinessPanel context="rider" compact />
+
+      <PiSessionBanner appLabel="TrueGo Rider" />
+
       <div
         style={{
           display: "flex",
