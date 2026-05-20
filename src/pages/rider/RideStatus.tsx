@@ -12,7 +12,6 @@ import RiderOfferOutcomeActions from "./RiderOfferOutcomeActions";
 import {
   expireRideDriverOfferWindow,
   getRideById,
-  retryDemoRideDispatch,
   subscribeToRide,
   syncDemoRideOfferState,
   type RideRow,
@@ -174,7 +173,7 @@ function getStatusMessage(status: RideRow["status"]): string {
     case "completed":
       return "Your trip has been completed successfully.";
     case "cancelled":
-      return "This ride was cancelled.";
+      return "Ride request cancelled. Book another ride when you are ready.";
     case "no_driver_available":
       return "No driver accepted the trip. You can retry dispatch now.";
     case "offers_expired":
@@ -278,7 +277,6 @@ export default function RideStatus() {
 
   const [rideRow, setRideRow] = useState<RideRow | null>(null);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [paymentMessage, setPaymentMessage] = useState("");
@@ -429,7 +427,7 @@ export default function RideStatus() {
   }, [ride]);
 
   const piSession = useMemo(() => getStoredPiSession(), []);
-  const canRetryDispatch = rideRow?.status === "cancelled";
+  const canStartNewRide = rideRow?.status === "cancelled";
 
   const isPaid =
     payment.payment_status === "completed" || Boolean(payment.payment_completed_at);
@@ -525,31 +523,6 @@ export default function RideStatus() {
       );
     } finally {
       setPaymentLoading(false);
-    }
-  }
-
-  async function handleRetryDispatch() {
-    if (!rideId) {
-      return;
-    }
-
-    setActionLoading(true);
-    setErrorMessage("");
-
-    try {
-      await retryDemoRideDispatch(rideId);
-      await syncDemoRideOfferState(rideId);
-
-      const data = await getRideById(rideId);
-      setRideRow(data);
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Failed to retry ride dispatch.";
-      setErrorMessage(message);
-    } finally {
-      setActionLoading(false);
     }
   }
 
@@ -1081,8 +1054,8 @@ export default function RideStatus() {
             ? "Your ride is completed. You can now pay safely with Test-Pi."
             : isPaid
               ? "Payment has already been completed."
-              : canRetryDispatch
-                ? "No driver accepted this ride yet. You can retry dispatch."
+              : canStartNewRide
+                ? "This ride request was cancelled. Use Book another ride below to start again."
                 : "Continue monitoring this page while the ride progresses."}
       </div>
 
@@ -1117,21 +1090,8 @@ export default function RideStatus() {
           </Link>
         ) : null}
 
-        {canRetryDispatch ? (
-          <button
-            type="button"
-            onClick={() => {
-              void handleRetryDispatch();
-            }}
-            disabled={actionLoading}
-            style={actionButtonStyle("#2563eb", actionLoading)}
-          >
-            {actionLoading ? "Retrying..." : "Retry Finding Driver"}
-          </button>
-        ) : null}
-
         <Link to="/rider" style={secondaryLinkStyle()}>
-          Book Another Ride
+          Book another ride
         </Link>
       </div>
     </div>
