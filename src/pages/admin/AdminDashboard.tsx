@@ -48,12 +48,69 @@ function formatStatus(status: RideRow["status"]) {
     case "cancelled":
       return "Cancelled";
     case "no_driver_available":
-      return "No driver available";
+      return "No driver responded";
     case "offers_expired":
-      return "Offers expired";
+      return "Driver offers expired";
     default:
       return status;
   }
+}
+
+function statusBadgeColor(status: RideRow["status"]) {
+  switch (status) {
+    case "completed":
+      return "#16a34a";
+    case "driver_assigned":
+    case "driver_arriving":
+    case "in_progress":
+      return "#2563eb";
+    case "collecting_offers":
+    case "offer_sent":
+      return "#7c3aed";
+    case "offers_expired":
+      return "#f97316";
+    case "no_driver_available":
+      return "#dc2626";
+    case "cancelled":
+      return "#991b1b";
+    default:
+      return "#6b7280";
+  }
+}
+
+function getStatusAdminHint(status: RideRow["status"]) {
+  switch (status) {
+    case "no_driver_available":
+      return "No driver submitted an offer for the rider's suggested fare.";
+    case "offers_expired":
+      return "Driver offers arrived, but the rider did not select one before timeout.";
+    case "cancelled":
+      return "The rider or system cancelled this ride request.";
+    case "collecting_offers":
+      return "The request is open and drivers can submit same-price or higher offers.";
+    case "driver_assigned":
+      return "The rider selected a driver offer and the trip is assigned.";
+    case "completed":
+      return "The ride was completed and is ready for payment review.";
+    default:
+      return "Monitor dispatch, driver assignment, and Test-Pi payment status.";
+  }
+}
+
+function formatAdminRiderIdentity(ride: RideRow) {
+  return ride.rider_name?.trim() || "Unknown rider";
+}
+
+function formatAdminDriverIdentity(ride: RideRow) {
+  if (ride.driver_name?.trim()) {
+    return `${ride.driver_name} · Demo driver`;
+  }
+
+  if (ride.demo_driver_id) {
+    return `${ride.demo_driver_id} · Demo driver`;
+  }
+
+  return "Not assigned";
 }
 
 function formatPi(value: number) {
@@ -685,10 +742,13 @@ export default function AdminDashboard() {
                     <div>
                       <div><strong>Ride ID:</strong> {ride.id}</div>
                       <div><strong>Status:</strong> {formatStatus(ride.status)}</div>
+                      <div style={{ marginTop: 4, color: "#64748b", fontSize: 13 }}>
+                        {getStatusAdminHint(ride.status)}
+                      </div>
                     </div>
 
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <span style={badgeStyle(ride.status === "completed" ? "#16a34a" : "#6b7280")}>
+                      <span style={badgeStyle(statusBadgeColor(ride.status))}>
                         {formatStatus(ride.status)}
                       </span>
 
@@ -701,12 +761,18 @@ export default function AdminDashboard() {
                   <div style={rideDetailGridStyle()}>
                     <div style={rideDetailItemStyle()}>
                       <strong>Rider</strong>
-                      <div style={{ marginTop: 6 }}>{ride.rider_name ?? "Unknown rider"}</div>
+                      <div style={{ marginTop: 6 }}>{formatAdminRiderIdentity(ride)}</div>
+                      <div style={{ marginTop: 4, color: "#64748b", fontSize: 12 }}>
+                        Pi-linked rider identity, when available.
+                      </div>
                     </div>
 
                     <div style={rideDetailItemStyle()}>
                       <strong>Driver</strong>
-                      <div style={{ marginTop: 6 }}>{ride.driver_name ?? "Not assigned"}</div>
+                      <div style={{ marginTop: 6 }}>{formatAdminDriverIdentity(ride)}</div>
+                      <div style={{ marginTop: 4, color: "#64748b", fontSize: 12 }}>
+                        Demo driver identity for testing. Real Pi-linked driver accounts will be enabled later.
+                      </div>
                     </div>
 
                     <div style={rideDetailItemStyle()}>
