@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ListingReadinessPanel from "../../components/ListingReadinessPanel";
+import PiSessionBanner from "../../components/PiSessionBanner";
 import MapLocationPicker from "../../components/MapLocationPicker";
 
 const pageStyle: React.CSSProperties = {
@@ -186,6 +187,8 @@ export default function RiderHome() {
     <main style={pageStyle}>
       <section style={cardStyle}>
         <ListingReadinessPanel context="rider" compact />
+
+      <PiSessionBanner appLabel="TrueGo Rider" />
 
         <div style={badgeStyle}>Pi-powered mobility</div>
 
