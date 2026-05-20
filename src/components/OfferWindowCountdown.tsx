@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 type OfferWindowCountdownProps = {
   offerExpiresAt?: string | null;
+  label?: string;
 };
 
 function formatCountdown(seconds: number): string {
@@ -14,6 +15,7 @@ function formatCountdown(seconds: number): string {
 
 export default function OfferWindowCountdown({
   offerExpiresAt,
+  label = "Offer window closes in",
 }: OfferWindowCountdownProps) {
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
 
@@ -62,7 +64,7 @@ export default function OfferWindowCountdown({
         lineHeight: 1.5,
       }}
     >
-      Offer window closes in {formatCountdown(secondsRemaining)}
+      {label} {formatCountdown(secondsRemaining)}
     </div>
   );
 }

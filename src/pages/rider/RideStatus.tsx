@@ -799,8 +799,18 @@ export default function RideStatus() {
       <div style={sectionStyle()}>
         <p style={{ margin: 0, fontWeight: 600 }}>{rideRow ? getStatusMessage(rideRow.status) : "Loading ride status..."}</p>
 
+        {rideRow.status === "searching" ? (
+          <OfferWindowCountdown
+            offerExpiresAt={new Date(Date.parse(rideRow.created_at) + 15000).toISOString()}
+            label="Driver search starts in"
+          />
+        ) : null}
+
         {rideRow.status === "collecting_offers" ? (
-          <OfferWindowCountdown offerExpiresAt={rideRow.offer_expires_at} />
+          <OfferWindowCountdown
+            offerExpiresAt={rideRow.offer_expires_at}
+            label="Offer window closes in"
+          />
         ) : null}
 
         {errorMessage ? (
