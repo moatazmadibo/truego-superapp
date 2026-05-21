@@ -586,7 +586,10 @@ export default function RideStatus() {
         },
         {
           onReadyForServerApproval: async (paymentId) => {
+            console.log("Pi payment ready for server approval:", paymentId);
             try {
+              setPaymentMessage(`Pi approval callback received: ${paymentId}`);
+              await new Promise((resolve) => window.setTimeout(resolve, 250));
               setPaymentMessage("Registering Pi payment attempt...");
               await registerRidePiPaymentAttempt({
                 rideId: ride.id,
@@ -662,6 +665,7 @@ export default function RideStatus() {
             }
           },
           onCancel: async (paymentId) => {
+            console.log("Pi payment cancelled:", paymentId);
             try {
               await clearRidePiPaymentAttempt({
                 rideId: ride.id,
@@ -677,6 +681,7 @@ export default function RideStatus() {
             setPaymentLoading(false);
           },
           onError: async (error, payment) => {
+            console.error("Pi payment error callback:", error, payment);
             const message = getErrorMessage(
               error,
               "Pi payment failed, expired, or timed out."
