@@ -28,7 +28,6 @@ import { createPiPayment } from "../../services/piPlatform";
 import {
   approvePiRidePayment,
   clearRidePiPaymentAttempt,
-  cancelRidePiPaymentAttempt,
   completePiRidePayment,
   prepareRidePiPaymentRetry,
   registerRidePiPaymentAttempt,
@@ -668,14 +667,14 @@ export default function RideStatus() {
           onCancel: async (paymentId) => {
             console.log("Pi payment cancelled:", paymentId);
             try {
-              await cancelRidePiPaymentAttempt({
+              await clearRidePiPaymentAttempt({
                 rideId: ride.id,
                 paymentId,
                 reason: "User cancelled Pi payment",
               });
               await refreshCurrentRide();
             } catch (error) {
-              console.error("Failed to preserve cancelled Pi payment:", error);
+              console.error("Failed to clear cancelled Pi payment:", error);
             }
 
             setPaymentMessage(
