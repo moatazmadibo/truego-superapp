@@ -19,28 +19,6 @@ function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-function withTimeout<T>(
-  promise: Promise<T>,
-  timeoutMs: number,
-  message: string
-): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timeoutId = window.setTimeout(() => {
-      reject(new Error(message));
-    }, timeoutMs);
-
-    promise
-      .then((value) => {
-        window.clearTimeout(timeoutId);
-        resolve(value);
-      })
-      .catch((error) => {
-        window.clearTimeout(timeoutId);
-        reject(error);
-      });
-  });
-}
-
 function getSandboxFlag(): boolean {
   const explicitValue = import.meta.env.VITE_PI_SANDBOX;
 
@@ -130,15 +108,11 @@ async function authenticateWithScopes(
     throw new Error("Pi SDK is not available. Open TrueGo inside Pi Browser.");
   }
 
-  const authResult: PiAuthResult = await withTimeout(
-    window.Pi.authenticate(
-      scopes,
-      (payment) => {
-        console.warn("Incomplete Pi payment found:", payment);
-      }
-    ),
-    20000,
-    "Pi login did not complete. Please open TrueGo in Pi Browser and try again."
+  const authResult: PiAuthResult = await window.Pi.authenticate(
+    scopes,
+    (payment) => {
+      console.warn("Incomplete Pi payment found:", payment);
+    }
   );
 
   const session: StoredPiSession = {
