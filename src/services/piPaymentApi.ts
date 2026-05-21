@@ -82,3 +82,21 @@ export async function clearRidePiPaymentAttempt(input: {
 
   return data;
 }
+
+export async function cancelRidePiPaymentAttempt(input: {
+  rideId: string;
+  paymentId?: string | null;
+  reason?: string;
+}) {
+  const { data, error } = await supabase.rpc("cancel_ride_pi_payment_attempt", {
+    p_ride_id: input.rideId,
+    p_payment_id: input.paymentId ?? null,
+    p_reason: input.reason ?? "User cancelled Pi payment",
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
