@@ -677,7 +677,11 @@ export default function RideStatus() {
               console.error("Failed to clear cancelled Pi payment:", error);
             }
 
-            setPaymentMessage("Payment was cancelled. You can try again.");
+            setPaymentMessage(
+              paymentId
+                ? `Payment was cancelled. Payment ID: ${paymentId}`
+                : "Payment was cancelled before TrueGo received a payment ID. You can try again."
+            );
             setPaymentLoading(false);
           },
           onError: async (error, payment) => {
