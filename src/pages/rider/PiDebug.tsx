@@ -1,11 +1,58 @@
 import { useEffect, useState } from "react";
 import { initPiSdk, isPiSdkAvailable } from "../../lib/pi";
+import type { PiAuthResult, PiPayment } from "../../types/pi-sdk";
+
+const DEBUG_AMOUNT_PI = 0.00002062;
+
+function summarizePayment(payment?: PiPayment) {
+  if (!payment) {
+    return null;
+  }
+
+  return {
+    identifier: payment.identifier,
+    amount: payment.amount,
+    memo: payment.memo,
+    metadata: payment.metadata,
+    user_uid: payment.user_uid,
+    created_at: payment.created_at,
+    transaction: payment.transaction,
+    status: payment.status,
+  };
+}
+
+function summarizeError(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    };
+  }
+
+  return {
+    raw: String(error),
+  };
+}
 
 export default function PiDebug() {
   const [logs, setLogs] = useState<string[]>([]);
+  const [authResult, setAuthResult] = useState<PiAuthResult | null>(null);
 
   function log(message: string, data?: unknown) {
-    const line = data ? `${message}: ${JSON.stringify(data)}` : message;
+    const safeData =
+      data === undefined
+        ? ""
+        : (() => {
+            try {
+              return JSON.stringify(data);
+            } catch {
+              return String(data);
+            }
+          })();
+
+    const line = safeData ? `${message}: ${safeData}` : message;
+
     setLogs((current) => [`${new Date().toISOString()} ${line}`, ...current]);
     console.log("[PiDebug]", message, data ?? "");
   }
@@ -37,54 +84,128 @@ export default function PiDebug() {
     })();
   }, []);
 
-  async function testAuthenticate() {
+  async function testAuthenticate(): Promise<PiAuthResult | null> {
     try {
       log("authenticate start", { scopes: ["username", "payments"] });
 
       if (!window.Pi) {
         log("authenticate failed", "window.Pi is missing");
-        return;
+        return null;
       }
 
       const result = await window.Pi.authenticate(
         ["username", "payments"],
         (payment) => {
-          log("onIncompletePaymentFound", payment);
+          log("authenticate onIncompletePaymentFound", summarizePayment(payment));
         }
       );
+
+      setAuthResult(result);
 
       log("authenticate success", {
         uid: result.user?.uid,
         username: result.user?.username,
         hasAccessToken: Boolean(result.accessToken),
       });
+
+      return result;
     } catch (error) {
-      log("authenticate error", {
-        message: error instanceof Error ? error.message : String(error),
-        raw: String(error),
+      log("authenticate error", summarizeError(error));
+      return null;
+    }
+  }
+
+  async function testCreatePaymentCallback() {
+    try {
+      log("createPayment test start", { amount: DEBUG_AMOUNT_PI });
+
+      if (!window.Pi) {
+        log("createPayment failed", "window.Pi is missing");
+        return;
+      }
+
+      const login = authResult ?? (await testAuthenticate());
+
+      if (!login?.user?.uid) {
+        log("createPayment failed", "No Pi UID available after authentication");
+        return;
+      }
+
+      const paymentData = {
+        amount: DEBUG_AMOUNT_PI,
+        memo: `TrueGo debug payment ${Date.now()}`,
+        metadata: {
+          debug: true,
+          source: "PiDebug",
+          app: "TrueGo",
+          createdAt: new Date().toISOString(),
+        },
+        uid: login.user.uid,
+      };
+
+      log("createPayment call", paymentData);
+
+      window.Pi.createPayment(paymentData, {
+        onReadyForServerApproval: (paymentId) => {
+          log("createPayment onReadyForServerApproval", { paymentId });
+        },
+        onReadyForServerCompletion: (paymentId, txid) => {
+          log("createPayment onReadyForServerCompletion", { paymentId, txid });
+        },
+        onCancel: (paymentId) => {
+          log("createPayment onCancel", { paymentId });
+        },
+        onError: (error, payment) => {
+          log("createPayment onError", {
+            error: summarizeError(error),
+            payment: summarizePayment(payment),
+          });
+        },
       });
+    } catch (error) {
+      log("createPayment outer error", summarizeError(error));
     }
   }
 
   return (
     <div style={{ maxWidth: 820, margin: "24px auto", padding: 16, fontFamily: "system-ui, sans-serif" }}>
       <h1>TrueGo Pi Debug</h1>
-      <p>This page checks Pi SDK initialization and authentication only. It does not create payments.</p>
+      <p>
+        This page checks Pi SDK initialization, authentication, and createPayment
+        callbacks only. It does not update rides or Supabase.
+      </p>
 
-      <button
-        type="button"
-        onClick={() => void testAuthenticate()}
-        style={{
-          padding: "12px 16px",
-          borderRadius: 12,
-          border: 0,
-          background: "#111827",
-          color: "white",
-          fontWeight: 700,
-        }}
-      >
-        Test Pi authenticate
-      </button>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <button
+          type="button"
+          onClick={() => void testAuthenticate()}
+          style={{
+            padding: "12px 16px",
+            borderRadius: 12,
+            border: 0,
+            background: "#111827",
+            color: "white",
+            fontWeight: 700,
+          }}
+        >
+          Test Pi authenticate
+        </button>
+
+        <button
+          type="button"
+          onClick={() => void testCreatePaymentCallback()}
+          style={{
+            padding: "12px 16px",
+            borderRadius: 12,
+            border: 0,
+            background: "#7c3aed",
+            color: "white",
+            fontWeight: 700,
+          }}
+        >
+          Test Pi createPayment callback
+        </button>
+      </div>
 
       <pre
         style={{
