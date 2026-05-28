@@ -259,12 +259,18 @@ export default function RiderIncomingDriverOfferCard({
       return;
     }
 
+    if (secondsRemaining != null && secondsRemaining <= 0) {
+      setError("This offer window has expired. Please resend the ride request.");
+      return;
+    }
+
     setActionLoading("accept");
     setError("");
     setMessage("");
 
     try {
       const updatedRide = await acceptRideDriverOffer(activeOffer.id);
+      setOffers([]);
       setMessage("Driver offer accepted.");
       onRideUpdated(updatedRide);
     } catch (acceptError) {

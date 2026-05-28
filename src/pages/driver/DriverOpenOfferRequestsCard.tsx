@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { formatPiAmount } from "../../lib/piPricing";
 import {
+  ensureDemoDriverReadyForOffers,
   listOpenRideOfferRequestsForDriver,
   submitDemoDriverRideOffer,
   type DemoDriverRow,
@@ -99,12 +100,16 @@ export default function DriverOpenOfferRequestsCard({
   const [actionRideId, setActionRideId] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [driverReady, setDriverReady] = useState(driver.is_online && driver.is_available);
 
   async function loadRequests() {
     setLoading(true);
     setError("");
 
     try {
+      await ensureDemoDriverReadyForOffers(driver.id);
+      setDriverReady(true);
+
       const rows = await listOpenRideOfferRequestsForDriver(driver.id);
       setRequests(rows);
 
@@ -145,6 +150,16 @@ export default function DriverOpenOfferRequestsCard({
   async function submitOffer(ride: RideRow, offerPricePi: number) {
     const suggestedFare = Number(ride.price_pi ?? 0);
 
+    if (ride.offer_expires_at) {
+      const expiresAt = Date.parse(ride.offer_expires_at);
+
+      if (Number.isFinite(expiresAt) && expiresAt <= Date.now() + 1500) {
+        setError("This request has just expired. Ask the rider to resend the request.");
+        await loadRequests();
+        return;
+      }
+    }
+
     if (!Number.isFinite(offerPricePi) || offerPricePi <= 0) {
       setError("Enter a valid offer amount.");
       return;
@@ -172,6 +187,9 @@ export default function DriverOpenOfferRequestsCard({
     setMessage("");
 
     try {
+      await ensureDemoDriverReadyForOffers(driver.id);
+      setDriverReady(true);
+
       await submitDemoDriverRideOffer({
         rideId: ride.id,
         driverId: driver.id,
@@ -202,7 +220,7 @@ export default function DriverOpenOfferRequestsCard({
         Use quick buttons instead of typing small Pi fractions manually.
       </p>
 
-      {!driver.is_online ? (
+      {!driverReady ? (
         <div
           style={{
             marginTop: 12,
@@ -259,8 +277,7 @@ export default function DriverOpenOfferRequestsCard({
       {requests.map((ride) => {
         const actionLoading = actionRideId === ride.id;
         const suggestedFare = Number(ride.price_pi ?? 0);
-        const disabled =
-          actionLoading || !driver.is_online || !driver.is_available;
+        const disabled = actionLoading || !driverReady;
 
         return (
           <div key={ride.id} style={requestCardStyle()}>
