@@ -494,8 +494,22 @@ export async function listOpenRideOfferRequestsForDriver(
     throw error;
   }
 
+  const now = Date.now();
+
   const rows = ((data as RideRow[]) ?? []).filter((ride) => {
-    return ride.demo_driver_id !== driverId;
+    if (ride.demo_driver_id === driverId) {
+      return false;
+    }
+
+    if (ride.offer_expires_at) {
+      const expiresAt = Date.parse(ride.offer_expires_at);
+
+      if (Number.isFinite(expiresAt) && expiresAt <= now + 1500) {
+        return false;
+      }
+    }
+
+    return true;
   });
 
   return rows;
@@ -650,6 +664,25 @@ export async function touchDemoDriverPresence(driverId: string): Promise<void> {
     .update({
       last_seen_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+    })
+    .eq("id", driverId);
+
+  if (error) {
+    throw error;
+  }
+}
+
+
+export async function ensureDemoDriverReadyForOffers(driverId: string): Promise<void> {
+  const timestamp = new Date().toISOString();
+
+  const { error } = await supabase
+    .from("demo_drivers")
+    .update({
+      is_online: true,
+      is_available: true,
+      last_seen_at: timestamp,
+      updated_at: timestamp,
     })
     .eq("id", driverId);
 
