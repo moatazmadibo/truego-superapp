@@ -314,16 +314,24 @@ export default function DriverHome() {
       return;
     }
 
-    const intervalId = window.setInterval(() => {
+    function touchSelectedDriverPresence() {
+      const timestamp = new Date().toISOString();
+
       setDrivers((current) =>
         current.map((driver) =>
           driver.id === selectedDriverId
-            ? { ...driver, last_seen_at: new Date().toISOString() }
+            ? { ...driver, last_seen_at: timestamp }
             : driver
         )
       );
 
       void touchDemoDriverPresence(selectedDriverId);
+    }
+
+    touchSelectedDriverPresence();
+
+    const intervalId = window.setInterval(() => {
+      touchSelectedDriverPresence();
     }, 30000);
 
     return () => {

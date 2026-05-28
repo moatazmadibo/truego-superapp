@@ -518,9 +518,22 @@ function Landing() {
         </div>
 
         <div style={{ marginTop: 24 }}>
-          <Link to={appHomePath} style={linkStyle("#0ea5e9", !session)}>
-            {appHomeLabel}
-          </Link>
+          {session ? (
+            <Link to={appHomePath} style={linkStyle("#0ea5e9")}>
+              {appHomeLabel}
+            </Link>
+          ) : (
+            <button
+              type="button"
+              style={authButtonStyle("#0ea5e9", !sdkReady || authLoading || serverSyncing)}
+              onClick={() => {
+                void handlePiLogin();
+              }}
+              disabled={!sdkReady || authLoading || serverSyncing}
+            >
+              {authLoading || serverSyncing ? "Signing in..." : "Login with Pi to continue"}
+            </button>
+          )}
         </div>
 
         {!session ? (
