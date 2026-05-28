@@ -12,6 +12,7 @@ import {
 import RiderApp from "./apps/rider/RiderApp";
 import DriverApp from "./apps/driver/DriverApp";
 import AdminApp from "./apps/admin/AdminApp";
+import PiDebug from "./pages/rider/PiDebug";
 import AdminAccessGate from "./components/admin/AdminAccessGate";
 import ListingReadinessPanel from "./components/ListingReadinessPanel";
 import {
@@ -557,6 +558,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Landing />} />
+        <Route path="/debug/pi" element={<PiDebug />} />
 
         {isAppModeEnabled(appMode, "rider") ? (
           <Route
