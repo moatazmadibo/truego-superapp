@@ -553,6 +553,22 @@ function Landing() {
   );
 }
 
+
+function AppModePathRedirect({
+  prefix,
+}: {
+  prefix: "/rider" | "/driver" | "/admin";
+}) {
+  const location = useLocation();
+
+  return (
+    <Navigate
+      to={`${prefix}${location.pathname}${location.search}`}
+      replace
+    />
+  );
+}
+
 function App() {
   const appMode = getTrueGoAppMode();
   const appHomePath = getAppModeHomePath(appMode);
@@ -578,6 +594,20 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Landing />} />
+
+
+        {appMode === "rider" ? (
+          <>
+            <Route
+              path="/ride"
+              element={<AppModePathRedirect prefix="/rider" />}
+            />
+            <Route
+              path="/status/:rideId"
+              element={<AppModePathRedirect prefix="/rider" />}
+            />
+          </>
+        ) : null}
 
         {isAppModeEnabled(appMode, "rider") ? (
           <Route
