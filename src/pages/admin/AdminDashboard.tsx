@@ -500,7 +500,7 @@ export default function AdminDashboard() {
         <strong>Admin operations checkpoint:</strong> ride/payment monitoring is
         separated from driver verification. Use <strong>Rides & Payments</strong>{" "}
         for trip and Pi payment review, and <strong>Driver Verification</strong>{" "}
-        for KYC/document approval.
+        for document approval.
       </div>
 
       <div style={statsGridStyle()}>
@@ -825,7 +825,7 @@ export default function AdminDashboard() {
                           {paymentReview.label}
                         </span>
                         <div style={{ marginTop: 6, color: "#64748b", fontSize: 12 }}>
-                          Raw status: {payment.payment_status ?? "unpaid"}
+                          Status: {payment.payment_status ?? "unpaid"}
                         </div>
                       </div>
                     </div>

@@ -233,7 +233,7 @@ function LandingShowcase({
             </div>
             <h3 style={{ margin: "8px 0" }}>Book a ride</h3>
             <p style={{ margin: 0, lineHeight: 1.5 }}>
-              Create a trip, review driver offers, track the ride, and pay with Test-Pi.
+              Create a trip, review driver offers, track the ride, and pay with Pi.
             </p>
           </Link>
         ) : null}
@@ -406,11 +406,11 @@ function Landing() {
 
   return (
     <div style={{ padding: 20 }}>
-      <div style={landingCardStyle()}>      <LandingShowcase appMode={appMode} />
+      <div style={landingCardStyle()}>      {appMode === "all" ? <LandingShowcase appMode={appMode} /> : null}
         <h1 style={{ marginTop: 0, marginBottom: 8 }}>TrueGo</h1>
 
         <p style={{ marginTop: 0, color: "#4b5563" }}>
-          Request rides and connect with drivers through the Pi ecosystem.
+          Request rides, compare driver offers, track trips, and pay securely with Pi.
         </p>
 
         <div style={authPanelStyle()}>
@@ -467,7 +467,7 @@ function Landing() {
                   : serverSyncing
                   ? "Verifying with TrueGo server..."
                   : sdkReady
-                  ? "Sign in with Pi to access TrueGo."
+                  ? "Sign in with Pi to continue."
                   : "Open this page inside Pi Browser to sign in with Pi."}
               </div>
 
@@ -509,7 +509,7 @@ function Landing() {
 
         {!session ? (
           <div style={infoBoxStyle()}>
-            TrueGo is configured for Pi-exclusive authentication. Please sign in with Pi to continue.
+            Sign in with Pi to continue.
           </div>
         ) : null}
       </div>
