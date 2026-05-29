@@ -868,7 +868,7 @@ export default function RideStatus() {
           fontSize: 14,
         }}
       >
-        <strong>Review flow checkpoint:</strong> the ride status updates in
+        <strong>Ride progress:</strong> status updates in
         real time. Payment appears only after trip completion, and the Pi
         transaction details are shown here after payment succeeds.
       </div>
@@ -939,7 +939,7 @@ export default function RideStatus() {
               fontSize: 14,
             }}
           >
-            <strong>Test-Pi payment review note:</strong>{" "}
+            <strong>Pi payment:</strong>{" "}
             {isPaid
               ? "Payment is completed and the transaction reference is available below."
               : "The payment button becomes available after the driver completes the trip."}
@@ -1067,7 +1067,7 @@ export default function RideStatus() {
         {canRetryPiCompletion
           ? "Payment has a transaction ID. Do not pay again. Retry Pi confirmation instead."
           : canPayWithPi
-            ? "Your ride is completed. You can now pay safely with Test-Pi."
+            ? "Your ride is completed. You can now pay securely with Pi."
             : isPaid
               ? "Payment has already been completed."
               : canStartNewRide

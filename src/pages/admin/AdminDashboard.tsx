@@ -497,7 +497,7 @@ export default function AdminDashboard() {
       </p>
 
       <div style={adminNoticeStyle()}>
-        <strong>Admin operations checkpoint:</strong> ride/payment monitoring is
+        <strong>Operations overview:</strong> ride and payment monitoring is
         separated from driver verification. Use <strong>Rides & Payments</strong>{" "}
         for trip and Pi payment review, and <strong>Driver Verification</strong>{" "}
         for document approval.

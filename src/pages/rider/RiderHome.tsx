@@ -278,7 +278,7 @@ export default function RiderHome() {
             clear mobile-friendly path.
           </div>
           <div style={featureStyle}>
-            <strong>Pi Testnet ready:</strong> small fractional Test-Pi amounts
+            <strong>Pi payment:</strong> secure Pi payments
             keep repeated review payments safe.
           </div>
           <div style={featureStyle}>
