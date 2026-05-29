@@ -768,7 +768,7 @@ export default function AdminDashboard() {
                       <strong>Driver</strong>
                       <div style={{ marginTop: 6 }}>{formatAdminDriverIdentity(ride)}</div>
                       <div style={{ marginTop: 4, color: "#64748b", fontSize: 12 }}>
-                        Demo driver identity for testing. Real Pi-linked driver accounts will be enabled later.
+                        Driver identity for testing. Real Pi-linked driver accounts will be enabled later.
                       </div>
                     </div>
 
@@ -778,7 +778,7 @@ export default function AdminDashboard() {
                     </div>
 
                     <div style={rideDetailItemStyle()}>
-                      <strong>Demo driver ID</strong>
+                      <strong>Driver profile ID</strong>
                       <div style={{ marginTop: 6 }}>{ride.demo_driver_id ?? "Not assigned"}</div>
                     </div>
 
