@@ -4,7 +4,6 @@ import type { Ride } from "../../types/ride";
 import RideTimeline from "../../components/RideTimeline";
 import TrueGoLiveMapCard from "../../components/TrueGoLiveMapCard";
 import StatusBadge from "../../components/StatusBadge";
-import ListingReadinessPanel from "../../components/ListingReadinessPanel";
 import PiSessionBanner from "../../components/PiSessionBanner";
 import OfferWindowCountdown from "../../components/OfferWindowCountdown";
 import RiderIncomingDriverOfferCard from "./RiderIncomingDriverOfferCard";
@@ -782,8 +781,6 @@ export default function RideStatus() {
 
   return (
     <div style={containerStyle()}>
-      <ListingReadinessPanel context="rider" compact />
-
       <PiSessionBanner appLabel="TrueGo Rider" />
 
       <div

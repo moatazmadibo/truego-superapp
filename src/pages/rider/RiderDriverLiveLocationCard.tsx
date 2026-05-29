@@ -468,7 +468,7 @@ export default function RiderDriverLiveLocationCard({
       ) : (
         <div style={noticeStyle()}>
           Waiting for the driver to share live location. The marker will appear
-          here after the driver grants location permission or starts demo movement.
+          here after the driver shares live location or starts route movement.
         </div>
       )}
     </div>

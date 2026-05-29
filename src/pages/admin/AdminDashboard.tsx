@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
 import AdminDriverVerificationPanel from "./AdminDriverVerificationPanel";
-import ListingReadinessPanel from "../../components/ListingReadinessPanel";
 import TrueGoLiveMapCard from "../../components/TrueGoLiveMapCard";
 import { listRecentRides, subscribeToLatestRides, type RideRow } from "../../services/rideApi";
 import { formatPiAmount } from "../../lib/piPricing";
@@ -93,7 +92,7 @@ function getStatusAdminHint(status: RideRow["status"]) {
     case "completed":
       return "The ride was completed and is ready for payment review.";
     default:
-      return "Monitor dispatch, driver assignment, and Test-Pi payment status.";
+      return "Monitor dispatch, driver assignment, and Pi payment status.";
   }
 }
 
@@ -103,11 +102,11 @@ function formatAdminRiderIdentity(ride: RideRow) {
 
 function formatAdminDriverIdentity(ride: RideRow) {
   if (ride.driver_name?.trim()) {
-    return `${ride.driver_name} · Demo driver`;
+    return `${ride.driver_name} · Driver`;
   }
 
   if (ride.demo_driver_id) {
-    return `${ride.demo_driver_id} · Demo driver`;
+    return `${ride.demo_driver_id} · Driver`;
   }
 
   return "Not assigned";
@@ -326,7 +325,7 @@ function getPaymentReview(payment: RidePaymentSnapshot) {
       background: "#ecfdf5",
       border: "1px solid #bbf7d0",
       color: "#047857",
-      message: "This ride has a completed Test-Pi payment record.",
+      message: "This ride has a completed Pi payment record.",
     };
   }
 
@@ -492,9 +491,7 @@ export default function AdminDashboard() {
     null;
 
   return (
-    <div style={pageStyle()}>
-      <ListingReadinessPanel context="admin" compact />
-      <h1 style={{ marginTop: 0, marginBottom: 0 }}>TrueGo Admin Dashboard</h1>
+    <div style={pageStyle()}>      <h1 style={{ marginTop: 0, marginBottom: 0 }}>TrueGo Admin Dashboard</h1>
       <p style={{ color: "#6b7280", marginTop: 8 }}>
         Operations-only view for monitoring rides, driver assignment, and Pi payment status.
       </p>
@@ -502,7 +499,7 @@ export default function AdminDashboard() {
       <div style={adminNoticeStyle()}>
         <strong>Admin operations checkpoint:</strong> ride/payment monitoring is
         separated from driver verification. Use <strong>Rides & Payments</strong>{" "}
-        for trip and Test-Pi payment review, and <strong>Driver Verification</strong>{" "}
+        for trip and Pi payment review, and <strong>Driver Verification</strong>{" "}
         for KYC/document approval.
       </div>
 
@@ -695,7 +692,7 @@ export default function AdminDashboard() {
           <div>
             <h2 style={{ marginTop: 0, marginBottom: 6 }}>Rides & Payments</h2>
             <p style={{ marginTop: 0, color: "#64748b", lineHeight: 1.6 }}>
-              Review recent rides, dispatch status, fare, Test-Pi payment state,
+              Review recent rides, dispatch status, fare, Pi payment state,
               payment ID, and transaction hash.
             </p>
           </div>
@@ -771,7 +768,7 @@ export default function AdminDashboard() {
                       <strong>Driver</strong>
                       <div style={{ marginTop: 6 }}>{formatAdminDriverIdentity(ride)}</div>
                       <div style={{ marginTop: 4, color: "#64748b", fontSize: 12 }}>
-                        Demo driver identity for testing. Real Pi-linked driver accounts will be enabled later.
+                        Driver identity for testing. Real Pi-linked driver accounts will be enabled later.
                       </div>
                     </div>
 
@@ -781,7 +778,7 @@ export default function AdminDashboard() {
                     </div>
 
                     <div style={rideDetailItemStyle()}>
-                      <strong>Demo driver ID</strong>
+                      <strong>Driver profile ID</strong>
                       <div style={{ marginTop: 6 }}>{ride.demo_driver_id ?? "Not assigned"}</div>
                     </div>
 
@@ -900,7 +897,7 @@ export default function AdminDashboard() {
                       Payment ID: {payment.payment_id ?? "N/A"}
                     </div>
                     <div style={monoTextStyle()}>
-                      TXID: {payment.payment_txid ?? "N/A"}
+                      Transaction ID: {payment.payment_txid ?? "N/A"}
                     </div>
                     <div style={monoTextStyle()}>
                       Attempts: {payment.payment_attempt_count ?? 0}

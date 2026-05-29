@@ -204,7 +204,7 @@ export default function DriverLiveLocationTracker({
     const endLng = Number(targetLng);
 
     setDemoMoving(true);
-    setStatus(`Preparing OSRM demo route toward ${targetLabel}...`);
+    setStatus(`Preparing route toward ${targetLabel}...`);
 
     let routePoints: RoutePoint[];
 
@@ -335,7 +335,7 @@ export default function DriverLiveLocationTracker({
           >
             {demoMoving
               ? "Demo movement running..."
-              : `Start demo movement to ${targetLabel}`}
+              : `Start route movement to ${targetLabel}`}
           </button>
 
           <button
@@ -344,7 +344,7 @@ export default function DriverLiveLocationTracker({
             disabled={!demoMoving}
             style={buttonStyle("#334155", !demoMoving)}
           >
-            Stop demo movement
+            Stop route movement
           </button>
         </div>
       ) : null}
