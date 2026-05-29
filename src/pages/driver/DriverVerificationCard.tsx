@@ -78,7 +78,7 @@ function formatVerificationStatus(status: DriverVerificationStatus) {
     case "rejected":
       return "Rejected";
     case "needs_more_info":
-      return "Needs more information";
+      return "Needs more informationrmation";
     default:
       return status;
   }
