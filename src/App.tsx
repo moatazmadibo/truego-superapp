@@ -296,6 +296,25 @@ function Landing() {
   const appHomePath = getAppModeHomePath(appMode);
   const appHomeLabel = getAppModeLabel(appMode);
 
+  const landingTitle =
+    appMode === "rider"
+      ? "TrueGo Rider"
+      : appMode === "driver"
+        ? "TrueGo Driver"
+        : appMode === "admin"
+          ? "TrueGo Admin Platform"
+          : "TrueGo";
+
+  const landingSubtitle =
+    appMode === "rider"
+      ? "Request rides, compare driver offers, track trips, and pay securely with Pi."
+      : appMode === "driver"
+        ? "Receive rider requests, submit offers, manage trips, and keep your driver profile ready."
+        : appMode === "admin"
+          ? "Monitor rides, payments, driver verification, documents, and live operations."
+          : "Request rides, compare driver offers, track trips, and pay securely with Pi.";
+
+
   const pendingPath = useMemo(() => {
     const maybeFrom = (location.state as { from?: string } | null)?.from;
     return maybeFrom && maybeFrom !== "/" ? maybeFrom : null;
@@ -406,11 +425,12 @@ function Landing() {
 
   return (
     <div style={{ padding: 20 }}>
-      <div style={landingCardStyle()}>      {appMode === "all" ? <LandingShowcase appMode={appMode} /> : null}
-        <h1 style={{ marginTop: 0, marginBottom: 8 }}>TrueGo</h1>
+      <div style={landingCardStyle()}>
+        {appMode === "all" ? <LandingShowcase appMode={appMode} /> : null}
+        <h1 style={{ marginTop: 0, marginBottom: 8 }}>{landingTitle}</h1>
 
         <p style={{ marginTop: 0, color: "#4b5563" }}>
-          Request rides, compare driver offers, track trips, and pay securely with Pi.
+          {landingSubtitle}
         </p>
 
         <div style={authPanelStyle()}>
@@ -467,7 +487,11 @@ function Landing() {
                   : serverSyncing
                   ? "Verifying with TrueGo server..."
                   : sdkReady
-                  ? "Sign in with Pi to continue."
+                  ? appMode === "driver"
+                    ? "Sign in with Pi to access the driver workspace."
+                    : appMode === "rider"
+                      ? "Sign in with Pi to book and track rides."
+                      : "Sign in with Pi to continue."
                   : "Open this page inside Pi Browser to sign in with Pi."}
               </div>
 
@@ -479,7 +503,13 @@ function Landing() {
                 }}
                 disabled={!sdkReady || authLoading || serverSyncing}
               >
-                {authLoading || serverSyncing ? "Signing in..." : "Login with Pi"}
+                {authLoading || serverSyncing
+                  ? "Signing in..."
+                  : appMode === "driver"
+                    ? "Login to Driver App"
+                    : appMode === "rider"
+                      ? "Login to Rider App"
+                      : "Login with Pi"}
               </button>
             </>
           )}
@@ -502,7 +532,13 @@ function Landing() {
               }}
               disabled={!sdkReady || authLoading || serverSyncing}
             >
-              {authLoading || serverSyncing ? "Signing in..." : "Login with Pi to continue"}
+              {authLoading || serverSyncing
+                ? "Signing in..."
+                : appMode === "driver"
+                  ? "Login to Driver App"
+                  : appMode === "rider"
+                    ? "Login to Rider App"
+                    : "Login with Pi to continue"}
             </button>
           )}
         </div>
