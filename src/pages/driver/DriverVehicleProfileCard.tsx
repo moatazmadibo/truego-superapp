@@ -171,10 +171,9 @@ export default function DriverVehicleProfileCard({ driver }: { driver: DemoDrive
 
   return (
     <div style={sectionStyle()}>
-      <h2 style={{ marginTop: 0 }}>Vehicle Profile</h2>
+      <h2 style={{ marginTop: 0 }}>Vehicle profile</h2>
       <p style={{ marginTop: 6, color: "#475569", lineHeight: 1.6 }}>
-        Keep the driver's vehicle details updated for admin review, document verification,
-        and future ride audit. Update this when the vehicle changes or the vehicle license is renewed.
+        Keep vehicle details accurate for rider confidence, driver verification, and operational readiness.
       </p>
 
       <div
@@ -188,7 +187,7 @@ export default function DriverVehicleProfileCard({ driver }: { driver: DemoDrive
           lineHeight: 1.6,
         }}
       >
-        <strong>Current vehicle type:</strong> {driver.vehicle_type}
+        <strong>Vehicle type:</strong> {driver.vehicle_type}
       </div>
 
       <label style={labelStyle()} htmlFor="vehicle-make">Make</label>
@@ -300,7 +299,7 @@ export default function DriverVehicleProfileCard({ driver }: { driver: DemoDrive
           disabled={loading || saving}
           style={buttonStyle(loading || saving)}
         >
-          {saving ? "Saving..." : loading ? "Loading..." : "Save Vehicle Profile"}
+          {saving ? "Saving..." : loading ? "Loading..." : "Save Vehicle profile"}
         </button>
       </div>
     </div>

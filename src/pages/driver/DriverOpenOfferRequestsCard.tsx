@@ -154,7 +154,7 @@ export default function DriverOpenOfferRequestsCard({
       const expiresAt = Date.parse(ride.offer_expires_at);
 
       if (Number.isFinite(expiresAt) && expiresAt <= Date.now() + 1500) {
-        setError("This request has just expired. Ask the rider to resend the request.");
+        setError("This request has expired. Ask the rider to resend it.");
         await loadRequests();
         return;
       }
@@ -198,7 +198,7 @@ export default function DriverOpenOfferRequestsCard({
         driverNote: notes[ride.id] || null,
       });
 
-      setMessage(`Offer submitted to rider: ${formatPiAmount(offerPricePi)}`);
+      setMessage(`Offer sent to rider: ${formatPiAmount(offerPricePi)}`);
       await loadRequests();
       onOfferSubmitted?.();
     } catch (submitError) {
@@ -214,10 +214,9 @@ export default function DriverOpenOfferRequestsCard({
 
   return (
     <div style={sectionStyle()}>
-      <h2 style={{ marginTop: 0 }}>Open ride requests</h2>
+      <h2 style={{ marginTop: 0 }}>Ride requests</h2>
       <p style={{ marginTop: 6, color: "#475569", lineHeight: 1.6 }}>
-        Available rider requests are shown here in the TrueGo offer flow.
-        Use quick buttons instead of typing small Pi fractions manually.
+        Available rider requests appear here automatically. Use quick offer buttons or enter a custom fare.
       </p>
 
       {!driverReady ? (
@@ -232,11 +231,11 @@ export default function DriverOpenOfferRequestsCard({
             lineHeight: 1.6,
           }}
         >
-          Go online first to submit offers.
+          Preparing your driver profile for offers...
         </div>
       ) : null}
 
-      {loading ? <p>Loading open requests...</p> : null}
+      {loading ? <p>Checking for rider requests...</p> : null}
 
       {error ? (
         <div
@@ -270,7 +269,7 @@ export default function DriverOpenOfferRequestsCard({
 
       {!loading && requests.length === 0 ? (
         <p style={{ color: "#64748b" }}>
-          No open rider requests are collecting offers right now.
+          No rider requests right now. New requests appear here automatically.
         </p>
       ) : null}
 
@@ -335,7 +334,7 @@ export default function DriverOpenOfferRequestsCard({
                   boxShadow: "0 10px 20px rgba(124, 58, 237, 0.22)",
                 }}
               >
-                Open for offers
+                Awaiting offer
               </span>
             </div>
 
@@ -355,7 +354,7 @@ export default function DriverOpenOfferRequestsCard({
                   border: "1px solid #bbf7d0",
                 }}
               >
-                <strong style={{ color: "#065f46" }}>Suggested fare</strong>
+                <strong style={{ color: "#065f46" }}>Rider fare</strong>
                 <div style={{ marginTop: 6, fontWeight: 900, color: "#064e3b" }}>
                   {formatPiAmount(suggestedFare)}
                 </div>

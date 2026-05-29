@@ -72,13 +72,13 @@ function formatVerificationStatus(status: DriverVerificationStatus) {
     case "pending":
       return "Pending";
     case "submitted":
-      return "Submitted for review";
+      return "Submitted";
     case "approved":
       return "Approved";
     case "rejected":
       return "Rejected";
     case "needs_more_info":
-      return "Needs more info";
+      return "Needs more information";
     default:
       return status;
   }
@@ -87,7 +87,7 @@ function formatVerificationStatus(status: DriverVerificationStatus) {
 function formatDocumentType(type: DocumentType) {
   switch (type) {
     case "national_id":
-      return "National ID - legacy single-side";
+      return "National ID";
     case "national_id_front":
       return "National ID - Front";
     case "national_id_back":

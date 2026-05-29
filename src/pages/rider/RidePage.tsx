@@ -13,7 +13,7 @@ import RideMapPreview from "../../components/RideMapPreview";
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: "linear-gradient(180deg, #f8fafc 0%, #eef6ff 100%)",
+  background: "radial-gradient(circle at top left, rgba(14,165,233,0.14), transparent 34%), linear-gradient(180deg, #f8fafc 0%, #eef6ff 100%)",
   padding: 20,
 };
 
