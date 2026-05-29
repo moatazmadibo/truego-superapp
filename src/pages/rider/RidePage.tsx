@@ -6,7 +6,7 @@ import {
   calculateRouteEstimateByText,
   type RouteEstimate,
 } from "../../services/rideService";
-import { createRideAndAutoDispatch } from "../../services/rideApi";
+import { createRideAndCollectDriverOffers } from "../../services/rideApi";
 import { formatPiAmount } from "../../lib/piPricing";
 import { getStoredPiSession } from "../../lib/pi";
 import ListingReadinessPanel from "../../components/ListingReadinessPanel";
@@ -221,7 +221,7 @@ export default function RidePage() {
     setErrorMessage("");
 
     try {
-      const ride = await createRideAndAutoDispatch({
+      const ride = await createRideAndCollectDriverOffers({
         rider_user_id: null,
         rider_name: session?.username ? `@${session.username}` : "Pi Rider",
         pickup_text: pickupText.trim(),

@@ -311,6 +311,33 @@ export async function createRideAndAutoDispatch(
   return dispatchRideToNearestDemoDriver(ride.id, presenceWindowSeconds);
 }
 
+
+export async function createRideAndCollectDriverOffers(
+  input: CreateRideInput,
+  offerWindowSeconds = 300
+): Promise<RideRow> {
+  const riderFarePi = Number(input.price_pi.toFixed(8));
+  const driverPayoutPi = Number((riderFarePi * 0.85).toFixed(8));
+
+  const ride = await createRide({
+    ...input,
+    price_pi: riderFarePi,
+    driver_payout_pi: input.driver_payout_pi ?? driverPayoutPi,
+    pricing_breakdown: input.pricing_breakdown ?? {
+      riderFarePi,
+      driverPayoutPi,
+      driverPayoutRate: 0.85,
+      vehicleType: input.vehicle_type,
+      distanceKm: input.distance_km,
+      durationMin: input.duration_min,
+      pricingMode: "driver_offer_collecting",
+      offerWindowSeconds,
+    },
+  });
+
+  return prepareRideForDriverOffers(ride.id, offerWindowSeconds);
+}
+
 export async function getLatestRide(): Promise<RideRow | null> {
   const { data, error } = await supabase
     .from("rides")
