@@ -180,7 +180,7 @@ function LandingShowcase({
         {showRider ? (
           <div style={featureCardStyle()}>
             <div style={{ fontSize: 26 }}>🚕</div>
-            <h3 style={{ margin: "8px 0 6px" }}>Rider ride-hailing flow</h3>
+            <h3 style={{ margin: "8px 0 6px" }}>Rider experience</h3>
             <p style={{ margin: 0, color: "#475569", lineHeight: 1.6 }}>
               Request a ride, suggest a fare, review driver offers, track your trip, and pay with Pi.
             </p>
