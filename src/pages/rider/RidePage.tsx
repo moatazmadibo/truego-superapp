@@ -9,7 +9,6 @@ import {
 import { createRideAndCollectDriverOffers } from "../../services/rideApi";
 import { formatPiAmount } from "../../lib/piPricing";
 import { getStoredPiSession } from "../../lib/pi";
-import ListingReadinessPanel from "../../components/ListingReadinessPanel";
 import RideMapPreview from "../../components/RideMapPreview";
 
 const pageStyle: React.CSSProperties = {
@@ -252,8 +251,6 @@ export default function RidePage() {
   return (
     <main style={pageStyle}>
       <section style={containerStyle}>
-        <ListingReadinessPanel context="rider" compact />
-
         <div
           style={{
             marginTop: 14,
@@ -294,7 +291,7 @@ export default function RidePage() {
           }}
         >
           <strong>Test-Pi pricing note:</strong> the fare uses small fractional
-          Test-Pi values for safe listing review and repeated payment testing.
+          Pi fare values are shown clearly before sending the ride request.
         </div>
 
         <label style={labelStyle} htmlFor="pickup">

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import ListingReadinessPanel from "../../components/ListingReadinessPanel";
 import PiSessionBanner from "../../components/PiSessionBanner";
 import MapLocationPicker from "../../components/MapLocationPicker";
 
@@ -147,13 +146,13 @@ const stepStyle: React.CSSProperties = {
   lineHeight: 1.5,
 };
 
-type DemoRoute = {
+type RouteSuggestion = {
   label: string;
   pickup: string;
   destination: string;
 };
 
-const demoRoutes: DemoRoute[] = [
+const routeSuggestions: RouteSuggestion[] = [
   { label: "Giza → Cairo", pickup: "Giza", destination: "Cairo" },
   { label: "Cairo → Giza", pickup: "Cairo", destination: "Giza" },
   { label: "Airport → City", pickup: "Cairo Airport", destination: "Cairo City Center" },
@@ -178,7 +177,7 @@ export default function RiderHome() {
     navigate(`/rider/ride?${params.toString()}`);
   }
 
-  function applyDemoRoute(route: DemoRoute) {
+  function applyRouteSuggestion(route: RouteSuggestion) {
     setPickup(route.pickup);
     setDestination(route.destination);
   }
@@ -186,8 +185,6 @@ export default function RiderHome() {
   return (
     <main style={pageStyle}>
       <section style={cardStyle}>
-        <ListingReadinessPanel context="rider" compact />
-
       <PiSessionBanner appLabel="TrueGo Rider" />
 
         <div style={badgeStyle}>Pi-powered mobility</div>
@@ -224,13 +221,13 @@ export default function RiderHome() {
         </div>
 
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Quick demo routes</label>
+          <label style={labelStyle}>Quick route suggestions</label>
           <div style={quickGridStyle}>
-            {demoRoutes.map((route) => (
+            {routeSuggestions.map((route) => (
               <button
                 key={route.label}
                 type="button"
-                onClick={() => applyDemoRoute(route)}
+                onClick={() => applyRouteSuggestion(route)}
                 style={quickButtonStyle}
               >
                 {route.label}

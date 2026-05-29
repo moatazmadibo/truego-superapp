@@ -441,7 +441,7 @@ export default function AdminDriverVerificationPanel() {
             >
               <div>
                 <div><strong>Driver:</strong> {row.driver_name}</div>
-                <div><strong>Demo driver ID:</strong> {row.demo_driver_id}</div>
+                <div><strong>Driver profile ID:</strong> {row.demo_driver_id}</div>
                 <div>
                   <strong>Vehicle:</strong>{" "}
                   {driversById[row.demo_driver_id]?.vehicle_type ?? "Not recorded"}

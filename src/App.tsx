@@ -13,7 +13,6 @@ import RiderApp from "./apps/rider/RiderApp";
 import DriverApp from "./apps/driver/DriverApp";
 import AdminApp from "./apps/admin/AdminApp";
 import AdminAccessGate from "./components/admin/AdminAccessGate";
-import ListingReadinessPanel from "./components/ListingReadinessPanel";
 import {
   clearStoredPiSession,
   getStoredPiSession,
@@ -183,8 +182,7 @@ function LandingShowcase({
             <div style={{ fontSize: 26 }}>🚕</div>
             <h3 style={{ margin: "8px 0 6px" }}>Rider ride-hailing flow</h3>
             <p style={{ margin: 0, color: "#475569", lineHeight: 1.6 }}>
-              Request a ride, suggest a fare, review incoming driver offers,
-              select the best offer, track the driver, and pay with Test-Pi.
+              Request a ride, suggest a fare, review driver offers, track your trip, and pay with Pi.
             </p>
           </div>
         ) : null}
@@ -194,8 +192,7 @@ function LandingShowcase({
             <div style={{ fontSize: 26 }}>🧑‍✈️</div>
             <h3 style={{ margin: "8px 0 6px" }}>Driver operations</h3>
             <p style={{ margin: 0, color: "#475569", lineHeight: 1.6 }}>
-              Go online, review rider requests, accept the same fare or submit
-              quick counter-offers, start and complete rides, and manage verification.
+              Go online, review rider requests, submit offers, manage trips, and complete verification.
             </p>
           </div>
         ) : null}
@@ -205,8 +202,7 @@ function LandingShowcase({
             <div style={{ fontSize: 26 }}>🛡️</div>
             <h3 style={{ margin: "8px 0 6px" }}>Admin operations</h3>
             <p style={{ margin: 0, color: "#475569", lineHeight: 1.6 }}>
-              Monitor rides, Test-Pi payments, TXIDs, driver verification,
-              documents, and live ride movement from one operations dashboard.
+              Monitor rides, Pi payments, transaction IDs, driver verification, documents, and live operations.
             </p>
           </div>
         ) : null}
@@ -214,10 +210,9 @@ function LandingShowcase({
         {showRider ? (
           <div style={featureCardStyle()}>
             <div style={{ fontSize: 26 }}>π</div>
-            <h3 style={{ margin: "8px 0 6px" }}>Pi Testnet payment</h3>
+            <h3 style={{ margin: "8px 0 6px" }}>Pi payment</h3>
             <p style={{ margin: 0, color: "#475569", lineHeight: 1.6 }}>
-              Payment uses small fractional Test-Pi values suitable for safe
-              listing review and repeated testing.
+              Riders pay securely inside the Pi ecosystem after the trip is completed.
             </p>
           </div>
         ) : null}
@@ -266,27 +261,6 @@ function LandingShowcase({
             </p>
           </Link>
         ) : null}
-      </div>
-
-      <div
-        style={{
-          marginTop: 18,
-          padding: 14,
-          borderRadius: 16,
-          background: "#fff7ed",
-          border: "1px solid #fed7aa",
-          color: "#9a3412",
-          lineHeight: 1.7,
-        }}
-      >
-        <strong>Listing review note:</strong>{" "}
-        {appMode === "rider"
-          ? "TrueGo Rider is configured as a Pi Testnet rider app for requesting rides, reviewing driver offers, tracking trips, and paying with Test-Pi."
-          : appMode === "driver"
-          ? "TrueGo Driver is configured as a Pi Testnet driver app for reviewing rider requests, submitting offers, managing ride operations, and completing verification."
-          : appMode === "admin"
-          ? "TrueGo Admin is configured as an operations platform for monitoring rides, payments, driver verification, and live ride tracking."
-          : "TrueGo is currently configured as a Pi Testnet demo with Rider, Driver, and Admin experiences for review workflows."}
       </div>
     </div>
   );
@@ -432,9 +406,7 @@ function Landing() {
 
   return (
     <div style={{ padding: 20 }}>
-      <div style={landingCardStyle()}>
-      <ListingReadinessPanel context="landing" />
-      <LandingShowcase appMode={appMode} />
+      <div style={landingCardStyle()}>      <LandingShowcase appMode={appMode} />
         <h1 style={{ marginTop: 0, marginBottom: 8 }}>TrueGo</h1>
 
         <p style={{ marginTop: 0, color: "#4b5563" }}>

@@ -5,7 +5,6 @@ import DriverVehicleProfileCard from "./DriverVehicleProfileCard";
 import DriverLiveLocationTracker from "./DriverLiveLocationTracker";
 import TrueGoLiveMapCard from "../../components/TrueGoLiveMapCard";
 import DriverOpenOfferRequestsCard from "./DriverOpenOfferRequestsCard";
-import ListingReadinessPanel from "../../components/ListingReadinessPanel";
 import PiSessionBanner from "../../components/PiSessionBanner";
 
 type DriverTab = "operations" | "verification";
@@ -474,9 +473,6 @@ export default function DriverHome() {
   return (
     <div style={cardStyle()}>
       <h1 style={{ marginTop: 0, marginBottom: 16 }}>TrueGo Driver</h1>
-
-      <ListingReadinessPanel context="driver" compact />
-
       <PiSessionBanner appLabel="TrueGo Driver" />
 
       <div
@@ -492,7 +488,7 @@ export default function DriverHome() {
           fontSize: 14,
         }}
       >
-        <strong>Driver operations checkpoint:</strong> drivers must go online
+        <strong>Driver operations:</strong> drivers must go online
         before receiving offers. Ride assignment happens only after the driver
         reviews the upfront fare and accepts the offer.
       </div>
