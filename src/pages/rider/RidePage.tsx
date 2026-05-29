@@ -18,12 +18,12 @@ const pageStyle: React.CSSProperties = {
 };
 
 const containerStyle: React.CSSProperties = {
-  maxWidth: 660,
+  maxWidth: 760,
   margin: "32px auto",
-  background: "#ffffff",
-  borderRadius: 22,
-  padding: 22,
-  boxShadow: "0 16px 45px rgba(15, 23, 42, 0.10)",
+  background: "rgba(255,255,255,0.96)",
+  borderRadius: 28,
+  padding: 24,
+  boxShadow: "0 22px 65px rgba(15, 23, 42, 0.14)",
   border: "1px solid #e5e7eb",
 };
 
@@ -251,48 +251,14 @@ export default function RidePage() {
   return (
     <main style={pageStyle}>
       <section style={containerStyle}>
-        <div
-          style={{
-            marginTop: 14,
-            marginBottom: 16,
-            padding: 12,
-            borderRadius: 14,
-            background: "#f0f9ff",
-            border: "1px solid #bae6fd",
-            color: "#0369a1",
-            lineHeight: 1.6,
-            fontSize: 14,
-          }}
-        >
-          <strong>Rider review step:</strong> confirm the route, choose a vehicle,
-          calculate the estimate, then send the request to available drivers.
-          Payment is requested only after the trip is completed.
-        </div>
 
-        <div style={eyebrowStyle}>Ride estimate</div>
+        <div style={eyebrowStyle}>Trip details</div>
 
-        <h1 style={titleStyle}>Review your trip details</h1>
+        <h1 style={titleStyle}>Confirm your ride request</h1>
 
         <p style={subtitleStyle}>
-          Confirm the pickup, destination, vehicle type, and estimated Pi price
-          before sending the request to available drivers.
+          Confirm your pickup, destination, vehicle type, and suggested fare before sending the request to available drivers.
         </p>
-
-        <div
-          style={{
-            marginBottom: 16,
-            padding: 12,
-            borderRadius: 14,
-            background: "#fff7ed",
-            border: "1px solid #fed7aa",
-            color: "#9a3412",
-            lineHeight: 1.6,
-            fontSize: 14,
-          }}
-        >
-          <strong>Test-Pi pricing note:</strong> the fare uses small fractional
-          Pi fare values are shown clearly before sending the ride request.
-        </div>
 
         <label style={labelStyle} htmlFor="pickup">
           Pickup location
@@ -344,12 +310,11 @@ export default function RidePage() {
             cursor: loading || submitting ? "not-allowed" : "pointer",
           }}
         >
-          {loading ? "Calculating estimate..." : "Estimate Ride"}
+          {loading ? "Calculating estimate..." : "Calculate fare"}
         </button>
 
         <p style={helperStyle}>
-          The estimate is shown before dispatch. A driver must accept the ride
-          before the trip becomes assigned.
+          Your request will be sent to available drivers. You choose the driver offer before the trip is assigned.
         </p>
 
         {errorMessage ? <div style={errorStyle}>{errorMessage}</div> : null}

@@ -5,17 +5,18 @@ import MapLocationPicker from "../../components/MapLocationPicker";
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: "linear-gradient(180deg, #f8fafc 0%, #eef6ff 100%)",
+  background:
+    "radial-gradient(circle at top left, rgba(14,165,233,0.16), transparent 34%), linear-gradient(180deg, #f8fafc 0%, #eef6ff 100%)",
   padding: 20,
 };
 
 const cardStyle: React.CSSProperties = {
-  maxWidth: 760,
+  maxWidth: 920,
   margin: "32px auto",
-  background: "#ffffff",
-  borderRadius: 24,
-  padding: 22,
-  boxShadow: "0 18px 55px rgba(15, 23, 42, 0.12)",
+  background: "rgba(255,255,255,0.96)",
+  borderRadius: 28,
+  padding: 24,
+  boxShadow: "0 22px 65px rgba(15, 23, 42, 0.14)",
   border: "1px solid #e5e7eb",
 };
 
@@ -187,14 +188,12 @@ export default function RiderHome() {
       <section style={cardStyle}>
       <PiSessionBanner appLabel="TrueGo Rider" />
 
-        <div style={badgeStyle}>Pi-powered mobility</div>
+        <div style={badgeStyle}>TrueGo Rider</div>
 
-        <h1 style={titleStyle}>Request a ride with TrueGo</h1>
+        <h1 style={titleStyle}>Book your ride with TrueGo</h1>
 
         <p style={subtitleStyle}>
-          TrueGo helps Pi users request rides, review a transparent Test-Pi fare,
-          connect with available drivers, and complete the trip through a simple
-          Pi Browser experience.
+          Request a ride, compare driver offers, track the trip, and pay securely with Pi after completion.
         </p>
 
         <div style={stepGridStyle}>
@@ -204,19 +203,19 @@ export default function RiderHome() {
             Add pickup and destination.
           </div>
           <div style={stepStyle}>
-            <strong>2. Review fare</strong>
+            <strong>2. Compare offers</strong>
             <br />
-            See distance, time, and fractional Test-Pi price.
+            Review fare, distance, time, and incoming driver offers.
           </div>
           <div style={stepStyle}>
-            <strong>3. Driver accepts</strong>
+            <strong>3. Choose driver</strong>
             <br />
-            The ride is assigned only after driver acceptance.
+            Accept the offer that best matches your trip.
           </div>
           <div style={stepStyle}>
-            <strong>4. Pay with Pi</strong>
+            <strong>4. Pay after trip</strong>
             <br />
-            Complete payment after trip completion.
+            Pay securely after the ride is completed.
           </div>
         </div>
 
@@ -265,19 +264,17 @@ export default function RiderHome() {
           />
 
           <button type="button" onClick={handleFindRide} style={buttonStyle}>
-            Continue to fare estimate
+            Continue
           </button>
 
           <p style={helperStyle}>
-            You can type place names, paste coordinates, or click on the map to
-            choose pickup and destination. The next step shows the route, fare,
-            vehicle type, and driver matching status.
+            Type a place name, paste coordinates, or choose locations from the map.
           </p>
         </div>
 
         <div style={featureGridStyle}>
           <div style={featureStyle}>
-            <strong>Rider-first flow:</strong> request and track rides from one
+            <strong>Rider-first flow:</strong> request, compare, track, and pay from one
             clear mobile-friendly path.
           </div>
           <div style={featureStyle}>
