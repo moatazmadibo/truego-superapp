@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import RideTimeline from "../../components/RideTimeline";
 import DriverVerificationCard from "./DriverVerificationCard";
+import DriverContactProfileCard from "./DriverContactProfileCard";
 import DriverVehicleProfileCard from "./DriverVehicleProfileCard";
 import DriverLiveLocationTracker from "./DriverLiveLocationTracker";
 import TrueGoLiveMapCard from "../../components/TrueGoLiveMapCard";
@@ -706,10 +707,11 @@ const selectedDriver = useMemo(() => {
 
       {activeTab === "verification" ? (
         !loading && selectedDriver ? (
-          <>
-            <DriverVehicleProfileCard driver={selectedDriver} />
-            <DriverVerificationCard driver={selectedDriver} />
-          </>
+<>
+  <DriverContactProfileCard driver={selectedDriver} />
+  <DriverVehicleProfileCard driver={selectedDriver} />
+  <DriverVerificationCard driver={selectedDriver} />
+</>
         ) : (
           <div style={sectionStyle()}>
             <h2 style={{ marginTop: 0 }}>Verification</h2>
