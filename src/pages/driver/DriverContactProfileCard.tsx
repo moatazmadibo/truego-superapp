@@ -1,4 +1,6 @@
 import { useState, type CSSProperties } from "react";
+import PhoneInput from "react-phone-input-2";
+import "react-phone-input-2/lib/style.css";
 import {
   updatePiDriverContactProfile,
   type DemoDriverRow,
@@ -151,7 +153,7 @@ function formatVerifiedAt(value?: string | null) {
 export default function DriverContactProfileCard({ driver }: { driver: DemoDriverRow }) {
   const [localDriver, setLocalDriver] = useState(driver);
   const [email, setEmail] = useState(driver.email ?? "");
-  const [phone, setPhone] = useState(driver.phone ?? "");
+  const [phoneInput, setPhoneInput] = useState((driver.phone ?? "").replace(/^\+/, ""));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -169,12 +171,12 @@ export default function DriverContactProfileCard({ driver }: { driver: DemoDrive
       const updatedDriver = await updatePiDriverContactProfile({
         driverId: localDriver.id,
         email: email.trim(),
-        phone: phone.trim(),
+        phone: phoneInput.trim() ? `+${phoneInput.replace(/[^\d]/g, "")}` : "",
       });
 
       setLocalDriver(updatedDriver);
       setEmail(updatedDriver.email ?? "");
-      setPhone(updatedDriver.phone ?? "");
+      setPhoneInput((updatedDriver.phone ?? "").replace(/^\+/, ""));
       setMessage("Contact profile saved successfully. Verification status: pending.");
     } catch (saveError) {
       const saveMessage =
@@ -253,14 +255,33 @@ export default function DriverContactProfileCard({ driver }: { driver: DemoDrive
       <label style={labelStyle()} htmlFor="driver-phone">
         Phone
       </label>
-      <input
-        id="driver-phone"
-        type="tel"
-        value={phone}
-        onChange={(event) => setPhone(event.target.value)}
-        placeholder="+249..."
-        style={inputStyle()}
-      />
+<PhoneInput
+  country="sd"
+  value={phoneInput}
+  onChange={(value) => setPhoneInput(value)}
+  enableSearch
+  searchPlaceholder="Search country"
+  inputProps={{
+    id: "driver-phone",
+    name: "driver-phone",
+    required: false,
+  }}
+  inputStyle={{
+    width: "100%",
+    height: 44,
+    borderRadius: 10,
+    border: "1px solid #cbd5e1",
+    font: "inherit",
+  }}
+  buttonStyle={{
+    borderTopLeftRadius: 10,
+    borderBottomLeftRadius: 10,
+    border: "1px solid #cbd5e1",
+  }}
+  dropdownStyle={{
+    textAlign: "left",
+  }}
+/>
 
       <div style={{ marginTop: 8 }}>
         <span style={statusPillStyle(phoneVerified ? "ok" : "pending")}>
