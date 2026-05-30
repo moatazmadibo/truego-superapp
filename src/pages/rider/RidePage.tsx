@@ -223,6 +223,8 @@ export default function RidePage() {
       const ride = await createRideAndCollectDriverOffers({
         rider_user_id: null,
         rider_name: session?.username ? `@${session.username}` : "Pi Rider",
+        rider_pi_uid: session?.uid ?? null,
+        rider_pi_username: session?.username ?? null,
         pickup_text: pickupText.trim(),
         destination_text: destinationText.trim(),
         pickup_lat: estimate.pickup.lat,

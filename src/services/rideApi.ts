@@ -18,6 +18,10 @@ export interface RideRow {
   id: string;
   rider_user_id: string | null;
   rider_name: string | null;
+  rider_pi_uid: string | null;
+  rider_pi_username: string | null;
+  rider_phone: string | null;
+  rider_email: string | null;
   driver_user_id: string | null;
   driver_name: string | null;
   demo_driver_id: string | null;
@@ -123,6 +127,10 @@ export interface DemoDriverRow {
 export interface CreateRideInput {
   rider_user_id?: string | null;
   rider_name?: string | null;
+  rider_pi_uid?: string | null;
+  rider_pi_username?: string | null;
+  rider_phone?: string | null;
+  rider_email?: string | null;
   driver_user_id?: string | null;
   driver_name?: string | null;
   pickup_text: string;

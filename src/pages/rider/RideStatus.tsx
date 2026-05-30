@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { Ride } from "../../types/ride";
 import RideTimeline from "../../components/RideTimeline";
+import RideCommunicationCard from "../../components/RideCommunicationCard";
 import TrueGoLiveMapCard from "../../components/TrueGoLiveMapCard";
 import StatusBadge from "../../components/StatusBadge";
 import PiSessionBanner from "../../components/PiSessionBanner";
@@ -1046,6 +1047,8 @@ export default function RideStatus() {
           }}
         />
       ) : null}
+
+      {rideRow ? <RideCommunicationCard ride={rideRow} viewer="rider" /> : null}
 
       <div style={sectionStyle()}>
         <RideTimeline ride={ride} />
