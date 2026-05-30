@@ -18,6 +18,10 @@ export interface RideRow {
   id: string;
   rider_user_id: string | null;
   rider_name: string | null;
+  rider_pi_uid: string | null;
+  rider_pi_username: string | null;
+  rider_phone: string | null;
+  rider_email: string | null;
   driver_user_id: string | null;
   driver_name: string | null;
   demo_driver_id: string | null;
@@ -87,6 +91,15 @@ export interface RideDriverOfferRow {
 export interface DemoDriverRow {
   id: string;
   display_name: string;
+  pi_uid?: string | null;
+  pi_username?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  email_verified_at?: string | null;
+  phone_verified_at?: string | null;
+  onboarding_status?: string | null;
+  account_status?: string | null;
+  verification_required?: boolean | null;
   vehicle_type: VehicleType;
   is_available: boolean;
   is_online: boolean;
@@ -114,6 +127,10 @@ export interface DemoDriverRow {
 export interface CreateRideInput {
   rider_user_id?: string | null;
   rider_name?: string | null;
+  rider_pi_uid?: string | null;
+  rider_pi_username?: string | null;
+  rider_phone?: string | null;
+  rider_email?: string | null;
   driver_user_id?: string | null;
   driver_name?: string | null;
   pickup_text: string;
@@ -648,6 +665,167 @@ export async function listDemoDrivers(): Promise<DemoDriverRow[]> {
   }
 
   return (data as DemoDriverRow[]) ?? [];
+}
+
+
+export interface ContactVerificationRow {
+  id: string;
+  pi_uid: string | null;
+  demo_driver_id: string | null;
+  role: "rider" | "driver";
+  channel: "email" | "phone";
+  target: string;
+  provider: string | null;
+  provider_reference: string | null;
+  status: "pending" | "verified" | "expired" | "failed";
+  attempts: number;
+  expires_at: string | null;
+  verified_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RideMessageRow {
+  id: string;
+  ride_id: string;
+  sender_role: "rider" | "driver" | "admin" | "system";
+  sender_pi_uid: string | null;
+  sender_name: string | null;
+  message_text: string;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface RideCallEventRow {
+  id: string;
+  ride_id: string;
+  caller_role: "rider" | "driver";
+  caller_pi_uid: string | null;
+  callee_role: "rider" | "driver";
+  callee_phone: string | null;
+  call_type: "phone" | "in_app_voice";
+  call_status: "started" | "missed" | "ended" | "failed";
+  started_at: string;
+  ended_at: string | null;
+  created_at: string;
+}
+
+export async function getOrCreatePiDriverProfile(input: {
+  piUid: string;
+  piUsername: string;
+}): Promise<DemoDriverRow> {
+  const { data, error } = await supabase.rpc("get_or_create_pi_driver_profile", {
+    p_pi_uid: input.piUid,
+    p_pi_username: input.piUsername,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data as DemoDriverRow;
+}
+
+export async function updatePiDriverContactProfile(input: {
+  driverId: string;
+  email: string;
+  phone: string;
+}): Promise<DemoDriverRow> {
+  const { data, error } = await supabase.rpc("update_pi_driver_contact_profile", {
+    p_driver_id: input.driverId,
+    p_email: input.email,
+    p_phone: input.phone,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data as DemoDriverRow;
+}
+
+export async function createContactVerificationRequest(input: {
+  role: "rider" | "driver";
+  channel: "email" | "phone";
+  target: string;
+  piUid?: string | null;
+  driverId?: string | null;
+  provider?: string | null;
+}): Promise<ContactVerificationRow> {
+  const { data, error } = await supabase.rpc("create_contact_verification_request", {
+    p_role: input.role,
+    p_channel: input.channel,
+    p_target: input.target,
+    p_pi_uid: input.piUid ?? null,
+    p_demo_driver_id: input.driverId ?? null,
+    p_provider: input.provider ?? null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data as ContactVerificationRow;
+}
+
+export async function createRideMessage(input: {
+  rideId: string;
+  senderRole: "rider" | "driver" | "admin" | "system";
+  senderPiUid?: string | null;
+  senderName?: string | null;
+  messageText: string;
+}): Promise<RideMessageRow> {
+  const { data, error } = await supabase.rpc("create_ride_message", {
+    p_ride_id: input.rideId,
+    p_sender_role: input.senderRole,
+    p_sender_pi_uid: input.senderPiUid ?? null,
+    p_sender_name: input.senderName ?? null,
+    p_message_text: input.messageText,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data as RideMessageRow;
+}
+
+export async function listRideMessages(rideId: string): Promise<RideMessageRow[]> {
+  const { data, error } = await supabase
+    .from("ride_messages")
+    .select("*")
+    .eq("ride_id", rideId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data as RideMessageRow[]) ?? [];
+}
+
+export async function createRideCallEvent(input: {
+  rideId: string;
+  callerRole: "rider" | "driver";
+  callerPiUid?: string | null;
+  calleeRole: "rider" | "driver";
+  calleePhone?: string | null;
+  callType?: "phone" | "in_app_voice";
+}): Promise<RideCallEventRow> {
+  const { data, error } = await supabase.rpc("create_ride_call_event", {
+    p_ride_id: input.rideId,
+    p_caller_role: input.callerRole,
+    p_caller_pi_uid: input.callerPiUid ?? null,
+    p_callee_role: input.calleeRole,
+    p_callee_phone: input.calleePhone ?? null,
+    p_call_type: input.callType ?? "phone",
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data as RideCallEventRow;
 }
 
 export async function setDemoDriverAvailability(

@@ -4,6 +4,7 @@ import DriverVerificationCard from "./DriverVerificationCard";
 import DriverVehicleProfileCard from "./DriverVehicleProfileCard";
 import DriverLiveLocationTracker from "./DriverLiveLocationTracker";
 import TrueGoLiveMapCard from "../../components/TrueGoLiveMapCard";
+import RideCommunicationCard from "../../components/RideCommunicationCard";
 import DriverOpenOfferRequestsCard from "./DriverOpenOfferRequestsCard";
 import PiSessionBanner from "../../components/PiSessionBanner";
 
@@ -734,6 +735,10 @@ export default function DriverHome() {
             }}
           />
         </>
+      ) : null}
+
+      {!loading && currentRideRow ? (
+        <RideCommunicationCard ride={currentRideRow} viewer="driver" />
       ) : null}
 
       {!loading && currentRideRow && currentRide ? (
