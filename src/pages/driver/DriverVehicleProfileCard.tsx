@@ -75,6 +75,7 @@ function messageStyle(type: "success" | "error"): React.CSSProperties {
 
 export default function DriverVehicleProfileCard({ driver }: { driver: DemoDriverRow }) {
   const [vehicleMake, setVehicleMake] = useState("");
+  const [vehicleType, setVehicleType] = useState<VehicleProfileRow["vehicle_type"]>(driver.vehicle_type);
   const [vehicleModel, setVehicleModel] = useState("");
   const [vehicleColor, setVehicleColor] = useState("");
   const [vehiclePlate, setVehiclePlate] = useState("");
@@ -90,6 +91,7 @@ export default function DriverVehicleProfileCard({ driver }: { driver: DemoDrive
   function applyProfile(row: VehicleProfileRow | null | undefined) {
     if (!row) return;
 
+    setVehicleType(row.vehicle_type ?? driver.vehicle_type);
     setVehicleMake(row.vehicle_make ?? "");
     setVehicleModel(row.vehicle_model ?? "");
     setVehicleColor(row.vehicle_color ?? "");
@@ -148,6 +150,7 @@ export default function DriverVehicleProfileCard({ driver }: { driver: DemoDrive
       "update_demo_driver_vehicle_profile",
       {
         p_driver_id: driver.id,
+        p_vehicle_type: vehicleType,
         p_vehicle_make: vehicleMake,
         p_vehicle_model: vehicleModel,
         p_vehicle_color: vehicleColor,
@@ -176,19 +179,18 @@ export default function DriverVehicleProfileCard({ driver }: { driver: DemoDrive
         Keep vehicle details accurate for rider confidence, driver verification, and operational readiness.
       </p>
 
-      <div
-        style={{
-          marginTop: 12,
-          padding: 12,
-          borderRadius: 12,
-          background: "#fff7ed",
-          border: "1px solid #fed7aa",
-          color: "#9a3412",
-          lineHeight: 1.6,
-        }}
-      >
-        <strong>Vehicle type:</strong> {driver.vehicle_type}
-      </div>
+<label style={labelStyle()} htmlFor="vehicle-type">
+  Vehicle type
+</label>
+<select
+  id="vehicle-type"
+  value={vehicleType}
+  onChange={(event) => setVehicleType(event.target.value as VehicleProfileRow["vehicle_type"])}
+  style={inputStyle()}
+>
+  <option value="car">Car</option>
+  <option value="motorcycle">Motorcycle</option>
+</select>
 
       <label style={labelStyle()} htmlFor="vehicle-make">Vehicle manufacturer</label>
       <input
