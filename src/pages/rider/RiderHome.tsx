@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PiSessionBanner from "../../components/PiSessionBanner";
+import { getStoredPiSession } from "../../lib/pi";
 import MapLocationPicker from "../../components/MapLocationPicker";
 
 const pageStyle: React.CSSProperties = {
@@ -153,30 +154,121 @@ type RouteSuggestion = {
   destination: string;
 };
 
-const routeSuggestions: RouteSuggestion[] = [
-  { label: "Giza → Cairo", pickup: "Giza", destination: "Cairo" },
-  { label: "Cairo → Giza", pickup: "Cairo", destination: "Giza" },
-  { label: "Airport → City", pickup: "Cairo Airport", destination: "Cairo City Center" },
-];
+const RECENT_ROUTE_LIMIT = 3;
+
+function cleanPlace(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function buildRouteLabel(pickup: string, destination: string) {
+  return `${pickup} → ${destination}`;
+}
+
+function getRouteFingerprint(pickup: string, destination: string) {
+  return `${pickup.toLowerCase()}__${destination.toLowerCase()}`;
+}
+
+function getRecentRoutesStorageKey() {
+  const session = getStoredPiSession();
+  return session?.uid ? `truego_recent_routes:${session.uid}` : "truego_recent_routes:guest";
+}
+
+function readRecentRoutes(): RouteSuggestion[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const raw = window.localStorage.getItem(getRecentRoutesStorageKey());
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .map((route) => {
+        const pickup = cleanPlace(String(route?.pickup ?? ""));
+        const destination = cleanPlace(String(route?.destination ?? ""));
+
+        if (!pickup || !destination) {
+          return null;
+        }
+
+        return {
+          label: buildRouteLabel(pickup, destination),
+          pickup,
+          destination,
+        };
+      })
+      .filter(Boolean)
+      .slice(0, RECENT_ROUTE_LIMIT) as RouteSuggestion[];
+  } catch {
+    return [];
+  }
+}
+
+function saveRecentRoute(pickup: string, destination: string) {
+  const cleanPickup = cleanPlace(pickup);
+  const cleanDestination = cleanPlace(destination);
+
+  if (!cleanPickup || !cleanDestination) {
+    return readRecentRoutes();
+  }
+
+  const current = readRecentRoutes();
+  const fingerprint = getRouteFingerprint(cleanPickup, cleanDestination);
+
+  const nextRoutes = [
+    {
+      label: buildRouteLabel(cleanPickup, cleanDestination),
+      pickup: cleanPickup,
+      destination: cleanDestination,
+    },
+    ...current.filter(
+      (route) => getRouteFingerprint(route.pickup, route.destination) !== fingerprint
+    ),
+  ].slice(0, RECENT_ROUTE_LIMIT);
+
+  try {
+    window.localStorage.setItem(getRecentRoutesStorageKey(), JSON.stringify(nextRoutes));
+  } catch {
+    // Keep ride booking usable even if local storage is unavailable.
+  }
+
+  return nextRoutes;
+}
 
 export default function RiderHome() {
   const navigate = useNavigate();
-  const [pickup, setPickup] = useState("");
-  const [destination, setDestination] = useState("");
+const [pickup, setPickup] = useState("");
+const [destination, setDestination] = useState("");
+const [recentRoutes, setRecentRoutes] = useState<RouteSuggestion[]>(() => readRecentRoutes());
+const hasRecentRoutes = recentRoutes.length > 0;
 
-  function handleFindRide() {
-    if (!pickup.trim() || !destination.trim()) {
-      window.alert("Please enter pickup and destination.");
-      return;
-    }
+function handleFindRide() {
+  const cleanPickup = cleanPlace(pickup);
+  const cleanDestination = cleanPlace(destination);
 
-    const params = new URLSearchParams({
-      pickup: pickup.trim(),
-      destination: destination.trim(),
-    });
-
-    navigate(`/rider/ride?${params.toString()}`);
+  if (!cleanPickup || !cleanDestination) {
+    window.alert("Please enter pickup and destination.");
+    return;
   }
+
+  setPickup(cleanPickup);
+  setDestination(cleanDestination);
+  setRecentRoutes(saveRecentRoute(cleanPickup, cleanDestination));
+
+  const params = new URLSearchParams({
+    pickup: cleanPickup,
+    destination: cleanDestination,
+  });
+
+  navigate(`/rider/ride?${params.toString()}`);
+}
 
   function applyRouteSuggestion(route: RouteSuggestion) {
     setPickup(route.pickup);
@@ -220,19 +312,36 @@ export default function RiderHome() {
         </div>
 
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Quick route suggestions</label>
-          <div style={quickGridStyle}>
-            {routeSuggestions.map((route) => (
-              <button
-                key={route.label}
-                type="button"
-                onClick={() => applyRouteSuggestion(route)}
-                style={quickButtonStyle}
-              >
-                {route.label}
-              </button>
-            ))}
-          </div>
+<label style={labelStyle}>Recent route suggestions</label>
+<div style={quickGridStyle}>
+  {hasRecentRoutes ? (
+    recentRoutes.map((route) => (
+      <button
+        key={`${route.pickup}-${route.destination}`}
+        type="button"
+        onClick={() => applyRouteSuggestion(route)}
+        style={quickButtonStyle}
+      >
+        {route.label}
+      </button>
+    ))
+  ) : (
+    <div
+      style={{
+        gridColumn: "1 / -1",
+        padding: "12px 14px",
+        borderRadius: 12,
+        background: "#f8fafc",
+        border: "1px dashed #cbd5e1",
+        color: "#64748b",
+        fontSize: 13,
+        lineHeight: 1.6,
+      }}
+    >
+      Your last 3 routes will appear here after you request rides from this Pi account.
+    </div>
+  )}
+</div>
 
           <MapLocationPicker
             pickupText={pickup}
@@ -246,7 +355,7 @@ export default function RiderHome() {
           </label>
           <input
             id="pickup"
-            placeholder="Example: Giza or 30.0444,31.2357"
+            placeholder="Example: Current location, station, hotel, or 30.0444,31.2357"
             value={pickup}
             onChange={(event) => setPickup(event.target.value)}
             style={inputStyle}
@@ -257,7 +366,7 @@ export default function RiderHome() {
           </label>
           <input
             id="destination"
-            placeholder="Example: Cairo or direct coordinates"
+            placeholder="Example: Destination name, landmark, or direct coordinates"
             value={destination}
             onChange={(event) => setDestination(event.target.value)}
             style={inputStyle}
