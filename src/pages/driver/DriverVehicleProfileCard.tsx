@@ -75,7 +75,9 @@ function messageStyle(type: "success" | "error"): React.CSSProperties {
 
 export default function DriverVehicleProfileCard({ driver }: { driver: DemoDriverRow }) {
   const [vehicleMake, setVehicleMake] = useState("");
-  const [vehicleType, setVehicleType] = useState<VehicleProfileRow["vehicle_type"]>(driver.vehicle_type);
+  const [vehicleType, setVehicleType] = useState<VehicleProfileRow["vehicle_type"]>(
+    driver.vehicle_type
+  );
   const [vehicleModel, setVehicleModel] = useState("");
   const [vehicleColor, setVehicleColor] = useState("");
   const [vehiclePlate, setVehiclePlate] = useState("");
@@ -83,6 +85,7 @@ export default function DriverVehicleProfileCard({ driver }: { driver: DemoDrive
   const [licenseExpiry, setLicenseExpiry] = useState("");
   const [driverLicenseExpiry, setDriverLicenseExpiry] = useState("");
   const [profilePhotoPath, setProfilePhotoPath] = useState("");
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -134,10 +137,42 @@ export default function DriverVehicleProfileCard({ driver }: { driver: DemoDrive
     };
   }, [driver.id]);
 
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadProfilePhotoPreview() {
+      if (!profilePhotoPath) {
+        setProfilePhotoUrl("");
+        return;
+      }
+
+      const { data, error: signedUrlError } = await supabase.storage
+        .from("driver-documents")
+        .createSignedUrl(profilePhotoPath, 60 * 60);
+
+      if (!mounted) return;
+
+      if (signedUrlError) {
+        setProfilePhotoUrl("");
+      } else {
+        setProfilePhotoUrl(data?.signedUrl ?? "");
+      }
+    }
+
+    void loadProfilePhotoPreview();
+
+    return () => {
+      mounted = false;
+    };
+  }, [profilePhotoPath]);
+
   async function handleSave() {
     const parsedYear = vehicleYear.trim() ? Number(vehicleYear.trim()) : null;
 
-    if (parsedYear != null && (!Number.isInteger(parsedYear) || parsedYear < 1980 || parsedYear > 2100)) {
+    if (
+      parsedYear != null &&
+      (!Number.isInteger(parsedYear) || parsedYear < 1980 || parsedYear > 2100)
+    ) {
       setError("Vehicle year must be between 1980 and 2100.");
       return;
     }
@@ -175,24 +210,29 @@ export default function DriverVehicleProfileCard({ driver }: { driver: DemoDrive
   return (
     <div style={sectionStyle()}>
       <h2 style={{ marginTop: 0 }}>Vehicle profile</h2>
+
       <p style={{ marginTop: 6, color: "#475569", lineHeight: 1.6 }}>
         Keep vehicle details accurate for rider confidence, driver verification, and operational readiness.
       </p>
 
-<label style={labelStyle()} htmlFor="vehicle-type">
-  Vehicle type
-</label>
-<select
-  id="vehicle-type"
-  value={vehicleType}
-  onChange={(event) => setVehicleType(event.target.value as VehicleProfileRow["vehicle_type"])}
-  style={inputStyle()}
->
-  <option value="car">Car</option>
-  <option value="motorcycle">Motorcycle</option>
-</select>
+      <label style={labelStyle()} htmlFor="vehicle-type">
+        Vehicle type
+      </label>
+      <select
+        id="vehicle-type"
+        value={vehicleType}
+        onChange={(event) =>
+          setVehicleType(event.target.value as VehicleProfileRow["vehicle_type"])
+        }
+        style={inputStyle()}
+      >
+        <option value="car">Car</option>
+        <option value="motorcycle">Motorcycle</option>
+      </select>
 
-      <label style={labelStyle()} htmlFor="vehicle-make">Vehicle manufacturer</label>
+      <label style={labelStyle()} htmlFor="vehicle-make">
+        Vehicle manufacturer
+      </label>
       <input
         id="vehicle-make"
         value={vehicleMake}
@@ -201,7 +241,9 @@ export default function DriverVehicleProfileCard({ driver }: { driver: DemoDrive
         style={inputStyle()}
       />
 
-      <label style={labelStyle()} htmlFor="vehicle-model">Model</label>
+      <label style={labelStyle()} htmlFor="vehicle-model">
+        Model
+      </label>
       <input
         id="vehicle-model"
         value={vehicleModel}
@@ -210,7 +252,9 @@ export default function DriverVehicleProfileCard({ driver }: { driver: DemoDrive
         style={inputStyle()}
       />
 
-      <label style={labelStyle()} htmlFor="vehicle-color">Color</label>
+      <label style={labelStyle()} htmlFor="vehicle-color">
+        Color
+      </label>
       <input
         id="vehicle-color"
         value={vehicleColor}
@@ -219,7 +263,9 @@ export default function DriverVehicleProfileCard({ driver }: { driver: DemoDrive
         style={inputStyle()}
       />
 
-      <label style={labelStyle()} htmlFor="vehicle-plate">Plate number</label>
+      <label style={labelStyle()} htmlFor="vehicle-plate">
+        Plate number
+      </label>
       <input
         id="vehicle-plate"
         value={vehiclePlate}
@@ -228,7 +274,9 @@ export default function DriverVehicleProfileCard({ driver }: { driver: DemoDrive
         style={inputStyle()}
       />
 
-      <label style={labelStyle()} htmlFor="vehicle-year">Vehicle year</label>
+      <label style={labelStyle()} htmlFor="vehicle-year">
+        Vehicle year
+      </label>
       <input
         id="vehicle-year"
         value={vehicleYear}
@@ -260,33 +308,42 @@ export default function DriverVehicleProfileCard({ driver }: { driver: DemoDrive
         style={inputStyle()}
       />
 
-      <label style={labelStyle()} htmlFor="profile-photo-path">
-        Profile photo path
-      </label>
-      <input
-        id="profile-photo-path"
-        value={profilePhotoPath}
-        onChange={(event) => setProfilePhotoPath(event.target.value)}
-        placeholder="Example: ahmed/profile_photo/..."
-        style={inputStyle()}
-      />
-
       <div
         style={{
-          marginTop: 12,
+          marginTop: 16,
           padding: 12,
           borderRadius: 12,
-          background: profilePhotoPath ? "#ecfdf5" : "#f8fafc",
-          border: profilePhotoPath ? "1px solid #bbf7d0" : "1px solid #e5e7eb",
-          color: profilePhotoPath ? "#047857" : "#475569",
+          background: "#f8fafc",
+          border: "1px solid #e5e7eb",
+          color: "#475569",
           lineHeight: 1.6,
           fontSize: 14,
         }}
       >
-        <strong>Profile photo:</strong>{" "}
-        {profilePhotoPath
-          ? "Profile photo path is linked to this driver profile."
-          : "No profile photo path linked yet. Upload a profile_photo document first, then link its file path here."}
+        <strong>Profile photo</strong>
+        <br />
+
+        {profilePhotoUrl ? (
+          <img
+            src={profilePhotoUrl}
+            alt="Driver profile"
+            style={{
+              display: "block",
+              width: 96,
+              height: 96,
+              objectFit: "cover",
+              borderRadius: 999,
+              marginTop: 10,
+              border: "2px solid #cbd5e1",
+            }}
+          />
+        ) : (
+          <span>No profile photo uploaded yet.</span>
+        )}
+
+        <div style={{ marginTop: 8, fontSize: 13 }}>
+          Upload or change profile photo from Driver Verification / Documents.
+        </div>
       </div>
 
       {error ? <div style={messageStyle("error")}>{error}</div> : null}
