@@ -2,7 +2,9 @@ import { useState, type CSSProperties } from "react";
 import PhoneInput from "react-phone-input-2";
 import "react-phone-input-2/lib/style.css";
 import {
+  requestDriverEmailOtp,
   updatePiDriverContactProfile,
+  verifyDriverEmailOtp,
   type DemoDriverRow,
 } from "../../services/rideApi";
 
@@ -51,7 +53,7 @@ function buttonStyle(disabled = false): CSSProperties {
   };
 }
 
-function secondaryButtonStyle(): CSSProperties {
+function secondaryButtonStyle(disabled = false): CSSProperties {
   return {
     border: "1px solid #cbd5e1",
     borderRadius: 12,
@@ -59,8 +61,8 @@ function secondaryButtonStyle(): CSSProperties {
     color: "#475569",
     background: "#f1f5f9",
     fontWeight: 800,
-    cursor: "not-allowed",
-    opacity: 0.75,
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.75 : 1,
   };
 }
 
@@ -150,11 +152,23 @@ function formatVerifiedAt(value?: string | null) {
   return new Date(value).toLocaleString();
 }
 
+function normalizePhone(value: string) {
+  const digits = value.replace(/[^\d]/g, "");
+  return digits ? `+${digits}` : "";
+}
+
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
+}
+
 export default function DriverContactProfileCard({ driver }: { driver: DemoDriverRow }) {
   const [localDriver, setLocalDriver] = useState(driver);
   const [email, setEmail] = useState(driver.email ?? "");
   const [phoneInput, setPhoneInput] = useState((driver.phone ?? "").replace(/^\+/, ""));
+  const [emailOtp, setEmailOtp] = useState("");
   const [saving, setSaving] = useState(false);
+  const [emailOtpLoading, setEmailOtpLoading] = useState(false);
+  const [emailOtpRequestedAt, setEmailOtpRequestedAt] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -162,28 +176,102 @@ export default function DriverContactProfileCard({ driver }: { driver: DemoDrive
   const emailVerified = Boolean(localDriver.email_verified_at);
   const phoneVerified = Boolean(localDriver.phone_verified_at);
 
+  async function saveContactProfile(options?: { silent?: boolean }) {
+    const updatedDriver = await updatePiDriverContactProfile({
+      driverId: localDriver.id,
+      email: normalizeEmail(email),
+      phone: normalizePhone(phoneInput),
+    });
+
+    setLocalDriver(updatedDriver);
+    setEmail(updatedDriver.email ?? "");
+    setPhoneInput((updatedDriver.phone ?? "").replace(/^\+/, ""));
+
+    if (!options?.silent) {
+      setMessage("Contact profile saved successfully. Verification status: pending.");
+    }
+
+    return updatedDriver;
+  }
+
   async function handleSave() {
     setSaving(true);
     setMessage("");
     setError("");
 
     try {
-      const updatedDriver = await updatePiDriverContactProfile({
-        driverId: localDriver.id,
-        email: email.trim(),
-        phone: phoneInput.trim() ? `+${phoneInput.replace(/[^\d]/g, "")}` : "",
-      });
-
-      setLocalDriver(updatedDriver);
-      setEmail(updatedDriver.email ?? "");
-      setPhoneInput((updatedDriver.phone ?? "").replace(/^\+/, ""));
-      setMessage("Contact profile saved successfully. Verification status: pending.");
+      await saveContactProfile();
     } catch (saveError) {
       const saveMessage =
         saveError instanceof Error ? saveError.message : "Failed to save contact profile.";
       setError(saveMessage);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleRequestEmailOtp() {
+    setEmailOtpLoading(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const cleanEmail = normalizeEmail(email);
+
+      if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+        throw new Error("Enter a valid email address first.");
+      }
+
+      const updatedDriver = await saveContactProfile({ silent: true });
+
+      await requestDriverEmailOtp({
+        driverId: updatedDriver.id,
+        email: cleanEmail,
+        piUid: updatedDriver.pi_uid ?? null,
+      });
+
+      setEmailOtp("");
+      setEmailOtpRequestedAt(new Date().toLocaleString());
+      setMessage("Email OTP sent. Check your inbox and enter the 6-digit code.");
+    } catch (otpError) {
+      const otpMessage =
+        otpError instanceof Error ? otpError.message : "Failed to request email OTP.";
+      setError(otpMessage);
+    } finally {
+      setEmailOtpLoading(false);
+    }
+  }
+
+  async function handleVerifyEmailOtp() {
+    setEmailOtpLoading(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const cleanEmail = normalizeEmail(email);
+      const cleanOtp = emailOtp.replace(/[^\d]/g, "").slice(0, 6);
+
+      if (cleanOtp.length !== 6) {
+        throw new Error("Enter the 6-digit OTP code.");
+      }
+
+      const updatedDriver = await verifyDriverEmailOtp({
+        driverId: localDriver.id,
+        email: cleanEmail,
+        otp: cleanOtp,
+      });
+
+      setLocalDriver(updatedDriver);
+      setEmail(updatedDriver.email ?? "");
+      setPhoneInput((updatedDriver.phone ?? "").replace(/^\+/, ""));
+      setEmailOtp("");
+      setMessage("Email verified successfully.");
+    } catch (verifyError) {
+      const verifyMessage =
+        verifyError instanceof Error ? verifyError.message : "Failed to verify email OTP.";
+      setError(verifyMessage);
+    } finally {
+      setEmailOtpLoading(false);
     }
   }
 
@@ -252,36 +340,87 @@ export default function DriverContactProfileCard({ driver }: { driver: DemoDrive
         </div>
       </div>
 
+      {!emailVerified ? (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+            <button
+              type="button"
+              onClick={() => {
+                void handleRequestEmailOtp();
+              }}
+              disabled={emailOtpLoading || saving}
+              style={secondaryButtonStyle(emailOtpLoading || saving)}
+            >
+              {emailOtpLoading ? "Please wait..." : "Request Email OTP"}
+            </button>
+          </div>
+
+          {emailOtpRequestedAt ? (
+            <div style={{ marginTop: 8, color: "#64748b", fontSize: 13 }}>
+              Last request: {emailOtpRequestedAt}
+            </div>
+          ) : null}
+
+          <label style={labelStyle()} htmlFor="driver-email-otp">
+            Email OTP code
+          </label>
+          <input
+            id="driver-email-otp"
+            value={emailOtp}
+            onChange={(event) =>
+              setEmailOtp(event.target.value.replace(/[^\d]/g, "").slice(0, 6))
+            }
+            placeholder="6-digit code"
+            inputMode="numeric"
+            maxLength={6}
+            style={inputStyle()}
+          />
+
+          <div style={{ marginTop: 10 }}>
+            <button
+              type="button"
+              onClick={() => {
+                void handleVerifyEmailOtp();
+              }}
+              disabled={emailOtpLoading || emailOtp.length !== 6}
+              style={buttonStyle(emailOtpLoading || emailOtp.length !== 6)}
+            >
+              Verify Email
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <label style={labelStyle()} htmlFor="driver-phone">
         Phone
       </label>
-<PhoneInput
-  country="sd"
-  value={phoneInput}
-  onChange={(value) => setPhoneInput(value)}
-  enableSearch
-  searchPlaceholder="Search country"
-  inputProps={{
-    id: "driver-phone",
-    name: "driver-phone",
-    required: false,
-  }}
-  inputStyle={{
-    width: "100%",
-    height: 44,
-    borderRadius: 10,
-    border: "1px solid #cbd5e1",
-    font: "inherit",
-  }}
-  buttonStyle={{
-    borderTopLeftRadius: 10,
-    borderBottomLeftRadius: 10,
-    border: "1px solid #cbd5e1",
-  }}
-  dropdownStyle={{
-    textAlign: "left",
-  }}
-/>
+      <PhoneInput
+        country="sd"
+        value={phoneInput}
+        onChange={(value) => setPhoneInput(value)}
+        enableSearch
+        searchPlaceholder="Search country"
+        inputProps={{
+          id: "driver-phone",
+          name: "driver-phone",
+          required: false,
+        }}
+        inputStyle={{
+          width: "100%",
+          height: 44,
+          borderRadius: 10,
+          border: "1px solid #cbd5e1",
+          font: "inherit",
+        }}
+        buttonStyle={{
+          borderTopLeftRadius: 10,
+          borderBottomLeftRadius: 10,
+          border: "1px solid #cbd5e1",
+        }}
+        dropdownStyle={{
+          textAlign: "left",
+        }}
+      />
 
       <div style={{ marginTop: 8 }}>
         <span style={statusPillStyle(phoneVerified ? "ok" : "pending")}>
@@ -293,7 +432,7 @@ export default function DriverContactProfileCard({ driver }: { driver: DemoDrive
       </div>
 
       <div style={messageStyle("warning")}>
-        <strong>Verification</strong>
+        <strong>Phone verification</strong>
         <br />
         Pending
       </div>
@@ -310,11 +449,7 @@ export default function DriverContactProfileCard({ driver }: { driver: DemoDrive
           {saving ? "Saving..." : "Save contact profile"}
         </button>
 
-        <button type="button" disabled style={secondaryButtonStyle()}>
-          Email OTP: pending
-        </button>
-
-        <button type="button" disabled style={secondaryButtonStyle()}>
+        <button type="button" disabled style={secondaryButtonStyle(true)}>
           Phone OTP: pending
         </button>
       </div>

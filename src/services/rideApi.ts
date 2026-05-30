@@ -768,6 +768,71 @@ export async function createContactVerificationRequest(input: {
   return data as ContactVerificationRow;
 }
 
+
+export async function requestDriverEmailOtp(input: {
+  driverId: string;
+  email: string;
+  piUid?: string | null;
+}): Promise<{
+  ok: boolean;
+  expiresAt?: string;
+  message?: string;
+}> {
+  const { data, error } = await supabase.functions.invoke("request-driver-email-otp", {
+    body: {
+      driverId: input.driverId,
+      email: input.email,
+      piUid: input.piUid ?? null,
+    },
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const response = data as { ok?: boolean; expiresAt?: string; message?: string; error?: string };
+
+  if (response?.error) {
+    throw new Error(response.error);
+  }
+
+  return {
+    ok: Boolean(response?.ok),
+    expiresAt: response?.expiresAt,
+    message: response?.message,
+  };
+}
+
+export async function verifyDriverEmailOtp(input: {
+  driverId: string;
+  email: string;
+  otp: string;
+}): Promise<DemoDriverRow> {
+  const { data, error } = await supabase.functions.invoke("verify-driver-email-otp", {
+    body: {
+      driverId: input.driverId,
+      email: input.email,
+      otp: input.otp,
+    },
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const response = data as { ok?: boolean; driver?: DemoDriverRow; message?: string; error?: string };
+
+  if (response?.error) {
+    throw new Error(response.error);
+  }
+
+  if (!response?.driver) {
+    throw new Error("Email verification completed, but driver profile was not returned.");
+  }
+
+  return response.driver;
+}
+
 export async function createRideMessage(input: {
   rideId: string;
   senderRole: "rider" | "driver" | "admin" | "system";
