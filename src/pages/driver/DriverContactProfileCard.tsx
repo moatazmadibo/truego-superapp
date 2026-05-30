@@ -175,7 +175,7 @@ export default function DriverContactProfileCard({ driver }: { driver: DemoDrive
       setLocalDriver(updatedDriver);
       setEmail(updatedDriver.email ?? "");
       setPhone(updatedDriver.phone ?? "");
-      setMessage("Contact profile saved successfully. Verification OTP providers will be connected later.");
+      setMessage("Contact profile saved successfully. Verification status: pending.");
     } catch (saveError) {
       const saveMessage =
         saveError instanceof Error ? saveError.message : "Failed to save contact profile.";
@@ -272,13 +272,9 @@ export default function DriverContactProfileCard({ driver }: { driver: DemoDrive
       </div>
 
       <div style={messageStyle("warning")}>
-        <strong>OTP environment readiness</strong>
+        <strong>Verification</strong>
         <br />
-        Email OTP will be connected later through Resend or SMTP.
-        <br />
-        Phone OTP will be connected later through Twilio, WhatsApp, SMS provider, or another approved provider.
-        <br />
-        No fake OTP is used in this build.
+        Pending
       </div>
 
       <div
@@ -294,11 +290,11 @@ export default function DriverContactProfileCard({ driver }: { driver: DemoDrive
         </button>
 
         <button type="button" disabled style={secondaryButtonStyle()}>
-          Request Email OTP - provider pending
+          Email OTP: pending
         </button>
 
         <button type="button" disabled style={secondaryButtonStyle()}>
-          Request Phone OTP - provider pending
+          Phone OTP: pending
         </button>
       </div>
 

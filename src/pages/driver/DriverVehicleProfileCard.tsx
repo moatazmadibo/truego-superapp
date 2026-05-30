@@ -190,12 +190,12 @@ export default function DriverVehicleProfileCard({ driver }: { driver: DemoDrive
         <strong>Vehicle type:</strong> {driver.vehicle_type}
       </div>
 
-      <label style={labelStyle()} htmlFor="vehicle-make">Make</label>
+      <label style={labelStyle()} htmlFor="vehicle-make">Vehicle manufacturer</label>
       <input
         id="vehicle-make"
         value={vehicleMake}
         onChange={(event) => setVehicleMake(event.target.value)}
-        placeholder="Example: Toyota"
+        placeholder="Example: Toyota, Hyundai, Honda"
         style={inputStyle()}
       />
 
