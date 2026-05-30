@@ -7,6 +7,7 @@ import TrueGoLiveMapCard from "../../components/TrueGoLiveMapCard";
 import RideCommunicationCard from "../../components/RideCommunicationCard";
 import DriverOpenOfferRequestsCard from "./DriverOpenOfferRequestsCard";
 import PiSessionBanner from "../../components/PiSessionBanner";
+import { getStoredPiSession } from "../../lib/pi";
 
 type DriverTab = "operations" | "verification";
 import StatusBadge from "../../components/StatusBadge";
@@ -15,8 +16,8 @@ import type { Ride } from "../../types/ride";
 import {
   acceptDemoRide,
   completeDemoRide,
+  getOrCreatePiDriverProfile,
   declineOfferedDemoRide,
-  listDemoDrivers,
   listRecentRides,
   setDemoDriverOnlineStatus,
   subscribeToLatestRides,
@@ -58,9 +59,6 @@ function mapRideRowToRide(row: RideRow): Ride {
   };
 }
 
-function getStoredDriverSessionId() {
-  return localStorage.getItem("truego_demo_driver") ?? "";
-}
 
 function formatRideStatus(status: RideRow["status"]) {
   switch (status) {
@@ -160,9 +158,7 @@ function detailMiniCardStyle(): React.CSSProperties {
 
 export default function DriverHome() {
   const [activeTab, setActiveTab] = useState<DriverTab>("operations");
-  const [selectedDriverId, setSelectedDriverId] = useState<string>(
-    getStoredDriverSessionId
-  );
+  const [selectedDriverId, setSelectedDriverId] = useState("");
   const [drivers, setDrivers] = useState<DemoDriverRow[]>([]);
   const [rides, setRides] = useState<RideRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -171,32 +167,36 @@ export default function DriverHome() {
 
   async function loadAll() {
     try {
+      setLoading(true);
       setErrorMessage("");
 
-      const [driversData, ridesData] = await Promise.all([
-        listDemoDrivers(),
+      const session = getStoredPiSession();
+
+      if (!session?.uid) {
+        const ridesData = await listRecentRides(20);
+        setDrivers([]);
+        setSelectedDriverId("");
+        setRides(ridesData);
+        setErrorMessage(
+          "Open TrueGo Driver inside Pi Browser and login with Pi to continue driver onboarding."
+        );
+        return;
+      }
+
+      const [driverProfile, ridesData] = await Promise.all([
+        getOrCreatePiDriverProfile({
+          piUid: session.uid,
+          piUsername: session.username ?? "",
+        }),
         listRecentRides(20),
       ]);
 
-      setDrivers(driversData);
+      setDrivers([driverProfile]);
+      setSelectedDriverId(driverProfile.id);
       setRides(ridesData);
-
-      if (!selectedDriverId && driversData.length > 0) {
-        setSelectedDriverId(driversData[0].id);
-      }
-
-      if (
-        selectedDriverId &&
-        driversData.length > 0 &&
-        !driversData.some((driver) => driver.id === selectedDriverId)
-      ) {
-        setSelectedDriverId(driversData[0].id);
-      }
     } catch (error) {
       const message =
-        error instanceof Error
-          ? error.message
-          : "Failed to load driver console.";
+        error instanceof Error ? error.message : "Failed to load driver console.";
       setErrorMessage(message);
     } finally {
       setLoading(false);
@@ -212,14 +212,7 @@ export default function DriverHome() {
 
     return unsubscribe;
   }, []);
-
-  useEffect(() => {
-    if (selectedDriverId) {
-      localStorage.setItem("truego_demo_driver", selectedDriverId);
-    }
-  }, [selectedDriverId]);
-
-  const selectedDriver = useMemo(() => {
+const selectedDriver = useMemo(() => {
     return drivers.find((driver) => driver.id === selectedDriverId) ?? null;
   }, [drivers, selectedDriverId]);
 
@@ -608,38 +601,22 @@ export default function DriverHome() {
 
       {activeTab === "operations" ? (
       <div style={sectionStyle()}>
-        <label
-          htmlFor="driver-select"
-          style={{ display: "block", marginBottom: 8, fontWeight: 600 }}
-        >
-          Driver profile
-        </label>
-
-        <select
-          id="driver-select"
-          value={selectedDriverId}
-          onChange={(event) => setSelectedDriverId(event.target.value)}
+        <div
           style={{
-            width: "100%",
-            padding: 12,
-            borderRadius: 10,
-            border: "1px solid #d1d5db",
             marginBottom: 12,
+            padding: 12,
+            borderRadius: 12,
+            background: "#eef2ff",
+            border: "1px solid #c7d2fe",
+            color: "#312e81",
+            lineHeight: 1.5,
           }}
-          disabled={drivers.length === 0 || actionLoading}
         >
-          {drivers.length === 0 ? (
-            <option value="">No drivers available</option>
-          ) : null}
-
-          {drivers.map((driver) => (
-            <option key={driver.id} value={driver.id}>
-              {driver.display_name} - {driver.vehicle_type} -{" "}
-              {driver.is_online ? "Online" : "Offline"} -{" "}
-              {driver.is_available ? "Available" : "Busy"}
-            </option>
-          ))}
-        </select>
+          <strong>Pi-linked driver profile</strong>
+          <br />
+          Driver profile is loaded automatically from the current Pi account.
+          Demo driver selection has been removed.
+        </div>
 
         <button
           type="button"
