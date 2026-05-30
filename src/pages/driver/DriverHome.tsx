@@ -231,6 +231,9 @@ export default function DriverHome() {
     return selectedDriver.is_online && isPresenceFresh(selectedDriver.last_seen_at);
   }, [selectedDriver]);
 
+  const driverAccountApproved = selectedDriver?.account_status === "approved";
+
+
   const currentRideRow = useMemo(() => {
     if (!selectedDriver) {
       return null;
@@ -341,6 +344,11 @@ export default function DriverHome() {
 
   async function handleToggleOnlineStatus() {
     if (!selectedDriver) {
+      return;
+    }
+
+    if (selectedDriver.account_status !== "approved") {
+      setErrorMessage("Your driver account must be approved by operations before going online.");
       return;
     }
 
@@ -580,6 +588,24 @@ export default function DriverHome() {
       ) : null}
 
 
+      {activeTab === "operations" && selectedDriver && !driverAccountApproved ? (
+        <div
+          style={{
+            marginTop: 16,
+            padding: 14,
+            borderRadius: 16,
+            background: "#fff7ed",
+            border: "1px solid #fed7aa",
+            color: "#9a3412",
+            lineHeight: 1.6,
+          }}
+        >
+          <strong>Approval required:</strong> complete your onboarding, contact details,
+          vehicle profile, and documents. Operations must approve your driver account
+          before you can go online and receive ride requests.
+        </div>
+      ) : null}
+
       {activeTab === "operations" ? (
       <div style={sectionStyle()}>
         <label
@@ -620,10 +646,10 @@ export default function DriverHome() {
           onClick={() => {
             void handleToggleOnlineStatus();
           }}
-          disabled={!selectedDriver || actionLoading}
+          disabled={!selectedDriver || actionLoading || !driverAccountApproved}
           style={buttonStyle(
             selectedDriver?.is_online ? "#111827" : "#2563eb",
-            !selectedDriver || actionLoading
+            !selectedDriver || actionLoading || !driverAccountApproved
           )}
         >
           {selectedDriver?.is_online ? "Go Offline" : "Go Online"}
@@ -719,7 +745,7 @@ export default function DriverHome() {
 
       {activeTab === "operations" ? (
         <>
-      {!loading && selectedDriver && !currentRideRow ? (
+      {!loading && selectedDriver && !currentRideRow && driverAccountApproved ? (
         <>
           <div style={sectionStyle()}>
             <h2 style={{ marginTop: 0 }}>Ready for ride requests</h2>
