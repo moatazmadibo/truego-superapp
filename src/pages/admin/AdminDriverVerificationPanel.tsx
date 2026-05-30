@@ -53,6 +53,13 @@ type DemoDriverOperationalRow = {
   vehicle_model: string | null;
   vehicle_color: string | null;
   vehicle_plate: string | null;
+  email?: string | null;
+  phone?: string | null;
+  email_verified_at?: string | null;
+  phone_verified_at?: string | null;
+  pi_username?: string | null;
+  account_status?: string | null;
+  onboarding_status?: string | null;
   vehicle_year: number | null;
   vehicle_license_expires_at: string | null;
 };
@@ -73,6 +80,15 @@ function sectionStyle(): React.CSSProperties {
     border: "1px solid #e5e7eb",
     boxShadow: "0 10px 30px rgba(15, 23, 42, 0.06)",
   };
+}
+
+
+function contactStatusLabel(value?: string | null) {
+  return value ? "Verified" : "Not verified";
+}
+
+function contactStatusColor(value?: string | null) {
+  return value ? "#16a34a" : "#d97706";
 }
 
 function cardStyle(): React.CSSProperties {
@@ -456,6 +472,45 @@ export default function AdminDriverVerificationPanel() {
                   <strong>Operational status:</strong>{" "}
                   {driversById[row.demo_driver_id]?.is_online ? "Online" : "Offline"} /{" "}
                   {driversById[row.demo_driver_id]?.is_available ? "Available" : "Busy"}
+                </div>
+
+                <div style={{ marginTop: 8 }}>
+                  <strong>Pi account:</strong>{" "}
+                  {driversById[row.demo_driver_id]?.pi_username
+                    ? `@${driversById[row.demo_driver_id]?.pi_username}`
+                    : "Not linked"}
+                </div>
+
+                <div style={{ marginTop: 8 }}>
+                  <strong>Email:</strong>{" "}
+                  {driversById[row.demo_driver_id]?.email ?? "Not provided"} ·{" "}
+                  <span
+                    style={{
+                      color: contactStatusColor(driversById[row.demo_driver_id]?.email_verified_at),
+                      fontWeight: 900,
+                    }}
+                  >
+                    {contactStatusLabel(driversById[row.demo_driver_id]?.email_verified_at)}
+                  </span>
+                </div>
+
+                <div style={{ marginTop: 8 }}>
+                  <strong>Phone:</strong>{" "}
+                  {driversById[row.demo_driver_id]?.phone ?? "Not provided"} ·{" "}
+                  <span
+                    style={{
+                      color: contactStatusColor(driversById[row.demo_driver_id]?.phone_verified_at),
+                      fontWeight: 900,
+                    }}
+                  >
+                    {contactStatusLabel(driversById[row.demo_driver_id]?.phone_verified_at)}
+                  </span>
+                </div>
+
+                <div style={{ marginTop: 8 }}>
+                  <strong>Account:</strong>{" "}
+                  {driversById[row.demo_driver_id]?.account_status ?? "pending"} /{" "}
+                  {driversById[row.demo_driver_id]?.onboarding_status ?? "profile_required"}
                 </div>
                 <div>
                   <strong>Vehicle profile:</strong>{" "}
