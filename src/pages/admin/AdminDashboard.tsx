@@ -2,7 +2,14 @@ import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
 import AdminDriverVerificationPanel from "./AdminDriverVerificationPanel";
 import TrueGoLiveMapCard from "../../components/TrueGoLiveMapCard";
-import { listRecentRides, subscribeToLatestRides, type RideRow } from "../../services/rideApi";
+import {
+  listRecentRides,
+  listRideMessages,
+  subscribeToLatestRides,
+  type RideCallEventRow,
+  type RideMessageRow,
+  type RideRow,
+} from "../../services/rideApi";
 import { formatPiAmount } from "../../lib/piPricing";
 
 type AdminTab = "rides" | "drivers" | "monitor";
@@ -376,6 +383,55 @@ function getPaymentReview(payment: RidePaymentSnapshot) {
 }
 
 
+
+function formatMessageSender(message: RideMessageRow) {
+  const name = message.sender_name?.trim();
+
+  if (name) {
+    return `${name} · ${message.sender_role}`;
+  }
+
+  return message.sender_role;
+}
+
+function formatCallType(value?: string | null) {
+  switch (value) {
+    case "phone":
+      return "Phone call";
+    case "in_app_voice":
+      return "In-app voice";
+    default:
+      return value ?? "Call";
+  }
+}
+
+function formatCallStatus(value?: string | null) {
+  switch (value) {
+    case "started":
+      return "Started";
+    case "missed":
+      return "Missed";
+    case "ended":
+      return "Ended";
+    case "failed":
+      return "Failed";
+    default:
+      return value ?? "Unknown";
+  }
+}
+
+function activityBoxStyle(): React.CSSProperties {
+  return {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 12,
+    background: "#ffffff",
+    border: "1px solid #e5e7eb",
+    lineHeight: 1.6,
+  };
+}
+
+
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<AdminTab>("rides");
   const [selectedMonitorRideId, setSelectedMonitorRideId] = useState("");
@@ -390,6 +446,10 @@ export default function AdminDashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [monitorMessages, setMonitorMessages] = useState<RideMessageRow[]>([]);
+  const [monitorCallEvents, setMonitorCallEvents] = useState<RideCallEventRow[]>([]);
+  const [monitorActivityLoading, setMonitorActivityLoading] = useState(false);
+  const [monitorActivityError, setMonitorActivityError] = useState("");
 
   async function loadDashboard() {
     try {
@@ -463,6 +523,38 @@ export default function AdminDashboard() {
     }
   }
 
+
+  async function loadMonitorActivity(rideId: string) {
+    setMonitorActivityLoading(true);
+    setMonitorActivityError("");
+
+    try {
+      const [messages, callEventsResult] = await Promise.all([
+        listRideMessages(rideId),
+        supabase
+          .from("ride_call_events")
+          .select("*")
+          .eq("ride_id", rideId)
+          .order("created_at", { ascending: true }),
+      ]);
+
+      if (callEventsResult.error) {
+        throw callEventsResult.error;
+      }
+
+      setMonitorMessages(messages);
+      setMonitorCallEvents((callEventsResult.data ?? []) as RideCallEventRow[]);
+    } catch (activityError) {
+      const message =
+        activityError instanceof Error
+          ? activityError.message
+          : "Failed to load ride communication activity.";
+      setMonitorActivityError(message);
+    } finally {
+      setMonitorActivityLoading(false);
+    }
+  }
+
   useEffect(() => {
     void loadDashboard();
 
@@ -489,6 +581,16 @@ export default function AdminDashboard() {
     activeMonitorRides[0] ??
     rides[0] ??
     null;
+
+  useEffect(() => {
+    if (!monitorRide?.id) {
+      setMonitorMessages([]);
+      setMonitorCallEvents([]);
+      return;
+    }
+
+    void loadMonitorActivity(monitorRide.id);
+  }, [monitorRide?.id]);
 
   return (
     <div style={pageStyle()}>      <h1 style={{ marginTop: 0, marginBottom: 0 }}>TrueGo Admin Dashboard</h1>
@@ -669,6 +771,171 @@ export default function AdminDashboard() {
                     viewer="admin"
                     selectedDriverId={monitorRide.demo_driver_id}
                   />
+
+                  <div
+                    style={{
+                      marginTop: 12,
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 10,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <h3 style={{ margin: 0 }}>Ride communication activity</h3>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void loadMonitorActivity(monitorRide.id);
+                      }}
+                      disabled={monitorActivityLoading}
+                      style={tabButtonStyle(false)}
+                    >
+                      {monitorActivityLoading ? "Refreshing..." : "Refresh activity"}
+                    </button>
+                  </div>
+
+                  {monitorActivityError ? (
+                    <div
+                      style={{
+                        marginTop: 12,
+                        padding: 12,
+                        borderRadius: 10,
+                        background: "#fef2f2",
+                        border: "1px solid #fecaca",
+                        color: "#b91c1c",
+                      }}
+                    >
+                      {monitorActivityError}
+                    </div>
+                  ) : null}
+
+                  <div style={rideDetailGridStyle()}>
+                    <div style={rideDetailItemStyle()}>
+                      <strong>Rider identity</strong>
+                      <div style={{ marginTop: 6 }}>{formatAdminRiderIdentity(monitorRide)}</div>
+                      <div style={monoTextStyle()}>
+                        Pi UID: {monitorRide.rider_pi_uid ?? "N/A"}
+                      </div>
+                      <div style={monoTextStyle()}>
+                        Username: {monitorRide.rider_pi_username ? `@${monitorRide.rider_pi_username}` : "N/A"}
+                      </div>
+                    </div>
+
+                    <div style={rideDetailItemStyle()}>
+                      <strong>Driver identity</strong>
+                      <div style={{ marginTop: 6 }}>{formatAdminDriverIdentity(monitorRide)}</div>
+                      <div style={monoTextStyle()}>
+                        Driver profile ID: {monitorRide.demo_driver_id ?? "N/A"}
+                      </div>
+                    </div>
+
+                    <div style={rideDetailItemStyle()}>
+                      <strong>Route operation</strong>
+                      <div style={{ marginTop: 6 }}>
+                        {monitorRide.pickup_text} → {monitorRide.destination_text}
+                      </div>
+                      <div style={{ marginTop: 6 }}>
+                        {monitorRide.distance_km.toFixed(2)} km · {monitorRide.duration_min} min
+                      </div>
+                      <div style={{ marginTop: 6 }}>
+                        Source: {formatRouteSource(monitorRide.route_source)}
+                      </div>
+                    </div>
+
+                    <div style={rideDetailItemStyle()}>
+                      <strong>Payment snapshot</strong>
+                      <div style={{ marginTop: 6 }}>
+                        <span style={badgeStyle(getPaymentReview(getPaymentSnapshot(monitorRide)).badgeBackground)}>
+                          {getPaymentReview(getPaymentSnapshot(monitorRide)).label}
+                        </span>
+                      </div>
+                      <div style={monoTextStyle()}>
+                        Payment ID: {getPaymentSnapshot(monitorRide).payment_id ?? "N/A"}
+                      </div>
+                      <div style={monoTextStyle()}>
+                        TXID: {getPaymentSnapshot(monitorRide).payment_txid ?? "N/A"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={activityBoxStyle()}>
+                    <strong>In-app messages</strong>
+
+                    {monitorMessages.length === 0 ? (
+                      <p style={{ marginBottom: 0, color: "#64748b" }}>
+                        No in-app messages recorded for this ride yet.
+                      </p>
+                    ) : (
+                      <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                        {monitorMessages.map((message) => (
+                          <div
+                            key={message.id}
+                            style={{
+                              padding: 10,
+                              borderRadius: 10,
+                              background: "#f8fafc",
+                              border: "1px solid #e5e7eb",
+                            }}
+                          >
+                            <div>
+                              <strong>{formatMessageSender(message)}</strong>
+                              <span style={{ color: "#64748b", fontSize: 12 }}>
+                                {" "}· {formatDateTime(message.created_at)}
+                              </span>
+                            </div>
+                            <div style={{ marginTop: 4 }}>{message.message_text}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={activityBoxStyle()}>
+                    <strong>Call events</strong>
+
+                    {monitorCallEvents.length === 0 ? (
+                      <p style={{ marginBottom: 0, color: "#64748b" }}>
+                        No phone or voice call events recorded for this ride yet.
+                      </p>
+                    ) : (
+                      <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                        {monitorCallEvents.map((event) => (
+                          <div
+                            key={event.id}
+                            style={{
+                              padding: 10,
+                              borderRadius: 10,
+                              background: "#f8fafc",
+                              border: "1px solid #e5e7eb",
+                            }}
+                          >
+                            <div>
+                              <strong>{formatCallType(event.call_type)}</strong>{" "}
+                              · {formatCallStatus(event.call_status)}
+                            </div>
+                            <div style={{ color: "#64748b", fontSize: 13 }}>
+                              {event.caller_role} → {event.callee_role}
+                            </div>
+                            <div style={{ color: "#64748b", fontSize: 13 }}>
+                              Started: {formatDateTime(event.started_at)}
+                            </div>
+                            {event.ended_at ? (
+                              <div style={{ color: "#64748b", fontSize: 13 }}>
+                                Ended: {formatDateTime(event.ended_at)}
+                              </div>
+                            ) : null}
+                            {event.callee_phone ? (
+                              <div style={monoTextStyle()}>
+                                Callee phone: {event.callee_phone}
+                              </div>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </>
               ) : null}
             </>
