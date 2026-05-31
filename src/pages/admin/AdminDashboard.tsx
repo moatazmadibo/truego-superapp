@@ -550,11 +550,7 @@ export default function AdminDashboard() {
 
     try {
       const [settingsResult, payoutsResult] = await Promise.all([
-        supabase
-          .from("platform_payout_settings")
-          .select("*")
-          .eq("id", "truego")
-          .maybeSingle(),
+        supabase.rpc("get_platform_payout_settings"),
         supabase
           .from("driver_payouts")
           .select("*")
@@ -615,7 +611,11 @@ export default function AdminDashboard() {
 
       if (saveError) throw saveError;
 
-      setPayoutSettings(data as PlatformPayoutSettings);
+      const savedSettings = data as PlatformPayoutSettings;
+      setPayoutSettings(savedSettings);
+      setCommissionInput(String(dbNumber(savedSettings.commission_percent)));
+      setMinPayoutInput(String(dbNumber(savedSettings.min_payout_pi)));
+      setPayoutMode(savedSettings.payout_mode);
       setPayoutMessage("Payout settings saved successfully.");
       await loadPayoutDashboard();
     } catch (saveError) {
