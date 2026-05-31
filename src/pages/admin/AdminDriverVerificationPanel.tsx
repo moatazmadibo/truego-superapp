@@ -45,6 +45,14 @@ type DemoDriverDocumentRow = {
 type DemoDriverOperationalRow = {
   id: string;
   display_name: string;
+  pi_uid?: string | null;
+  pi_username?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  email_verified_at?: string | null;
+  phone_verified_at?: string | null;
+  account_status?: string | null;
+  onboarding_status?: string | null;
   vehicle_type: "car" | "motorcycle";
   is_online: boolean;
   is_available: boolean;
@@ -53,15 +61,10 @@ type DemoDriverOperationalRow = {
   vehicle_model: string | null;
   vehicle_color: string | null;
   vehicle_plate: string | null;
-  email?: string | null;
-  phone?: string | null;
-  email_verified_at?: string | null;
-  phone_verified_at?: string | null;
-  pi_username?: string | null;
-  account_status?: string | null;
-  onboarding_status?: string | null;
   vehicle_year: number | null;
   vehicle_license_expires_at: string | null;
+  driver_license_expires_at?: string | null;
+  profile_photo_path?: string | null;
 };
 
 const REQUIRED_DOCUMENTS: Array<{ type: DocumentType; label: string }> = [
@@ -82,15 +85,6 @@ function sectionStyle(): React.CSSProperties {
   };
 }
 
-
-function contactStatusLabel(value?: string | null) {
-  return value ? "Verified" : "Not verified";
-}
-
-function contactStatusColor(value?: string | null) {
-  return value ? "#16a34a" : "#d97706";
-}
-
 function cardStyle(): React.CSSProperties {
   return {
     marginTop: 12,
@@ -109,6 +103,19 @@ function buttonStyle(background: string, disabled = false): React.CSSProperties 
     color: "#ffffff",
     background,
     fontWeight: 700,
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.65 : 1,
+  };
+}
+
+function secondaryButtonStyle(disabled = false): React.CSSProperties {
+  return {
+    border: "1px solid #cbd5e1",
+    borderRadius: 10,
+    padding: "10px 12px",
+    color: "#334155",
+    background: "#ffffff",
+    fontWeight: 800,
     cursor: disabled ? "not-allowed" : "pointer",
     opacity: disabled ? 0.65 : 1,
   };
@@ -178,10 +185,89 @@ function formatDocumentType(type: DocumentType) {
   }
 }
 
-function formatDate(value: string | null) {
+function formatVehicleType(type?: string | null) {
+  switch (type) {
+    case "car":
+      return "Car";
+    case "motorcycle":
+      return "Motorcycle";
+    default:
+      return type ?? "Not recorded";
+  }
+}
+
+function formatDate(value: string | null | undefined) {
   return value ? new Date(value).toLocaleString() : "N/A";
 }
 
+function formatExpiry(value?: string | null) {
+  if (!value) return "Not set";
+
+  const expiry = new Date(value);
+  const today = new Date();
+  const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (!Number.isFinite(diffDays)) return value;
+
+  if (diffDays < 0) {
+    return `${value} · expired`;
+  }
+
+  if (diffDays <= 30) {
+    return `${value} · expires soon`;
+  }
+
+  return value;
+}
+
+function contactStatusLabel(value?: string | null) {
+  return value ? "Verified" : "Not verified";
+}
+
+function contactStatusKind(value?: string | null): "ok" | "warning" {
+  return value ? "ok" : "warning";
+}
+
+function readinessBadgeStyle(kind: "ok" | "warning" | "blocked"): React.CSSProperties {
+  const palette = {
+    ok: { background: "#dcfce7", color: "#166534", border: "#bbf7d0" },
+    warning: { background: "#fff7ed", color: "#9a3412", border: "#fed7aa" },
+    blocked: { background: "#fef2f2", color: "#991b1b", border: "#fecaca" },
+  }[kind];
+
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    borderRadius: 999,
+    padding: "5px 9px",
+    fontSize: 12,
+    fontWeight: 900,
+    background: palette.background,
+    color: palette.color,
+    border: `1px solid ${palette.border}`,
+    marginRight: 6,
+    marginTop: 6,
+  };
+}
+
+function detailGridStyle(): React.CSSProperties {
+  return {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: 10,
+    marginTop: 12,
+  };
+}
+
+function detailItemStyle(): React.CSSProperties {
+  return {
+    padding: 12,
+    borderRadius: 12,
+    background: "#ffffff",
+    border: "1px solid #e5e7eb",
+    lineHeight: 1.6,
+  };
+}
 
 function verificationTimelineGridStyle(): React.CSSProperties {
   return {
@@ -235,6 +321,37 @@ function getDocumentReviewState(docs: DemoDriverDocumentRow[]) {
   };
 }
 
+function getDriverReadiness(driver?: DemoDriverOperationalRow) {
+  if (!driver) {
+    return {
+      accountKind: "blocked" as const,
+      contactKind: "warning" as const,
+      profileKind: "warning" as const,
+      onlineText: "Driver profile not loaded",
+    };
+  }
+
+  const accountKind = driver.account_status === "approved" ? "ok" : "blocked";
+  const contactKind = driver.email_verified_at && driver.phone_verified_at ? "ok" : "warning";
+  const profileComplete = Boolean(
+    driver.vehicle_type &&
+      driver.vehicle_make &&
+      driver.vehicle_model &&
+      driver.vehicle_color &&
+      driver.vehicle_plate
+  );
+
+  return {
+    accountKind,
+    contactKind,
+    profileKind: profileComplete ? ("ok" as const) : ("warning" as const),
+    onlineText:
+      driver.account_status === "approved"
+        ? "Eligible for Go Online"
+        : "Go Online blocked until admin approval",
+  };
+}
+
 export default function AdminDriverVerificationPanel() {
   const [rows, setRows] = useState<DemoDriverVerificationRow[]>([]);
   const [documentsByDriver, setDocumentsByDriver] = useState<Record<string, DemoDriverDocumentRow[]>>({});
@@ -255,9 +372,12 @@ export default function AdminDriverVerificationPanel() {
       const docs = documentsByDriver[row.demo_driver_id] ?? [];
       return getDocumentReviewState(docs).canApprove;
     }).length;
+    const emailVerified = rows.filter(
+      (row) => Boolean(driversById[row.demo_driver_id]?.email_verified_at)
+    ).length;
 
-    return { total, approved, submitted, needsMoreInfo, readyForApproval };
-  }, [documentsByDriver, rows]);
+    return { total, approved, submitted, needsMoreInfo, readyForApproval, emailVerified };
+  }, [documentsByDriver, driversById, rows]);
 
   async function loadRows() {
     setLoading(true);
@@ -294,20 +414,47 @@ export default function AdminDriverVerificationPanel() {
 
       const { data: docsData, error: docsError } = await supabase
         .from("demo_driver_documents")
-        .select("id, demo_driver_id, driver_name, document_type, file_path, file_name, mime_type, file_size, status, uploaded_at")
+        .select(
+          "id, demo_driver_id, driver_name, document_type, file_path, file_name, mime_type, file_size, status, uploaded_at"
+        )
         .in("demo_driver_id", ids)
         .order("uploaded_at", { ascending: false });
 
       const { data: driversData, error: driversError } = await supabase
         .from("demo_drivers")
-        .select("id, display_name, vehicle_type, is_online, is_available, rating, vehicle_make, vehicle_model, vehicle_color, vehicle_plate, vehicle_year, vehicle_license_expires_at")
+        .select(
+          [
+            "id",
+            "display_name",
+            "pi_uid",
+            "pi_username",
+            "email",
+            "phone",
+            "email_verified_at",
+            "phone_verified_at",
+            "account_status",
+            "onboarding_status",
+            "vehicle_type",
+            "is_online",
+            "is_available",
+            "rating",
+            "vehicle_make",
+            "vehicle_model",
+            "vehicle_color",
+            "vehicle_plate",
+            "vehicle_year",
+            "vehicle_license_expires_at",
+            "driver_license_expires_at",
+            "profile_photo_path",
+          ].join(", ")
+        )
         .in("id", ids);
 
       if (driversError) {
         setError(driversError.message);
       } else {
         const mappedDrivers: Record<string, DemoDriverOperationalRow> = {};
-        for (const driver of (driversData ?? []) as DemoDriverOperationalRow[]) {
+        for (const driver of (driversData ?? []) as unknown as DemoDriverOperationalRow[]) {
           mappedDrivers[driver.id] = driver;
         }
         setDriversById(mappedDrivers);
@@ -335,13 +482,13 @@ export default function AdminDriverVerificationPanel() {
     void loadRows();
   }, []);
 
-  async function openDocument(document: DemoDriverDocumentRow) {
-    setOpenKey(document.id);
+  async function openStoragePath(filePath: string, loadingKey: string) {
+    setOpenKey(loadingKey);
     setError("");
 
     const { data, error: signedUrlError } = await supabase.storage
       .from("driver-documents")
-      .createSignedUrl(document.file_path, 3600);
+      .createSignedUrl(filePath, 3600);
 
     if (signedUrlError) {
       setError(signedUrlError.message);
@@ -387,7 +534,7 @@ export default function AdminDriverVerificationPanel() {
         <div>
           <h2 style={{ margin: 0 }}>Driver Verification Review</h2>
           <p style={{ margin: "6px 0 0", color: "#475569" }}>
-            Review driver identity, license, vehicle documents, and approval readiness in a separate workflow from rides.
+            Review Pi account, contact verification, identity, license, vehicle documents, and approval readiness.
           </p>
         </div>
 
@@ -415,6 +562,7 @@ export default function AdminDriverVerificationPanel() {
         <div style={statStyle()}><strong>Submitted</strong><div>{stats.submitted}</div></div>
         <div style={statStyle()}><strong>Ready</strong><div>{stats.readyForApproval}</div></div>
         <div style={statStyle()}><strong>Approved</strong><div>{stats.approved}</div></div>
+        <div style={statStyle()}><strong>Email verified</strong><div>{stats.emailVerified}</div></div>
         <div style={statStyle()}><strong>Needs info</strong><div>{stats.needsMoreInfo}</div></div>
       </div>
 
@@ -435,6 +583,8 @@ export default function AdminDriverVerificationPanel() {
       ) : null}
 
       {rows.map((row) => {
+        const driver = driversById[row.demo_driver_id];
+        const readiness = getDriverReadiness(driver);
         const isActionLoading = actionKey.startsWith(`${row.demo_driver_id}:`);
         const docs = documentsByDriver[row.demo_driver_id] ?? [];
         const reviewState = getDocumentReviewState(docs);
@@ -451,85 +601,30 @@ export default function AdminDriverVerificationPanel() {
                 display: "flex",
                 justifyContent: "space-between",
                 gap: 12,
-                alignItems: "center",
+                alignItems: "flex-start",
                 flexWrap: "wrap",
               }}
             >
               <div>
                 <div><strong>Driver:</strong> {row.driver_name}</div>
                 <div><strong>Driver profile ID:</strong> {row.demo_driver_id}</div>
-                <div>
-                  <strong>Vehicle:</strong>{" "}
-                  {driversById[row.demo_driver_id]?.vehicle_type ?? "Not recorded"}
-                </div>
-                <div>
-                  <strong>Rating:</strong>{" "}
-                  {driversById[row.demo_driver_id]?.rating != null
-                    ? driversById[row.demo_driver_id].rating.toFixed(1)
-                    : "N/A"}
-                </div>
-                <div>
-                  <strong>Operational status:</strong>{" "}
-                  {driversById[row.demo_driver_id]?.is_online ? "Online" : "Offline"} /{" "}
-                  {driversById[row.demo_driver_id]?.is_available ? "Available" : "Busy"}
-                </div>
 
                 <div style={{ marginTop: 8 }}>
-                  <strong>Pi account:</strong>{" "}
-                  {driversById[row.demo_driver_id]?.pi_username
-                    ? `@${driversById[row.demo_driver_id]?.pi_username}`
-                    : "Not linked"}
-                </div>
-
-                <div style={{ marginTop: 8 }}>
-                  <strong>Email:</strong>{" "}
-                  {driversById[row.demo_driver_id]?.email ?? "Not provided"} ·{" "}
-                  <span
-                    style={{
-                      color: contactStatusColor(driversById[row.demo_driver_id]?.email_verified_at),
-                      fontWeight: 900,
-                    }}
-                  >
-                    {contactStatusLabel(driversById[row.demo_driver_id]?.email_verified_at)}
+                  <span style={readinessBadgeStyle(readiness.accountKind as "ok" | "warning" | "blocked")}>
+                    {driver?.account_status === "approved" ? "Account approved" : "Account not approved"}
+                  </span>
+                  <span style={readinessBadgeStyle(readiness.contactKind as "ok" | "warning" | "blocked")}>
+                    {driver?.email_verified_at && driver?.phone_verified_at
+                      ? "Contacts verified"
+                      : "Contact verification pending"}
+                  </span>
+                  <span style={readinessBadgeStyle(readiness.profileKind as "ok" | "warning" | "blocked")}>
+                    {readiness.profileKind === "ok" ? "Vehicle profile ready" : "Vehicle profile incomplete"}
                   </span>
                 </div>
 
-                <div style={{ marginTop: 8 }}>
-                  <strong>Phone:</strong>{" "}
-                  {driversById[row.demo_driver_id]?.phone ?? "Not provided"} ·{" "}
-                  <span
-                    style={{
-                      color: contactStatusColor(driversById[row.demo_driver_id]?.phone_verified_at),
-                      fontWeight: 900,
-                    }}
-                  >
-                    {contactStatusLabel(driversById[row.demo_driver_id]?.phone_verified_at)}
-                  </span>
-                </div>
-
-                <div style={{ marginTop: 8 }}>
-                  <strong>Account:</strong>{" "}
-                  {driversById[row.demo_driver_id]?.account_status ?? "pending"} /{" "}
-                  {driversById[row.demo_driver_id]?.onboarding_status ?? "profile_required"}
-                </div>
-                <div>
-                  <strong>Vehicle profile:</strong>{" "}
-                  {[
-                    driversById[row.demo_driver_id]?.vehicle_make,
-                    driversById[row.demo_driver_id]?.vehicle_model,
-                    driversById[row.demo_driver_id]?.vehicle_year,
-                    driversById[row.demo_driver_id]?.vehicle_color,
-                  ]
-                    .filter(Boolean)
-                    .join(" ") || "Not completed"}
-                </div>
-                <div>
-                  <strong>Plate number:</strong>{" "}
-                  {driversById[row.demo_driver_id]?.vehicle_plate ?? "Not set"}
-                </div>
-                <div>
-                  <strong>Vehicle license expiry:</strong>{" "}
-                  {driversById[row.demo_driver_id]?.vehicle_license_expires_at ?? "Not set"}
+                <div style={{ marginTop: 8, color: driver?.account_status === "approved" ? "#047857" : "#9a3412" }}>
+                  <strong>Go Online:</strong> {readiness.onlineText}
                 </div>
               </div>
 
@@ -545,6 +640,102 @@ export default function AdminDriverVerificationPanel() {
               >
                 {formatStatus(row.verification_status)}
               </span>
+            </div>
+
+            <div style={detailGridStyle()}>
+              <div style={detailItemStyle()}>
+                <strong>Pi account</strong>
+                <div style={{ marginTop: 6 }}>
+                  {driver?.pi_username ? `@${driver.pi_username}` : "Not linked"}
+                </div>
+                <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
+                  UID: {driver?.pi_uid ?? "Not linked"}
+                </div>
+              </div>
+
+              <div style={detailItemStyle()}>
+                <strong>Email</strong>
+                <div style={{ marginTop: 6 }}>{driver?.email ?? "Not provided"}</div>
+                <span style={readinessBadgeStyle(contactStatusKind(driver?.email_verified_at))}>
+                  {contactStatusLabel(driver?.email_verified_at)}
+                </span>
+                <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
+                  {formatDate(driver?.email_verified_at)}
+                </div>
+              </div>
+
+              <div style={detailItemStyle()}>
+                <strong>Phone</strong>
+                <div style={{ marginTop: 6 }}>{driver?.phone ?? "Not provided"}</div>
+                <span style={readinessBadgeStyle(contactStatusKind(driver?.phone_verified_at))}>
+                  {contactStatusLabel(driver?.phone_verified_at)}
+                </span>
+                <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
+                  {formatDate(driver?.phone_verified_at)}
+                </div>
+              </div>
+
+              <div style={detailItemStyle()}>
+                <strong>Account / onboarding</strong>
+                <div>
+                  <span style={readinessBadgeStyle(driver?.account_status === "approved" ? "ok" : "blocked")}>
+                    {driver?.account_status ?? "pending"}
+                  </span>
+                  <span style={readinessBadgeStyle(driver?.onboarding_status === "approved" ? "ok" : "warning")}>
+                    {driver?.onboarding_status ?? "profile_required"}
+                  </span>
+                </div>
+              </div>
+
+              <div style={detailItemStyle()}>
+                <strong>Operational status</strong>
+                <div style={{ marginTop: 6 }}>
+                  {driver?.is_online ? "Online" : "Offline"} / {driver?.is_available ? "Available" : "Busy"}
+                </div>
+                <div>Rating: {driver?.rating != null ? driver.rating.toFixed(1) : "N/A"}</div>
+              </div>
+
+              <div style={detailItemStyle()}>
+                <strong>Vehicle</strong>
+                <div style={{ marginTop: 6 }}>
+                  {formatVehicleType(driver?.vehicle_type)}
+                </div>
+                <div>
+                  {[driver?.vehicle_make, driver?.vehicle_model, driver?.vehicle_year, driver?.vehicle_color]
+                    .filter(Boolean)
+                    .join(" ") || "Not completed"}
+                </div>
+                <div>Plate: {driver?.vehicle_plate ?? "Not set"}</div>
+              </div>
+
+              <div style={detailItemStyle()}>
+                <strong>License expiry</strong>
+                <div style={{ marginTop: 6 }}>
+                  Vehicle: {formatExpiry(driver?.vehicle_license_expires_at)}
+                </div>
+                <div>
+                  Driver: {formatExpiry(driver?.driver_license_expires_at)}
+                </div>
+              </div>
+
+              <div style={detailItemStyle()}>
+                <strong>Profile photo</strong>
+                <div style={{ marginTop: 6 }}>
+                  {driver?.profile_photo_path ? "Linked" : "Not uploaded"}
+                </div>
+                {driver?.profile_photo_path ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void openStoragePath(driver.profile_photo_path ?? "", `${driver.id}:profile_photo`);
+                    }}
+                    disabled={openKey === `${driver.id}:profile_photo`}
+                    style={{ ...secondaryButtonStyle(openKey === `${driver.id}:profile_photo`), marginTop: 8 }}
+                  >
+                    {openKey === `${driver.id}:profile_photo` ? "Opening..." : "Open profile photo"}
+                  </button>
+                ) : null}
+              </div>
             </div>
 
             <div
@@ -648,7 +839,7 @@ export default function AdminDriverVerificationPanel() {
                       <button
                         type="button"
                         onClick={() => {
-                          void openDocument(document);
+                          void openStoragePath(document.file_path, document.id);
                         }}
                         disabled={openKey === document.id}
                         style={{ ...buttonStyle("#0f766e", openKey === document.id), marginTop: 8 }}
