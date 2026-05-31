@@ -12,7 +12,7 @@ import {
 } from "../../services/rideApi";
 import { formatPiAmount } from "../../lib/piPricing";
 
-type AdminTab = "rides" | "drivers" | "monitor";
+type AdminTab = "rides" | "drivers" | "monitor" | "payouts";
 
 type RidePaymentSnapshot = {
   payment_status?: "unpaid" | "approved" | "completed" | "cancelled" | "failed" | null;
@@ -33,6 +33,41 @@ type DashboardStats = {
   noDriverAvailable: number;
   paid: number;
   collectedPi: number;
+};
+
+type PlatformPayoutSettings = {
+  id: string;
+  commission_percent: number | string;
+  payout_mode: "manual" | "automatic";
+  min_payout_pi: number | string;
+  updated_by: string | null;
+  updated_at: string;
+  created_at: string;
+};
+
+type DriverPayoutRow = {
+  id: string;
+  ride_id: string;
+  demo_driver_id: string | null;
+  driver_name: string | null;
+  driver_pi_uid: string | null;
+  driver_pi_username: string | null;
+  gross_amount_pi: number | string;
+  commission_percent: number | string;
+  app_commission_pi: number | string;
+  driver_payout_pi: number | string;
+  source_payment_status: string | null;
+  source_payment_id: string | null;
+  source_payment_txid: string | null;
+  source_payment_completed_at: string | null;
+  payout_status: "pending" | "processing" | "paid" | "failed" | "cancelled";
+  payout_payment_id: string | null;
+  payout_txid: string | null;
+  payout_error: string | null;
+  requested_at: string | null;
+  processed_at: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 function formatStatus(status: RideRow["status"]) {
@@ -319,6 +354,55 @@ function paymentBadgeColor(status: RidePaymentSnapshot["payment_status"]) {
   }
 }
 
+function dbNumber(value?: number | string | null) {
+  return Number(value ?? 0);
+}
+
+function formatPercent(value?: number | string | null) {
+  const numberValue = dbNumber(value);
+
+  if (!Number.isFinite(numberValue)) {
+    return "0%";
+  }
+
+  return `${numberValue.toLocaleString(undefined, {
+    maximumFractionDigits: 4,
+  })}%`;
+}
+
+function payoutBadgeColor(status: DriverPayoutRow["payout_status"]) {
+  switch (status) {
+    case "paid":
+      return "#16a34a";
+    case "processing":
+      return "#7c3aed";
+    case "failed":
+      return "#dc2626";
+    case "cancelled":
+      return "#991b1b";
+    default:
+      return "#f59e0b";
+  }
+}
+
+function formatPayoutStatus(status: DriverPayoutRow["payout_status"]) {
+  switch (status) {
+    case "pending":
+      return "Pending";
+    case "processing":
+      return "Processing";
+    case "paid":
+      return "Paid";
+    case "failed":
+      return "Failed";
+    case "cancelled":
+      return "Cancelled";
+    default:
+      return status;
+  }
+}
+
+
 function getPaymentReview(payment: RidePaymentSnapshot) {
   const isCompleted =
     payment.payment_status === "completed" || Boolean(payment.payment_completed_at);
@@ -446,10 +530,160 @@ export default function AdminDashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [payoutSettings, setPayoutSettings] = useState<PlatformPayoutSettings | null>(null);
+  const [commissionInput, setCommissionInput] = useState("15");
+  const [minPayoutInput, setMinPayoutInput] = useState("0");
+  const [payoutMode, setPayoutMode] = useState<"manual" | "automatic">("manual");
+  const [payoutRows, setPayoutRows] = useState<DriverPayoutRow[]>([]);
+  const [payoutLoading, setPayoutLoading] = useState(false);
+  const [payoutActionLoading, setPayoutActionLoading] = useState("");
+  const [payoutError, setPayoutError] = useState("");
+  const [payoutMessage, setPayoutMessage] = useState("");
   const [monitorMessages, setMonitorMessages] = useState<RideMessageRow[]>([]);
   const [monitorCallEvents, setMonitorCallEvents] = useState<RideCallEventRow[]>([]);
   const [monitorActivityLoading, setMonitorActivityLoading] = useState(false);
   const [monitorActivityError, setMonitorActivityError] = useState("");
+
+  async function loadPayoutDashboard() {
+    setPayoutLoading(true);
+    setPayoutError("");
+
+    try {
+      const [settingsResult, payoutsResult] = await Promise.all([
+        supabase
+          .from("platform_payout_settings")
+          .select("*")
+          .eq("id", "truego")
+          .maybeSingle(),
+        supabase
+          .from("driver_payouts")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(50),
+      ]);
+
+      if (settingsResult.error) throw settingsResult.error;
+      if (payoutsResult.error) throw payoutsResult.error;
+
+      const nextSettings = settingsResult.data as PlatformPayoutSettings | null;
+      setPayoutSettings(nextSettings);
+
+      if (nextSettings) {
+        setCommissionInput(String(dbNumber(nextSettings.commission_percent)));
+        setMinPayoutInput(String(dbNumber(nextSettings.min_payout_pi)));
+        setPayoutMode(nextSettings.payout_mode);
+      }
+
+      setPayoutRows((payoutsResult.data ?? []) as unknown as DriverPayoutRow[]);
+    } catch (loadError) {
+      const message =
+        loadError instanceof Error
+          ? loadError.message
+          : "Failed to load payout dashboard.";
+      setPayoutError(message);
+    } finally {
+      setPayoutLoading(false);
+    }
+  }
+
+  async function savePayoutSettings() {
+    setPayoutActionLoading("settings");
+    setPayoutError("");
+    setPayoutMessage("");
+
+    try {
+      const commission = Number(commissionInput);
+      const minPayout = Number(minPayoutInput || 0);
+
+      if (!Number.isFinite(commission) || commission < 0 || commission > 100) {
+        throw new Error("Commission percent must be between 0 and 100.");
+      }
+
+      if (!Number.isFinite(minPayout) || minPayout < 0) {
+        throw new Error("Minimum payout must be zero or greater.");
+      }
+
+      const { data, error: saveError } = await supabase.rpc(
+        "update_platform_payout_settings",
+        {
+          p_commission_percent: commission,
+          p_payout_mode: payoutMode,
+          p_min_payout_pi: minPayout,
+          p_updated_by: "admin-dashboard",
+        }
+      );
+
+      if (saveError) throw saveError;
+
+      setPayoutSettings(data as PlatformPayoutSettings);
+      setPayoutMessage("Payout settings saved successfully.");
+      await loadPayoutDashboard();
+    } catch (saveError) {
+      const message =
+        saveError instanceof Error ? saveError.message : "Failed to save payout settings.";
+      setPayoutError(message);
+    } finally {
+      setPayoutActionLoading("");
+    }
+  }
+
+  async function generatePendingPayoutRecords() {
+    setPayoutActionLoading("generate");
+    setPayoutError("");
+    setPayoutMessage("");
+
+    try {
+      const { data: paidRides, error: ridesError } = await supabase
+        .from("rides")
+        .select("*")
+        .eq("status", "completed")
+        .eq("payment_status", "completed")
+        .not("demo_driver_id", "is", null)
+        .order("completed_at", { ascending: false })
+        .limit(50);
+
+      if (ridesError) throw ridesError;
+
+      let successCount = 0;
+      const failures: string[] = [];
+
+      for (const ride of (paidRides ?? []) as RideRow[]) {
+        const { error: payoutError } = await supabase.rpc(
+          "upsert_driver_payout_for_completed_ride",
+          {
+            p_ride_id: ride.id,
+            p_commission_percent: null,
+          }
+        );
+
+        if (payoutError) {
+          failures.push(`${ride.id}: ${payoutError.message}`);
+        } else {
+          successCount += 1;
+        }
+      }
+
+      setPayoutMessage(
+        failures.length > 0
+          ? `Payout records refreshed: ${successCount} succeeded, ${failures.length} skipped/failed.`
+          : `Payout records refreshed: ${successCount} succeeded.`
+      );
+
+      if (failures.length > 0) {
+        setPayoutError(failures.slice(0, 3).join("\n"));
+      }
+
+      await loadPayoutDashboard();
+    } catch (generateError) {
+      const message =
+        generateError instanceof Error
+          ? generateError.message
+          : "Failed to generate payout records.";
+      setPayoutError(message);
+    } finally {
+      setPayoutActionLoading("");
+    }
+  }
 
   async function loadDashboard() {
     try {
@@ -566,6 +800,13 @@ export default function AdminDashboard() {
   }, []);
 
 
+  useEffect(() => {
+    if (activeTab === "payouts") {
+      void loadPayoutDashboard();
+    }
+  }, [activeTab]);
+
+
   const activeMonitorRides = rides.filter((ride) =>
     [
       "collecting_offers",
@@ -680,6 +921,14 @@ export default function AdminDashboard() {
           style={tabButtonStyle(activeTab === "monitor")}
         >
           Live Ride Monitor
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("payouts")}
+          style={tabButtonStyle(activeTab === "payouts")}
+        >
+          Payouts / Commission
         </button>
       </div>
 
@@ -944,6 +1193,271 @@ export default function AdminDashboard() {
           )}
         </div>
       ) : null}
+
+      {activeTab === "payouts" ? (
+        <div style={sectionStyle()}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              alignItems: "flex-start",
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <h2 style={{ marginTop: 0, marginBottom: 6 }}>Payouts / Commission</h2>
+              <p style={{ marginTop: 0, color: "#64748b", lineHeight: 1.6 }}>
+                Configure TrueGo commission manually and create pending driver payout records from completed paid rides.
+                This stage does not send Pi to drivers yet.
+              </p>
+            </div>
+
+            <span style={badgeStyle("#111827")}>
+              Mode: {payoutSettings?.payout_mode ?? "manual"}
+            </span>
+          </div>
+
+          {payoutError ? (
+            <div
+              style={{
+                marginTop: 12,
+                padding: 12,
+                borderRadius: 10,
+                background: "#fef2f2",
+                border: "1px solid #fecaca",
+                color: "#b91c1c",
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {payoutError}
+            </div>
+          ) : null}
+
+          {payoutMessage ? (
+            <div
+              style={{
+                marginTop: 12,
+                padding: 12,
+                borderRadius: 10,
+                background: "#ecfdf5",
+                border: "1px solid #bbf7d0",
+                color: "#047857",
+              }}
+            >
+              {payoutMessage}
+            </div>
+          ) : null}
+
+          <div style={rideDetailGridStyle()}>
+            <div style={rideDetailItemStyle()}>
+              <strong>Application commission %</strong>
+              <input
+                value={commissionInput}
+                onChange={(event) => setCommissionInput(event.target.value)}
+                placeholder="Example: 7.5"
+                inputMode="decimal"
+                style={{
+                  width: "100%",
+                  marginTop: 8,
+                  padding: 11,
+                  borderRadius: 10,
+                  border: "1px solid #cbd5e1",
+                  font: "inherit",
+                  boxSizing: "border-box",
+                }}
+              />
+              <div style={{ marginTop: 6, color: "#64748b", fontSize: 12 }}>
+                Accepts any value from 0 to 100, for example 7, 8, 7.5, or 12.75.
+              </div>
+            </div>
+
+            <div style={rideDetailItemStyle()}>
+              <strong>Payout mode</strong>
+              <select
+                value={payoutMode}
+                onChange={(event) =>
+                  setPayoutMode(event.target.value as "manual" | "automatic")
+                }
+                style={{
+                  width: "100%",
+                  marginTop: 8,
+                  padding: 11,
+                  borderRadius: 10,
+                  border: "1px solid #cbd5e1",
+                  font: "inherit",
+                }}
+              >
+                <option value="manual">Manual review</option>
+                <option value="automatic">Automatic later</option>
+              </select>
+              <div style={{ marginTop: 6, color: "#64748b", fontSize: 12 }}>
+                Automatic mode is reserved for a later A2U payout function.
+              </div>
+            </div>
+
+            <div style={rideDetailItemStyle()}>
+              <strong>Minimum payout Pi</strong>
+              <input
+                value={minPayoutInput}
+                onChange={(event) => setMinPayoutInput(event.target.value)}
+                placeholder="0"
+                inputMode="decimal"
+                style={{
+                  width: "100%",
+                  marginTop: 8,
+                  padding: 11,
+                  borderRadius: 10,
+                  border: "1px solid #cbd5e1",
+                  font: "inherit",
+                  boxSizing: "border-box",
+                }}
+              />
+              <div style={{ marginTop: 6, color: "#64748b", fontSize: 12 }}>
+                Keep 0 during Test-Pi validation.
+              </div>
+            </div>
+
+            <div style={rideDetailItemStyle()}>
+              <strong>Current settings</strong>
+              <div style={{ marginTop: 8 }}>
+                Commission: {formatPercent(payoutSettings?.commission_percent)}
+              </div>
+              <div>Minimum payout: {formatPi(dbNumber(payoutSettings?.min_payout_pi))}</div>
+              <div>Updated: {formatDateTime(payoutSettings?.updated_at)}</div>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => {
+                void savePayoutSettings();
+              }}
+              disabled={payoutActionLoading !== ""}
+              style={tabButtonStyle(false)}
+            >
+              {payoutActionLoading === "settings" ? "Saving..." : "Save payout settings"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                void generatePendingPayoutRecords();
+              }}
+              disabled={payoutActionLoading !== ""}
+              style={tabButtonStyle(false)}
+            >
+              {payoutActionLoading === "generate"
+                ? "Generating..."
+                : "Generate payout records from paid rides"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                void loadPayoutDashboard();
+              }}
+              disabled={payoutLoading}
+              style={tabButtonStyle(false)}
+            >
+              {payoutLoading ? "Refreshing..." : "Refresh payouts"}
+            </button>
+          </div>
+
+          <div style={{ marginTop: 16 }}>
+            <h3 style={{ marginBottom: 8 }}>Driver payout records</h3>
+
+            {payoutLoading ? <p>Loading payouts...</p> : null}
+
+            {!payoutLoading && payoutRows.length === 0 ? (
+              <p style={{ color: "#64748b" }}>
+                No payout records yet. Generate records after completed paid rides.
+              </p>
+            ) : null}
+
+            {payoutRows.map((payout) => (
+              <div key={payout.id} style={rideCardStyle()}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div>
+                    <div><strong>Driver:</strong> {payout.driver_name ?? "Unknown driver"}</div>
+                    <div style={monoTextStyle()}>Ride ID: {payout.ride_id}</div>
+                    <div style={monoTextStyle()}>
+                      Pi: {payout.driver_pi_username ? `@${payout.driver_pi_username}` : "N/A"} · UID: {payout.driver_pi_uid ?? "N/A"}
+                    </div>
+                  </div>
+
+                  <span style={badgeStyle(payoutBadgeColor(payout.payout_status))}>
+                    {formatPayoutStatus(payout.payout_status)}
+                  </span>
+                </div>
+
+                <div style={rideDetailGridStyle()}>
+                  <div style={rideDetailItemStyle()}>
+                    <strong>Gross paid by rider</strong>
+                    <div style={{ marginTop: 6 }}>{formatPi(dbNumber(payout.gross_amount_pi))}</div>
+                  </div>
+
+                  <div style={rideDetailItemStyle()}>
+                    <strong>TrueGo commission</strong>
+                    <div style={{ marginTop: 6 }}>{formatPercent(payout.commission_percent)}</div>
+                    <div>{formatPi(dbNumber(payout.app_commission_pi))}</div>
+                  </div>
+
+                  <div style={rideDetailItemStyle()}>
+                    <strong>Driver payout</strong>
+                    <div style={{ marginTop: 6 }}>{formatPi(dbNumber(payout.driver_payout_pi))}</div>
+                  </div>
+
+                  <div style={rideDetailItemStyle()}>
+                    <strong>Source payment</strong>
+                    <div>Status: {payout.source_payment_status ?? "N/A"}</div>
+                    <div style={monoTextStyle()}>Payment ID: {payout.source_payment_id ?? "N/A"}</div>
+                    <div style={monoTextStyle()}>TXID: {payout.source_payment_txid ?? "N/A"}</div>
+                  </div>
+
+                  <div style={rideDetailItemStyle()}>
+                    <strong>Payout transfer</strong>
+                    <div style={monoTextStyle()}>Payment ID: {payout.payout_payment_id ?? "Not sent yet"}</div>
+                    <div style={monoTextStyle()}>TXID: {payout.payout_txid ?? "Not sent yet"}</div>
+                  </div>
+
+                  <div style={rideDetailItemStyle()}>
+                    <strong>Dates</strong>
+                    <div>Requested: {formatDateTime(payout.requested_at)}</div>
+                    <div>Processed: {formatDateTime(payout.processed_at)}</div>
+                    <div>Updated: {formatDateTime(payout.updated_at)}</div>
+                  </div>
+                </div>
+
+                {payout.payout_error ? (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      padding: 12,
+                      borderRadius: 10,
+                      background: "#fef2f2",
+                      border: "1px solid #fecaca",
+                      color: "#b91c1c",
+                    }}
+                  >
+                    {payout.payout_error}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
 
       {activeTab === "rides" ? (
       <div style={sectionStyle()}>
