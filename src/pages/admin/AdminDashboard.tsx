@@ -506,6 +506,24 @@ function paymentBadgeColor(status: RidePaymentSnapshot["payment_status"]) {
   }
 }
 
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
+  ) {
+    return (error as { message: string }).message;
+  }
+
+  return fallback;
+}
+
 function dbNumber(value?: number | string | null) {
   return Number(value ?? 0);
 }
@@ -795,7 +813,6 @@ export default function AdminDashboard() {
           p_commission_percent: commission,
           p_payout_mode: payoutMode,
           p_min_payout_pi: minPayout,
-          p_updated_by: "admin-dashboard",
         }
       );
 
@@ -809,8 +826,7 @@ export default function AdminDashboard() {
       setPayoutMessage("Payout settings saved successfully.");
       await loadPayoutDashboard();
     } catch (saveError) {
-      const message =
-        saveError instanceof Error ? saveError.message : "Failed to save payout settings.";
+      const message = getErrorMessage(saveError, "Failed to save payout settings.");
       setPayoutError(message);
     } finally {
       setPayoutActionLoading("");
@@ -958,7 +974,6 @@ export default function AdminDashboard() {
         {
           p_admin_session_token: requireAdminSessionToken(),
           p_pi_usd_rate: rate,
-          p_updated_by: "admin-dashboard",
         }
       );
 
@@ -970,8 +985,7 @@ export default function AdminDashboard() {
       setFinanceMessage("Finance settings saved successfully.");
       await loadFinanceDashboard();
     } catch (saveError) {
-      const message =
-        saveError instanceof Error ? saveError.message : "Failed to save finance settings.";
+      const message = getErrorMessage(saveError, "Failed to save finance settings.");
       setFinanceError(message);
     } finally {
       setFinanceActionLoading("");
@@ -1064,7 +1078,6 @@ export default function AdminDashboard() {
           p_vendor: expenseVendor.trim() || null,
           p_payment_method: null,
           p_receipt_file_path: null,
-          p_created_by: "admin-dashboard",
         }
       );
 
@@ -1077,8 +1090,7 @@ export default function AdminDashboard() {
       setFinanceMessage("Expense record created as draft.");
       await loadFinanceDashboard();
     } catch (expenseError) {
-      const message =
-        expenseError instanceof Error ? expenseError.message : "Failed to create expense.";
+      const message = getErrorMessage(expenseError, "Failed to create expense.");
       setFinanceError(message);
     } finally {
       setFinanceActionLoading("");
@@ -1104,10 +1116,7 @@ export default function AdminDashboard() {
       setFinanceMessage("Expense accounting entry posted successfully.");
       await loadFinanceDashboard();
     } catch (postError) {
-      const message =
-        postError instanceof Error
-          ? postError.message
-          : "Failed to post expense accounting entry.";
+      const message = getErrorMessage(postError, "Failed to post expense accounting entry.");
       setFinanceError(message);
     } finally {
       setFinanceActionLoading("");
