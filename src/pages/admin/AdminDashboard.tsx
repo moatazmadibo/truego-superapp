@@ -789,15 +789,8 @@ export default function AdminDashboard() {
       ] = await Promise.all([
         supabase.rpc("get_platform_finance_settings"),
         supabase.rpc("get_accounting_accounts"),
-        supabase
-          .from("accounting_journal_entries")
-          .select("*")
-          .order("entry_date", { ascending: false })
-          .limit(30),
-        supabase
-          .from("accounting_journal_lines")
-          .select("*")
-          .limit(1000),
+        supabase.rpc("get_accounting_journal_entries"),
+        supabase.rpc("get_accounting_journal_lines"),
         supabase.rpc("get_business_expenses"),
       ]);
 
@@ -1867,6 +1860,45 @@ export default function AdminDashboard() {
                 <div style={{ marginTop: 8 }}>
                   Entry date: {formatDateTime(entry.entry_date)} · Rate: {dbNumber(entry.pi_usd_rate_snapshot)}
                 </div>
+
+                <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                  {financeLines
+                    .filter((line) => line.journal_entry_id === entry.id)
+                    .map((line) => (
+                      <div
+                        key={line.id}
+                        style={{
+                          padding: 10,
+                          borderRadius: 10,
+                          background: "#f8fafc",
+                          border: "1px solid #e5e7eb",
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                          gap: 8,
+                        }}
+                      >
+                        <div>
+                          <strong>Account</strong>
+                          <div>{line.account_code}</div>
+                          <div style={{ color: "#64748b", fontSize: 12 }}>
+                            {line.line_description ?? "No description"}
+                          </div>
+                        </div>
+
+                        <div>
+                          <strong>Debit</strong>
+                          <div>{formatPi(dbNumber(line.debit_pi))}</div>
+                          <div>{formatUsd(dbNumber(line.debit_usd))}</div>
+                        </div>
+
+                        <div>
+                          <strong>Credit</strong>
+                          <div>{formatPi(dbNumber(line.credit_pi))}</div>
+                          <div>{formatUsd(dbNumber(line.credit_usd))}</div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
               </div>
             ))}
           </div>
@@ -1879,21 +1911,73 @@ export default function AdminDashboard() {
             ) : null}
 
             {businessExpenses.map((expense) => (
-              <div key={expense.id} style={rideCardStyle()}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <div
+                key={expense.id}
+                style={{
+                  ...rideCardStyle(),
+                  background: expense.status === "draft" ? "#fffbeb" : "#f0fdf4",
+                  border:
+                    expense.status === "draft"
+                      ? "1px solid #fde68a"
+                      : "1px solid #bbf7d0",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    flexWrap: "wrap",
+                    alignItems: "flex-start",
+                  }}
+                >
                   <div>
                     <strong>{expense.description}</strong>
                     <div style={{ marginTop: 6 }}>
                       {expense.vendor ?? "No vendor"} · {expense.category ?? "No category"}
                     </div>
+                    <div style={{ marginTop: 6, color: "#64748b", fontSize: 13 }}>
+                      {expense.status === "draft"
+                        ? "Draft expense: waiting to be posted to the accounting ledger."
+                        : "Posted expense: accounting journal entry has been created."}
+                    </div>
                   </div>
-                  <span style={badgeStyle(expense.status === "draft" ? "#f59e0b" : "#16a34a")}>
-                    {expense.status}
+
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      borderRadius: 999,
+                      padding: "8px 12px",
+                      background: expense.status === "draft" ? "#f59e0b" : "#16a34a",
+                      color: "#ffffff",
+                      fontWeight: 900,
+                      fontSize: 12,
+                      boxShadow:
+                        expense.status === "draft"
+                          ? "0 8px 20px rgba(245, 158, 11, 0.22)"
+                          : "0 8px 20px rgba(22, 163, 74, 0.22)",
+                    }}
+                  >
+                    {expense.status === "draft" ? "Draft · not posted" : "Posted · ledger created"}
                   </span>
                 </div>
 
                 {expense.status === "draft" ? (
-                  <div style={{ marginTop: 12 }}>
+                  <div
+                    style={{
+                      marginTop: 12,
+                      padding: 12,
+                      borderRadius: 12,
+                      background: "#ffffff",
+                      border: "1px solid #fde68a",
+                    }}
+                  >
+                    <strong>Next accounting step</strong>
+                    <p style={{ margin: "6px 0 10px", color: "#92400e" }}>
+                      This expense is saved as a draft. Post it to create the debit and credit journal lines.
+                    </p>
+
                     <button
                       type="button"
                       onClick={() => {
