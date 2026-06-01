@@ -788,11 +788,7 @@ export default function AdminDashboard() {
         expensesResult,
       ] = await Promise.all([
         supabase.rpc("get_platform_finance_settings"),
-        supabase
-          .from("accounting_accounts")
-          .select("*")
-          .eq("is_active", true)
-          .order("code", { ascending: true }),
+        supabase.rpc("get_accounting_accounts"),
         supabase
           .from("accounting_journal_entries")
           .select("*")
@@ -1610,11 +1606,11 @@ export default function AdminDashboard() {
 
           <div style={rideDetailGridStyle()}>
             <div style={rideDetailItemStyle()}>
-              <strong>Manual Pi → USD rate</strong>
+              <strong>Internal Pi valuation: USD per 1 Pi</strong>
               <input
                 value={piUsdRateInput}
                 onChange={(event) => setPiUsdRateInput(event.target.value)}
-                placeholder="Example: 1.25"
+                placeholder="Example: 314159"
                 inputMode="decimal"
                 style={{
                   width: "100%",
@@ -1627,14 +1623,14 @@ export default function AdminDashboard() {
                 }}
               />
               <div style={{ marginTop: 6, color: "#64748b", fontSize: 12 }}>
-                Used only for accounting snapshots and reports.
+                Internal reporting basis. For GCV accounting, use 314159.
               </div>
             </div>
 
             <div style={rideDetailItemStyle()}>
               <strong>Current finance settings</strong>
               <div style={{ marginTop: 8 }}>
-                Pi/USD rate: {dbNumber(financeSettings?.pi_usd_rate).toLocaleString(undefined, {
+                USD per 1 Pi: {dbNumber(financeSettings?.pi_usd_rate).toLocaleString(undefined, {
                   maximumFractionDigits: 8,
                 })}
               </div>
