@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
 import AdminDriverVerificationPanel from "./AdminDriverVerificationPanel";
 import AdminReportsPanel from "./AdminReportsPanel";
+import { requireAdminSessionToken } from "../../components/admin/adminSession";
 import AdminAuditPanel from "./AdminAuditPanel";
 import TrueGoLiveMapCard from "../../components/TrueGoLiveMapCard";
 import {
@@ -788,8 +789,9 @@ export default function AdminDashboard() {
       }
 
       const { data, error: saveError } = await supabase.rpc(
-        "update_platform_payout_settings",
+        "admin_update_platform_payout_settings",
         {
+          p_admin_session_token: requireAdminSessionToken(),
           p_commission_percent: commission,
           p_payout_mode: payoutMode,
           p_min_payout_pi: minPayout,
@@ -837,9 +839,10 @@ export default function AdminDashboard() {
 
       for (const ride of (paidRides ?? []) as RideRow[]) {
         const { error: payoutError } = await supabase.rpc(
-          "upsert_driver_payout_for_completed_ride",
+          "admin_upsert_driver_payout_for_completed_ride",
           {
-            p_ride_id: ride.id,
+            p_admin_session_token: requireAdminSessionToken(),
+          p_ride_id: ride.id,
             p_commission_percent: null,
           }
         );
@@ -951,8 +954,9 @@ export default function AdminDashboard() {
       }
 
       const { data, error: saveError } = await supabase.rpc(
-        "update_platform_finance_settings",
+        "admin_update_platform_finance_settings",
         {
+          p_admin_session_token: requireAdminSessionToken(),
           p_pi_usd_rate: rate,
           p_updated_by: "admin-dashboard",
         }
@@ -996,9 +1000,10 @@ export default function AdminDashboard() {
 
       for (const ride of (paidRides ?? []) as unknown as RideRow[]) {
         const { error: postError } = await supabase.rpc(
-          "post_ride_payment_accounting",
+          "admin_post_ride_payment_accounting",
           {
-            p_ride_id: ride.id,
+            p_admin_session_token: requireAdminSessionToken(),
+          p_ride_id: ride.id,
           }
         );
 
@@ -1048,8 +1053,9 @@ export default function AdminDashboard() {
       }
 
       const { error: expenseError } = await supabase.rpc(
-        "create_business_expense",
+        "admin_create_business_expense",
         {
+          p_admin_session_token: requireAdminSessionToken(),
           p_description: expenseDescription.trim(),
           p_amount: amount,
           p_currency: expenseCurrency,
@@ -1086,8 +1092,9 @@ export default function AdminDashboard() {
 
     try {
       const { error: postError } = await supabase.rpc(
-        "post_business_expense_accounting",
+        "admin_post_business_expense_accounting",
         {
+          p_admin_session_token: requireAdminSessionToken(),
           p_expense_id: expenseId,
         }
       );
