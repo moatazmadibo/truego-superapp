@@ -835,6 +835,44 @@ export default function AdminDashboard() {
     }
   }
 
+  async function backfillDriverPayoutRecords() {
+    setPayoutActionLoading("backfill-payouts");
+    setPayoutError("");
+    setPayoutMessage("");
+
+    try {
+      const commission = Number.parseFloat(commissionInput);
+
+      const { data, error: backfillError } = await supabase.rpc(
+        "admin_backfill_driver_payout_records",
+        {
+          p_admin_session_token: requireAdminSessionToken(),
+          p_commission_percent: Number.isFinite(commission) ? commission : null,
+        }
+      );
+
+      if (backfillError) throw backfillError;
+
+      const result = Array.isArray(data) ? data[0] : null;
+
+      setPayoutMessage(
+        result?.message ??
+          "Driver payout backfill completed. Refreshing payout records."
+      );
+
+      await loadPayoutDashboard();
+      await loadFinanceDashboard();
+    } catch (backfillError) {
+      const message = getErrorMessage(
+        backfillError,
+        "Failed to backfill driver payout records."
+      );
+      setPayoutError(message);
+    } finally {
+      setPayoutActionLoading("");
+    }
+  }
+
   async function generatePendingPayoutRecords() {
     setPayoutActionLoading("generate");
     setPayoutError("");
@@ -3008,6 +3046,19 @@ export default function AdminDashboard() {
                 ? "Generating..."
                 : "Generate payout records from paid rides"}
             </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  void backfillDriverPayoutRecords();
+                }}
+                disabled={payoutActionLoading !== ""}
+                style={tabButtonStyle(false)}
+              >
+                {payoutActionLoading === "backfill-payouts"
+                  ? "Backfilling..."
+                  : "Backfill old paid rides"}
+              </button>
 
             <button
               type="button"
