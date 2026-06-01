@@ -563,7 +563,7 @@ export default function AdminReportsPanel() {
 
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div>
-          <h2 style={{ margin: 0 }}>Reports / التقارير</h2>
+          <h2 style={{ margin: 0 }}>Reports</h2>
           <p style={{ margin: "6px 0 0", color: "#64748b", lineHeight: 1.6 }}>
             Separate operational reports for drivers, rides, payments, and exceptions.
           </p>
