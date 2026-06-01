@@ -352,6 +352,30 @@ function badgeStyle(background: string, color = "#ffffff"): React.CSSProperties 
 }
 
 
+
+function circleStatusBadgeStyle(background: string): React.CSSProperties {
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 58,
+    height: 58,
+    borderRadius: 9999,
+    padding: 0,
+    background,
+    color: "#ffffff",
+    fontWeight: 900,
+    fontSize: 10,
+    lineHeight: 1.1,
+    textAlign: "center",
+    flexShrink: 0,
+    boxShadow:
+      background === "#16a34a"
+        ? "0 8px 20px rgba(22, 163, 74, 0.22)"
+        : "0 8px 20px rgba(100, 116, 139, 0.22)",
+  };
+}
+
 function adminNoticeStyle(): React.CSSProperties {
   return {
     marginTop: 14,
@@ -1853,8 +1877,12 @@ export default function AdminDashboard() {
                     <strong>{entry.description}</strong>
                     <div style={monoTextStyle()}>Source: {entry.source_type} · {entry.source_id}</div>
                   </div>
-                  <span style={badgeStyle(entry.status === "posted" ? "#16a34a" : "#64748b")}>
-                    {entry.status}
+                  <span
+                    style={circleStatusBadgeStyle(
+                      entry.status === "posted" ? "#16a34a" : "#64748b"
+                    )}
+                  >
+                    {entry.status === "posted" ? "Posted" : entry.status}
                   </span>
                 </div>
                 <div style={{ marginTop: 8 }}>
