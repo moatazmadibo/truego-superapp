@@ -1,122 +1,199 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { type FormEvent, type ReactNode, useEffect, useState } from "react";
+import { supabase } from "../../lib/supabase";
 
-const STORAGE_KEY = "truego_admin_access_granted";
+const ADMIN_SESSION_KEY = "truego_admin_access_session";
+const ADMIN_SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000;
+
+type StoredAdminSession = {
+  grantedAt: number;
+  expiresAt: string;
+};
+
+function loadStoredAdminSession() {
+  try {
+    const raw = window.localStorage.getItem(ADMIN_SESSION_KEY);
+
+    if (!raw) {
+      return null;
+    }
+
+    const session = JSON.parse(raw) as StoredAdminSession;
+    const expiresAtMs = Date.parse(session.expiresAt);
+
+    if (!session.grantedAt || !expiresAtMs) {
+      window.localStorage.removeItem(ADMIN_SESSION_KEY);
+      return null;
+    }
+
+    if (Date.now() > expiresAtMs || Date.now() - session.grantedAt > ADMIN_SESSION_MAX_AGE_MS) {
+      window.localStorage.removeItem(ADMIN_SESSION_KEY);
+      return null;
+    }
+
+    return session;
+  } catch {
+    window.localStorage.removeItem(ADMIN_SESSION_KEY);
+    return null;
+  }
+}
+
+function saveAdminSession(expiresAt: string) {
+  const session: StoredAdminSession = {
+    grantedAt: Date.now(),
+    expiresAt,
+  };
+
+  window.localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(session));
+}
+
+function clearAdminSession() {
+  window.localStorage.removeItem(ADMIN_SESSION_KEY);
+}
 
 function pageStyle(): React.CSSProperties {
   return {
     minHeight: "100vh",
     display: "grid",
     placeItems: "center",
-    padding: 20,
-    background: "#f1f5f9",
+    padding: 24,
+    background: "#f8fafc",
+    color: "#0f172a",
   };
 }
 
 function cardStyle(): React.CSSProperties {
   return {
-    width: "100%",
-    maxWidth: 460,
-    padding: 24,
-    borderRadius: 22,
+    width: "min(440px, 100%)",
+    padding: 22,
+    borderRadius: 18,
     background: "#ffffff",
     border: "1px solid #e5e7eb",
-    boxShadow: "0 18px 55px rgba(15, 23, 42, 0.12)",
+    boxShadow: "0 18px 45px rgba(15, 23, 42, 0.10)",
   };
 }
 
 function inputStyle(): React.CSSProperties {
   return {
     width: "100%",
+    marginTop: 8,
     padding: "12px 14px",
     borderRadius: 12,
     border: "1px solid #cbd5e1",
     font: "inherit",
     boxSizing: "border-box",
-    marginTop: 8,
   };
 }
 
-function buttonStyle(background: string): React.CSSProperties {
+function buttonStyle(disabled = false): React.CSSProperties {
   return {
     width: "100%",
     marginTop: 14,
     padding: "12px 14px",
-    borderRadius: 12,
-    border: 0,
-    background,
+    borderRadius: 999,
+    border: "1px solid #111827",
+    background: disabled ? "#64748b" : "#111827",
     color: "#ffffff",
     fontWeight: 900,
+    cursor: disabled ? "not-allowed" : "pointer",
+  };
+}
+
+function lockButtonStyle(): React.CSSProperties {
+  return {
+    position: "fixed",
+    top: 14,
+    right: 14,
+    zIndex: 50,
+    padding: "8px 12px",
+    borderRadius: 999,
+    border: "1px solid #334155",
+    background: "#020617",
+    color: "#ffffff",
+    fontWeight: 800,
     cursor: "pointer",
   };
 }
 
 export default function AdminAccessGate({ children }: { children: ReactNode }) {
-  const configuredCode =
-    (import.meta.env.VITE_TRUEGO_ADMIN_ACCESS_CODE as string | undefined)?.trim() ||
-    "truego-admin-demo";
-
-  const [isGranted, setIsGranted] = useState(false);
-  const [code, setCode] = useState("");
+  const [hasAccess, setHasAccess] = useState(false);
+  const [accessCode, setAccessCode] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    setIsGranted(window.localStorage.getItem(STORAGE_KEY) === "yes");
+    const session = loadStoredAdminSession();
+    setHasAccess(Boolean(session));
+    setLoading(false);
   }, []);
 
-  function unlock() {
-    setError("");
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
 
-    if (code.trim() !== configuredCode) {
-      setError("Invalid admin access code.");
+    const cleanCode = accessCode.trim();
+
+    if (!cleanCode) {
+      setError("Enter the admin access code.");
       return;
     }
 
-    window.localStorage.setItem(STORAGE_KEY, "yes");
-    setIsGranted(true);
+    setChecking(true);
+    setError("");
+
+    try {
+      const { data, error: verifyError } = await supabase.functions.invoke<{
+        ok: boolean;
+        expiresAt?: string;
+        error?: string;
+      }>("admin-access-verify", {
+        body: {
+          accessCode: cleanCode,
+        },
+      });
+
+      if (verifyError) {
+        throw verifyError;
+      }
+
+      if (!data?.ok || !data.expiresAt) {
+        throw new Error(data?.error ?? "Invalid admin access code.");
+      }
+
+      saveAdminSession(data.expiresAt);
+      setAccessCode("");
+      setHasAccess(true);
+    } catch (verifyError) {
+      const message =
+        verifyError instanceof Error ? verifyError.message : "Invalid admin access code.";
+      setError(message);
+    } finally {
+      setChecking(false);
+    }
   }
 
-  function lock() {
-    window.localStorage.removeItem(STORAGE_KEY);
-    setIsGranted(false);
-    setCode("");
+  function handleLockAdmin() {
+    clearAdminSession();
+    setHasAccess(false);
+    setAccessCode("");
+    setError("");
   }
 
-  if (isGranted) {
+  if (loading) {
+    return (
+      <div style={pageStyle()}>
+        <div style={cardStyle()}>
+          <strong>Loading admin access...</strong>
+        </div>
+      </div>
+    );
+  }
+
+  if (hasAccess) {
     return (
       <>
-        <div
-          style={{
-            position: "sticky",
-            top: 0,
-            zIndex: 20,
-            padding: "8px 12px",
-            background: "#111827",
-            color: "#ffffff",
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 12,
-            alignItems: "center",
-            fontSize: 13,
-          }}
-        >
-          <strong>TrueGo Admin Platform</strong>
-          <button
-            type="button"
-            onClick={lock}
-            style={{
-              border: "1px solid rgba(255,255,255,0.35)",
-              borderRadius: 999,
-              background: "transparent",
-              color: "#ffffff",
-              padding: "6px 10px",
-              cursor: "pointer",
-              fontWeight: 800,
-            }}
-          >
-            Lock admin
-          </button>
-        </div>
-
+        <button type="button" onClick={handleLockAdmin} style={lockButtonStyle()}>
+          Lock admin
+        </button>
         {children}
       </>
     );
@@ -124,49 +201,25 @@ export default function AdminAccessGate({ children }: { children: ReactNode }) {
 
   return (
     <div style={pageStyle()}>
-      <div style={cardStyle()}>
-        <div
-          style={{
-            display: "inline-flex",
-            borderRadius: 999,
-            padding: "6px 10px",
-            background: "#dcfce7",
-            color: "#166534",
-            fontWeight: 900,
-            fontSize: 12,
-          }}
-        >
-          Admin access
-        </div>
-
-        <h1 style={{ marginBottom: 8 }}>TrueGo Admin Platform</h1>
-
+      <form onSubmit={handleSubmit} style={cardStyle()}>
+        <h1 style={{ marginTop: 0, marginBottom: 8 }}>TrueGo Admin Access</h1>
         <p style={{ marginTop: 0, color: "#64748b", lineHeight: 1.6 }}>
-          This operations dashboard is separated from Pi user login. Enter the
-          admin access code to monitor rides, payments, driver verification, and
-          live ride movement.
+          Enter the admin access code to monitor rides, payments, driver verification,
+          finance, reports, payouts, and audit logs.
         </p>
 
-        <label style={{ display: "block", fontWeight: 900 }}>
+        <label htmlFor="truego-admin-access-code" style={{ fontWeight: 800 }}>
           Admin access code
         </label>
-
         <input
-          value={code}
-          onChange={(event) => setCode(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              unlock();
-            }
-          }}
+          id="truego-admin-access-code"
           type="password"
-          placeholder="Enter admin code"
+          value={accessCode}
+          onChange={(event) => setAccessCode(event.target.value)}
+          placeholder="Enter access code"
+          autoComplete="current-password"
           style={inputStyle()}
         />
-
-        <button type="button" onClick={unlock} style={buttonStyle("#16a34a")}>
-          Open Admin Platform
-        </button>
 
         {error ? (
           <div
@@ -177,29 +230,20 @@ export default function AdminAccessGate({ children }: { children: ReactNode }) {
               background: "#fef2f2",
               border: "1px solid #fecaca",
               color: "#b91c1c",
-              fontWeight: 800,
             }}
           >
             {error}
           </div>
         ) : null}
 
-        <div
-          style={{
-            marginTop: 14,
-            padding: 12,
-            borderRadius: 12,
-            background: "#f8fafc",
-            border: "1px solid #e5e7eb",
-            color: "#475569",
-            lineHeight: 1.6,
-            fontSize: 13,
-          }}
-        >
-          Demo note: for production, this should be replaced with server-side
-          admin roles and Supabase RLS policies.
-        </div>
-      </div>
+        <button type="submit" disabled={checking} style={buttonStyle(checking)}>
+          {checking ? "Checking..." : "Unlock admin"}
+        </button>
+
+        <p style={{ marginBottom: 0, marginTop: 12, color: "#94a3b8", fontSize: 12 }}>
+          Admin sessions are stored locally for up to 8 hours.
+        </p>
+      </form>
     </div>
   );
 }
