@@ -152,6 +152,37 @@ type AccountStatementRow = {
   balance_usd: number | string;
 };
 
+type DriverStatementDriverRow = {
+  demo_driver_id: string;
+  driver_name: string;
+  driver_pi_uid: string | null;
+  driver_pi_username: string | null;
+  payout_count: number | string;
+  pending_amount_pi: number | string;
+  paid_amount_pi: number | string;
+};
+
+type DriverStatementRow = {
+  payout_id: string;
+  ride_id: string;
+  demo_driver_id: string;
+  driver_name: string;
+  driver_pi_uid: string | null;
+  driver_pi_username: string | null;
+  source_payment_completed_at: string | null;
+  gross_amount_pi: number | string;
+  commission_percent: number | string;
+  app_commission_pi: number | string;
+  driver_payout_pi: number | string;
+  payout_status: "pending" | "processing" | "paid" | "failed" | "cancelled";
+  payout_payment_id: string | null;
+  payout_txid: string | null;
+  payout_error: string | null;
+  requested_at: string | null;
+  processed_at: string | null;
+  running_driver_payable_pi: number | string;
+};
+
 function formatStatus(status: RideRow["status"]) {
   switch (status) {
     case "searching":
@@ -683,6 +714,17 @@ export default function AdminDashboard() {
   );
   const [statementRows, setStatementRows] = useState<AccountStatementRow[]>([]);
   const [statementLoading, setStatementLoading] = useState(false);
+  const [driverStatementDrivers, setDriverStatementDrivers] = useState<DriverStatementDriverRow[]>([]);
+  const [driverStatementDriverId, setDriverStatementDriverId] = useState("");
+  const [driverStatementFromDate, setDriverStatementFromDate] = useState(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
+  });
+  const [driverStatementToDate, setDriverStatementToDate] = useState(() =>
+    new Date().toISOString().slice(0, 10)
+  );
+  const [driverStatementRows, setDriverStatementRows] = useState<DriverStatementRow[]>([]);
+  const [driverStatementLoading, setDriverStatementLoading] = useState(false);
   const [monitorMessages, setMonitorMessages] = useState<RideMessageRow[]>([]);
   const [monitorCallEvents, setMonitorCallEvents] = useState<RideCallEventRow[]>([]);
   const [monitorActivityLoading, setMonitorActivityLoading] = useState(false);
@@ -870,6 +912,19 @@ export default function AdminDashboard() {
       setFinanceLines((linesResult.data ?? []) as unknown as AccountingJournalLineRow[]);
       setBusinessExpenses((expensesResult.data ?? []) as unknown as BusinessExpenseRow[]);
       setPayoutRows((payoutsResult.data ?? []) as unknown as DriverPayoutRow[]);
+
+      const { data: driverRows, error: driverRowsError } = await supabase.rpc(
+        "get_driver_statement_drivers"
+      );
+
+      if (driverRowsError) throw driverRowsError;
+
+      const nextDriverRows = (driverRows ?? []) as unknown as DriverStatementDriverRow[];
+      setDriverStatementDrivers(nextDriverRows);
+
+      if (!driverStatementDriverId && nextDriverRows.length > 0) {
+        setDriverStatementDriverId(nextDriverRows[0].demo_driver_id);
+      }
     } catch (loadError) {
       const message =
         loadError instanceof Error
@@ -1083,6 +1138,47 @@ export default function AdminDashboard() {
   }
 
   function printAccountStatement() {
+    window.print();
+  }
+
+  async function loadDriverStatement() {
+    setDriverStatementLoading(true);
+    setFinanceError("");
+    setFinanceMessage("");
+
+    try {
+      const selectedDriverId =
+        driverStatementDriverId || driverStatementDrivers[0]?.demo_driver_id || "";
+
+      if (!selectedDriverId) {
+        throw new Error("No driver is available for statement printing yet.");
+      }
+
+      const { data, error: statementError } = await supabase.rpc(
+        "get_driver_statement",
+        {
+          p_demo_driver_id: selectedDriverId,
+          p_from_date: driverStatementFromDate || null,
+          p_to_date: driverStatementToDate || null,
+        }
+      );
+
+      if (statementError) throw statementError;
+
+      setDriverStatementRows((data ?? []) as unknown as DriverStatementRow[]);
+      setDriverStatementDriverId(selectedDriverId);
+    } catch (statementError) {
+      const message =
+        statementError instanceof Error
+          ? statementError.message
+          : "Failed to load driver statement.";
+      setFinanceError(message);
+    } finally {
+      setDriverStatementLoading(false);
+    }
+  }
+
+  function printDriverStatement() {
     window.print();
   }
 
@@ -1672,7 +1768,8 @@ export default function AdminDashboard() {
                   visibility: visible !important;
                 }
 
-                .truego-print-statement {
+                .truego-print-statement,
+                .truego-print-driver-statement {
                   position: absolute !important;
                   left: 0 !important;
                   top: 0 !important;
@@ -2111,6 +2208,193 @@ export default function AdminDashboard() {
                         </td>
                         <td style={{ padding: 8, textAlign: "right", borderBottom: "1px solid #f1f5f9" }}>
                           {formatUsd(dbNumber(row.balance_usd))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div
+            className="truego-print-driver-statement"
+            style={{
+              marginTop: 18,
+              padding: 14,
+              borderRadius: 14,
+              background: "#ffffff",
+              border: "1px solid #e5e7eb",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 12,
+                alignItems: "flex-start",
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0 }}>Driver Statement / كشف حساب سائق</h3>
+                <p style={{ margin: "6px 0 0", color: "#64748b", lineHeight: 1.6 }}>
+                  Print a driver payout statement for a selected period.
+                </p>
+              </div>
+
+              <button
+                className="truego-no-print"
+                type="button"
+                onClick={printDriverStatement}
+                disabled={driverStatementRows.length === 0}
+                style={tabButtonStyle(false)}
+              >
+                Print driver statement
+              </button>
+            </div>
+
+            <div className="truego-no-print" style={rideDetailGridStyle()}>
+              <div style={rideDetailItemStyle()}>
+                <strong>Driver</strong>
+                <select
+                  value={driverStatementDriverId}
+                  onChange={(event) => setDriverStatementDriverId(event.target.value)}
+                  style={{
+                    width: "100%",
+                    marginTop: 8,
+                    padding: 11,
+                    borderRadius: 10,
+                    border: "1px solid #cbd5e1",
+                    font: "inherit",
+                  }}
+                >
+                  {driverStatementDrivers.map((driver) => (
+                    <option key={driver.demo_driver_id} value={driver.demo_driver_id}>
+                      {driver.driver_name} · {driver.driver_pi_username ? `@${driver.driver_pi_username}` : "No Pi username"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={rideDetailItemStyle()}>
+                <strong>From date</strong>
+                <input
+                  type="date"
+                  value={driverStatementFromDate}
+                  onChange={(event) => setDriverStatementFromDate(event.target.value)}
+                  style={{
+                    width: "100%",
+                    marginTop: 8,
+                    padding: 11,
+                    borderRadius: 10,
+                    border: "1px solid #cbd5e1",
+                    font: "inherit",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              <div style={rideDetailItemStyle()}>
+                <strong>To date</strong>
+                <input
+                  type="date"
+                  value={driverStatementToDate}
+                  onChange={(event) => setDriverStatementToDate(event.target.value)}
+                  style={{
+                    width: "100%",
+                    marginTop: 8,
+                    padding: 11,
+                    borderRadius: 10,
+                    border: "1px solid #cbd5e1",
+                    font: "inherit",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="truego-no-print" style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  void loadDriverStatement();
+                }}
+                disabled={driverStatementLoading}
+                style={tabButtonStyle(false)}
+              >
+                {driverStatementLoading ? "Loading driver statement..." : "Load driver statement"}
+              </button>
+            </div>
+
+            <div style={{ marginTop: 16 }}>
+              <strong>
+                {driverStatementDrivers.find((driver) => driver.demo_driver_id === driverStatementDriverId)?.driver_name ??
+                  "Selected driver"}
+              </strong>
+              <div style={{ marginTop: 4, color: "#64748b", fontSize: 13 }}>
+                Pi:{" "}
+                {driverStatementDrivers.find((driver) => driver.demo_driver_id === driverStatementDriverId)?.driver_pi_username
+                  ? `@${driverStatementDrivers.find((driver) => driver.demo_driver_id === driverStatementDriverId)?.driver_pi_username}`
+                  : "N/A"}
+              </div>
+              <div style={{ marginTop: 4, color: "#64748b", fontSize: 13 }}>
+                Period: {driverStatementFromDate || "Beginning"} → {driverStatementToDate || "Today"}
+              </div>
+            </div>
+
+            {driverStatementRows.length === 0 ? (
+              <p style={{ color: "#64748b" }}>
+                No driver payout lines loaded yet. They will appear after completed paid rides are generated into payout records.
+              </p>
+            ) : (
+              <div style={{ marginTop: 12, overflowX: "auto" }}>
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    fontSize: 13,
+                  }}
+                >
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Date</th>
+                      <th style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Ride</th>
+                      <th style={{ textAlign: "right", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Gross Pi</th>
+                      <th style={{ textAlign: "right", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Commission</th>
+                      <th style={{ textAlign: "right", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Driver payout Pi</th>
+                      <th style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Status</th>
+                      <th style={{ textAlign: "right", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Running payable Pi</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {driverStatementRows.map((row) => (
+                      <tr key={row.payout_id}>
+                        <td style={{ padding: 8, borderBottom: "1px solid #f1f5f9" }}>
+                          {formatDateTime(row.source_payment_completed_at ?? row.requested_at)}
+                        </td>
+                        <td style={{ padding: 8, borderBottom: "1px solid #f1f5f9" }}>
+                          <div style={monoTextStyle()}>{row.ride_id}</div>
+                          {row.payout_txid ? (
+                            <div style={monoTextStyle()}>TXID: {row.payout_txid}</div>
+                          ) : null}
+                        </td>
+                        <td style={{ padding: 8, textAlign: "right", borderBottom: "1px solid #f1f5f9" }}>
+                          {dbNumber(row.gross_amount_pi).toFixed(8)}
+                        </td>
+                        <td style={{ padding: 8, textAlign: "right", borderBottom: "1px solid #f1f5f9" }}>
+                          {formatPercent(row.commission_percent)}
+                          <div>{dbNumber(row.app_commission_pi).toFixed(8)} Pi</div>
+                        </td>
+                        <td style={{ padding: 8, textAlign: "right", borderBottom: "1px solid #f1f5f9" }}>
+                          {dbNumber(row.driver_payout_pi).toFixed(8)}
+                        </td>
+                        <td style={{ padding: 8, borderBottom: "1px solid #f1f5f9" }}>
+                          {formatPayoutStatus(row.payout_status)}
+                        </td>
+                        <td style={{ padding: 8, textAlign: "right", borderBottom: "1px solid #f1f5f9" }}>
+                          {dbNumber(row.running_driver_payable_pi).toFixed(8)}
                         </td>
                       </tr>
                     ))}
