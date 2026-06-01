@@ -134,6 +134,24 @@ type BusinessExpenseRow = {
   updated_at: string;
 };
 
+type AccountStatementRow = {
+  entry_date: string;
+  journal_entry_id: string;
+  source_type: string;
+  source_id: string;
+  journal_description: string;
+  account_code: string;
+  account_name: string;
+  normal_balance: "debit" | "credit";
+  line_description: string | null;
+  debit_pi: number | string;
+  credit_pi: number | string;
+  debit_usd: number | string;
+  credit_usd: number | string;
+  balance_pi: number | string;
+  balance_usd: number | string;
+};
+
 function formatStatus(status: RideRow["status"]) {
   switch (status) {
     case "searching":
@@ -221,6 +239,8 @@ function formatAdminDriverIdentity(ride: RideRow) {
 function formatPi(value: number) {
   return formatPiAmount(value);
 }
+
+
 
 
 function formatUsd(value: number) {
@@ -653,6 +673,16 @@ export default function AdminDashboard() {
   const [expenseAccountCode, setExpenseAccountCode] = useState("5000");
   const [expenseCategory, setExpenseCategory] = useState("");
   const [expenseVendor, setExpenseVendor] = useState("");
+  const [statementAccountCode, setStatementAccountCode] = useState("1000");
+  const [statementFromDate, setStatementFromDate] = useState(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
+  });
+  const [statementToDate, setStatementToDate] = useState(() =>
+    new Date().toISOString().slice(0, 10)
+  );
+  const [statementRows, setStatementRows] = useState<AccountStatementRow[]>([]);
+  const [statementLoading, setStatementLoading] = useState(false);
   const [monitorMessages, setMonitorMessages] = useState<RideMessageRow[]>([]);
   const [monitorCallEvents, setMonitorCallEvents] = useState<RideCallEventRow[]>([]);
   const [monitorActivityLoading, setMonitorActivityLoading] = useState(false);
@@ -1018,6 +1048,42 @@ export default function AdminDashboard() {
     } finally {
       setFinanceActionLoading("");
     }
+  }
+
+  async function loadAccountStatement() {
+    setStatementLoading(true);
+    setFinanceError("");
+    setFinanceMessage("");
+
+    try {
+      const selectedAccount = statementAccountCode || financeAccounts[0]?.code || "1000";
+
+      const { data, error: statementError } = await supabase.rpc(
+        "get_account_statement",
+        {
+          p_account_code: selectedAccount,
+          p_from_date: statementFromDate || null,
+          p_to_date: statementToDate || null,
+        }
+      );
+
+      if (statementError) throw statementError;
+
+      setStatementRows((data ?? []) as unknown as AccountStatementRow[]);
+      setStatementAccountCode(selectedAccount);
+    } catch (statementError) {
+      const message =
+        statementError instanceof Error
+          ? statementError.message
+          : "Failed to load account statement.";
+      setFinanceError(message);
+    } finally {
+      setStatementLoading(false);
+    }
+  }
+
+  function printAccountStatement() {
+    window.print();
   }
 
   async function loadDashboard() {
@@ -1594,6 +1660,35 @@ export default function AdminDashboard() {
             </span>
           </div>
 
+          <style>
+            {`
+              @media print {
+                body * {
+                  visibility: hidden !important;
+                }
+
+                .truego-print-statement,
+                .truego-print-statement * {
+                  visibility: visible !important;
+                }
+
+                .truego-print-statement {
+                  position: absolute !important;
+                  left: 0 !important;
+                  top: 0 !important;
+                  width: 100% !important;
+                  background: #ffffff !important;
+                  padding: 24px !important;
+                  color: #000000 !important;
+                }
+
+                .truego-no-print {
+                  display: none !important;
+                }
+              }
+            `}
+          </style>
+
           {financeError ? (
             <div
               style={{
@@ -1840,6 +1935,189 @@ export default function AdminDashboard() {
                 </div>
               ))}
             </div>
+          </div>
+
+          <div
+            className="truego-print-statement"
+            style={{
+              marginTop: 18,
+              padding: 14,
+              borderRadius: 14,
+              background: "#ffffff",
+              border: "1px solid #e5e7eb",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 12,
+                alignItems: "flex-start",
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0 }}>Account Statement / كشف حساب</h3>
+                <p style={{ margin: "6px 0 0", color: "#64748b", lineHeight: 1.6 }}>
+                  Print a statement for one account within a selected date range.
+                </p>
+              </div>
+
+              <button
+                className="truego-no-print"
+                type="button"
+                onClick={printAccountStatement}
+                disabled={statementRows.length === 0}
+                style={tabButtonStyle(false)}
+              >
+                Print statement
+              </button>
+            </div>
+
+            <div className="truego-no-print" style={rideDetailGridStyle()}>
+              <div style={rideDetailItemStyle()}>
+                <strong>Account</strong>
+                <select
+                  value={statementAccountCode}
+                  onChange={(event) => setStatementAccountCode(event.target.value)}
+                  style={{
+                    width: "100%",
+                    marginTop: 8,
+                    padding: 11,
+                    borderRadius: 10,
+                    border: "1px solid #cbd5e1",
+                    font: "inherit",
+                  }}
+                >
+                  {financeAccounts.map((account) => (
+                    <option key={account.code} value={account.code}>
+                      {account.code} · {account.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={rideDetailItemStyle()}>
+                <strong>From date</strong>
+                <input
+                  type="date"
+                  value={statementFromDate}
+                  onChange={(event) => setStatementFromDate(event.target.value)}
+                  style={{
+                    width: "100%",
+                    marginTop: 8,
+                    padding: 11,
+                    borderRadius: 10,
+                    border: "1px solid #cbd5e1",
+                    font: "inherit",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              <div style={rideDetailItemStyle()}>
+                <strong>To date</strong>
+                <input
+                  type="date"
+                  value={statementToDate}
+                  onChange={(event) => setStatementToDate(event.target.value)}
+                  style={{
+                    width: "100%",
+                    marginTop: 8,
+                    padding: 11,
+                    borderRadius: 10,
+                    border: "1px solid #cbd5e1",
+                    font: "inherit",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="truego-no-print" style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  void loadAccountStatement();
+                }}
+                disabled={statementLoading}
+                style={tabButtonStyle(false)}
+              >
+                {statementLoading ? "Loading statement..." : "Load statement"}
+              </button>
+            </div>
+
+            <div style={{ marginTop: 16 }}>
+              <strong>
+                {financeAccounts.find((account) => account.code === statementAccountCode)?.code ?? statementAccountCode}
+                {" · "}
+                {financeAccounts.find((account) => account.code === statementAccountCode)?.name ?? "Selected account"}
+              </strong>
+              <div style={{ marginTop: 4, color: "#64748b", fontSize: 13 }}>
+                Period: {statementFromDate || "Beginning"} → {statementToDate || "Today"}
+              </div>
+            </div>
+
+            {statementRows.length === 0 ? (
+              <p style={{ color: "#64748b" }}>No statement lines loaded yet.</p>
+            ) : (
+              <div style={{ marginTop: 12, overflowX: "auto" }}>
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    fontSize: 13,
+                  }}
+                >
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Date</th>
+                      <th style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Description</th>
+                      <th style={{ textAlign: "right", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Debit Pi</th>
+                      <th style={{ textAlign: "right", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Credit Pi</th>
+                      <th style={{ textAlign: "right", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Debit USD</th>
+                      <th style={{ textAlign: "right", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Credit USD</th>
+                      <th style={{ textAlign: "right", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Balance Pi</th>
+                      <th style={{ textAlign: "right", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Balance USD</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {statementRows.map((row, index) => (
+                      <tr key={`${row.journal_entry_id}:${index}`}>
+                        <td style={{ padding: 8, borderBottom: "1px solid #f1f5f9" }}>
+                          {formatDateTime(row.entry_date)}
+                        </td>
+                        <td style={{ padding: 8, borderBottom: "1px solid #f1f5f9" }}>
+                          <strong>{row.journal_description}</strong>
+                          <div style={{ color: "#64748b", fontSize: 12 }}>
+                            {row.line_description ?? row.source_type}
+                          </div>
+                        </td>
+                        <td style={{ padding: 8, textAlign: "right", borderBottom: "1px solid #f1f5f9" }}>
+                          {dbNumber(row.debit_pi).toFixed(8)}
+                        </td>
+                        <td style={{ padding: 8, textAlign: "right", borderBottom: "1px solid #f1f5f9" }}>
+                          {dbNumber(row.credit_pi).toFixed(8)}
+                        </td>
+                        <td style={{ padding: 8, textAlign: "right", borderBottom: "1px solid #f1f5f9" }}>
+                          {formatUsd(dbNumber(row.debit_usd))}
+                        </td>
+                        <td style={{ padding: 8, textAlign: "right", borderBottom: "1px solid #f1f5f9" }}>
+                          {formatUsd(dbNumber(row.credit_usd))}
+                        </td>
+                        <td style={{ padding: 8, textAlign: "right", borderBottom: "1px solid #f1f5f9" }}>
+                          {dbNumber(row.balance_pi).toFixed(8)}
+                        </td>
+                        <td style={{ padding: 8, textAlign: "right", borderBottom: "1px solid #f1f5f9" }}>
+                          {formatUsd(dbNumber(row.balance_usd))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           <div style={{ marginTop: 18 }}>
