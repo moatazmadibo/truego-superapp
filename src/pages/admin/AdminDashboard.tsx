@@ -518,7 +518,8 @@ function getErrorMessage(error: unknown, fallback: string) {
     "message" in error &&
     typeof (error as { message?: unknown }).message === "string"
   ) {
-    return (error as { message: string }).message;
+
+  return (error as { message: string }).message;
   }
 
   return fallback;
@@ -709,6 +710,7 @@ export default function AdminDashboard() {
   const [payoutActionLoading, setPayoutActionLoading] = useState("");
   const [payoutError, setPayoutError] = useState("");
   const [payoutMessage, setPayoutMessage] = useState("");
+  const [manualPayoutId, setManualPayoutId] = useState("");
   const [financeSettings, setFinanceSettings] = useState<PlatformFinanceSettings | null>(null);
   const [piUsdRateInput, setPiUsdRateInput] = useState("0");
   const [financeAccounts, setFinanceAccounts] = useState<AccountingAccountRow[]>([]);
@@ -1200,6 +1202,73 @@ export default function AdminDashboard() {
     window.print();
   }
 
+  async function updateManualDriverPayoutStatus(
+    nextStatus: "pending" | "processing" | "paid" | "failed" | "cancelled"
+  ) {
+    const selectedPayout =
+      payoutRows.find((row) => row.id === manualPayoutId) ?? payoutRows[0] ?? null;
+
+    if (!selectedPayout) {
+      setPayoutError("No payout record is selected.");
+      return;
+    }
+
+    let payoutPaymentId = "";
+    let payoutTxid = "";
+    let payoutErrorText = "";
+
+    if (nextStatus === "paid") {
+      const txid = window.prompt(
+        "Enter payout TXID or manual transfer reference for the driver payout:"
+      );
+
+      if (!txid?.trim()) {
+        setPayoutError("TXID or transfer reference is required to mark payout as paid.");
+        return;
+      }
+
+      payoutTxid = txid.trim();
+      payoutPaymentId = window.prompt("Optional payout payment ID/reference:")?.trim() ?? "";
+    }
+
+    if (nextStatus === "failed") {
+      payoutErrorText =
+        window.prompt("Enter payout failure reason:")?.trim() || "Manual payout failed.";
+    }
+
+    setPayoutActionLoading(`manual-payout:${nextStatus}`);
+    setPayoutError("");
+    setPayoutMessage("");
+
+    try {
+      const { error: updateError } = await supabase.rpc(
+        "admin_update_driver_payout_status",
+        {
+          p_admin_session_token: requireAdminSessionToken(),
+          p_payout_id: selectedPayout.id,
+          p_next_status: nextStatus,
+          p_payout_payment_id: payoutPaymentId || null,
+          p_payout_txid: payoutTxid || null,
+          p_payout_error: payoutErrorText || null,
+        }
+      );
+
+      if (updateError) throw updateError;
+
+      setPayoutMessage(`Driver payout status updated to ${nextStatus}.`);
+      await loadPayoutDashboard();
+      await loadFinanceDashboard();
+    } catch (updateError) {
+      const message = getErrorMessage(
+        updateError,
+        "Failed to update driver payout status."
+      );
+      setPayoutError(message);
+    } finally {
+      setPayoutActionLoading("");
+    }
+  }
+
   async function loadDashboard() {
     try {
       setError(null);
@@ -1381,6 +1450,12 @@ export default function AdminDashboard() {
       .filter((line) => line.account_code.startsWith("5"))
       .reduce((sum, line) => sum + dbNumber(line.debit_usd) - dbNumber(line.credit_usd), 0),
   };
+
+  const selectedManualPayout =
+    payoutRows.find((row: DriverPayoutRow) => row.id === manualPayoutId) ??
+    payoutRows[0] ??
+    null;
+
 
   return (
     <div style={pageStyle()}>      <h1 style={{ marginTop: 0, marginBottom: 0 }}>TrueGo Admin Dashboard</h1>
@@ -2947,7 +3022,95 @@ export default function AdminDashboard() {
           </div>
 
           <div style={{ marginTop: 16 }}>
-            <h3 style={{ marginBottom: 8 }}>Driver payout records</h3>
+            <div
+            style={{
+              marginTop: 18,
+              padding: 14,
+              borderRadius: 14,
+              background: "#f8fafc",
+              border: "1px solid #e5e7eb",
+            }}
+          >
+            <h3 style={{ marginTop: 0, marginBottom: 8 }}>Manual payout workflow</h3>
+            <p style={{ marginTop: 0, color: "#64748b", lineHeight: 1.6 }}>
+              Select a payout record and update its manual operational status. This does not send Pi automatically.
+            </p>
+
+            {payoutRows.length === 0 ? (
+              <p style={{ color: "#64748b" }}>
+                No payout records yet. Generate payout records from completed paid rides first.
+              </p>
+            ) : (
+              <>
+                <div style={rideDetailGridStyle()}>
+                  <div style={rideDetailItemStyle()}>
+                    <strong>Payout record</strong>
+                    <select
+                      value={selectedManualPayout?.id ?? ""}
+                      onChange={(event) => setManualPayoutId(event.target.value)}
+                      style={{
+                        width: "100%",
+                        marginTop: 8,
+                        padding: 11,
+                        borderRadius: 10,
+                        border: "1px solid #cbd5e1",
+                        font: "inherit",
+                      }}
+                    >
+                      {payoutRows.map((payout) => (
+                        <option key={payout.id} value={payout.id}>
+                          {payout.driver_name ?? "Unknown driver"} · {formatPi(dbNumber(payout.driver_payout_pi))} · {formatPayoutStatus(payout.payout_status)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={rideDetailItemStyle()}>
+                    <strong>Selected payout</strong>
+                    <div>{selectedManualPayout?.driver_name ?? "N/A"}</div>
+                    <div>{selectedManualPayout ? formatPi(dbNumber(selectedManualPayout.driver_payout_pi)) : "N/A"}</div>
+                    <div>Status: {selectedManualPayout ? formatPayoutStatus(selectedManualPayout.payout_status) : "N/A"}</div>
+                  </div>
+
+                  <div style={rideDetailItemStyle()}>
+                    <strong>Pi account</strong>
+                    <div>
+                      {selectedManualPayout?.driver_pi_username
+                        ? `@${selectedManualPayout.driver_pi_username}`
+                        : "No Pi username"}
+                    </div>
+                    <div style={monoTextStyle()}>
+                      {selectedManualPayout?.driver_pi_uid ?? "No Pi UID"}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+                  {([
+                    ["processing", "Mark processing"],
+                    ["paid", "Mark paid"],
+                    ["failed", "Mark failed"],
+                    ["cancelled", "Cancel payout"],
+                    ["pending", "Back to pending"],
+                  ] as const).map(([status, label]) => (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => {
+                        void updateManualDriverPayoutStatus(status);
+                      }}
+                      disabled={payoutActionLoading !== ""}
+                      style={tabButtonStyle(false)}
+                    >
+                      {payoutActionLoading === `manual-payout:${status}` ? "Saving..." : label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          <h3 style={{ marginBottom: 8 }}>Driver payout records</h3>
 
             {payoutLoading ? <p>Loading payouts...</p> : null}
 
@@ -3087,7 +3250,7 @@ export default function AdminDashboard() {
               const payment = getPaymentSnapshot(ride);
               const paymentReview = getPaymentReview(payment);
 
-              return (
+  return (
                 <div key={ride.id} style={rideCardStyle()}>
                   <div
                     style={{
