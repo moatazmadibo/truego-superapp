@@ -798,11 +798,7 @@ export default function AdminDashboard() {
           .from("accounting_journal_lines")
           .select("*")
           .limit(1000),
-        supabase
-          .from("business_expenses")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(30),
+        supabase.rpc("get_business_expenses"),
       ]);
 
       if (settingsResult.error) throw settingsResult.error;
