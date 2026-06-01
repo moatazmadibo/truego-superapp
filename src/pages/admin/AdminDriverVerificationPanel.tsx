@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabase";
+import { requireAdminSessionToken } from "../../components/admin/adminSession";
 
 type VerificationStatus =
   | "pending"
@@ -128,6 +129,24 @@ function statStyle(): React.CSSProperties {
     background: "#f8fafc",
     border: "1px solid #e5e7eb",
   };
+}
+
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
+  ) {
+    return (error as { message: string }).message;
+  }
+
+  return fallback;
 }
 
 function badgeColor(status: VerificationStatus) {
@@ -504,14 +523,15 @@ export default function AdminDriverVerificationPanel() {
     setError("");
     setMessage("");
 
-    const { error: reviewError } = await supabase.rpc("review_demo_driver_verification", {
+    const { error: reviewError } = await supabase.rpc("admin_review_demo_driver_verification", {
+      p_admin_session_token: requireAdminSessionToken(),
       p_demo_driver_id: row.demo_driver_id,
       p_verification_status: nextStatus,
       p_admin_review_notes: notes[row.demo_driver_id] || null,
     });
 
     if (reviewError) {
-      setError(reviewError.message);
+      setError(getErrorMessage(reviewError, "Failed to review driver verification."));
     } else {
       setMessage(`${row.driver_name} marked as ${formatStatus(nextStatus)}.`);
       await loadRows();
