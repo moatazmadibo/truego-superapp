@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
 import AdminDriverVerificationPanel from "./AdminDriverVerificationPanel";
 import AdminReportsPanel from "./AdminReportsPanel";
+import AdminAuditPanel from "./AdminAuditPanel";
 import TrueGoLiveMapCard from "../../components/TrueGoLiveMapCard";
 import {
   listRecentRides,
@@ -13,7 +14,7 @@ import {
 } from "../../services/rideApi";
 import { formatPiAmount } from "../../lib/piPricing";
 
-type AdminTab = "rides" | "drivers" | "monitor" | "payouts" | "finance" | "reports";
+type AdminTab = "rides" | "drivers" | "monitor" | "payouts" | "finance" | "reports" | "audit";
 
 type RidePaymentSnapshot = {
   payment_status?: "unpaid" | "approved" | "completed" | "cancelled" | "failed" | null;
@@ -1478,11 +1479,21 @@ export default function AdminDashboard() {
         >
           Reports
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("audit")}
+          style={tabButtonStyle(activeTab === "audit")}
+        >
+          Audit Log
+        </button>
       </div>
 
       {activeTab === "drivers" ? <AdminDriverVerificationPanel /> : null}
 
       {activeTab === "reports" ? <AdminReportsPanel /> : null}
+
+      {activeTab === "audit" ? <AdminAuditPanel /> : null}
 
       {activeTab === "monitor" ? (
         <div style={sectionStyle()}>
