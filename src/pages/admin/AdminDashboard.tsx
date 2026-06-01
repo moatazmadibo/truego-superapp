@@ -975,6 +975,34 @@ export default function AdminDashboard() {
     }
   }
 
+  async function postExpenseAccounting(expenseId: string) {
+    setFinanceActionLoading(`post-expense:${expenseId}`);
+    setFinanceError("");
+    setFinanceMessage("");
+
+    try {
+      const { error: postError } = await supabase.rpc(
+        "post_business_expense_accounting",
+        {
+          p_expense_id: expenseId,
+        }
+      );
+
+      if (postError) throw postError;
+
+      setFinanceMessage("Expense accounting entry posted successfully.");
+      await loadFinanceDashboard();
+    } catch (postError) {
+      const message =
+        postError instanceof Error
+          ? postError.message
+          : "Failed to post expense accounting entry.";
+      setFinanceError(message);
+    } finally {
+      setFinanceActionLoading("");
+    }
+  }
+
   async function loadDashboard() {
     try {
       setError(null);
@@ -1871,6 +1899,23 @@ export default function AdminDashboard() {
                     {expense.status}
                   </span>
                 </div>
+
+                {expense.status === "draft" ? (
+                  <div style={{ marginTop: 12 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void postExpenseAccounting(expense.id);
+                      }}
+                      disabled={financeActionLoading !== ""}
+                      style={tabButtonStyle(false)}
+                    >
+                      {financeActionLoading === `post-expense:${expense.id}`
+                        ? "Posting expense..."
+                        : "Post expense accounting"}
+                    </button>
+                  </div>
+                ) : null}
 
                 <div style={rideDetailGridStyle()}>
                   <div style={rideDetailItemStyle()}>
