@@ -7,6 +7,7 @@ const ADMIN_SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000;
 type StoredAdminSession = {
   grantedAt: number;
   expiresAt: string;
+  sessionToken: string;
 };
 
 function loadStoredAdminSession() {
@@ -20,7 +21,7 @@ function loadStoredAdminSession() {
     const session = JSON.parse(raw) as StoredAdminSession;
     const expiresAtMs = Date.parse(session.expiresAt);
 
-    if (!session.grantedAt || !expiresAtMs) {
+    if (!session.grantedAt || !expiresAtMs || !session.sessionToken) {
       window.localStorage.removeItem(ADMIN_SESSION_KEY);
       return null;
     }
@@ -37,10 +38,11 @@ function loadStoredAdminSession() {
   }
 }
 
-function saveAdminSession(expiresAt: string) {
+function saveAdminSession(expiresAt: string, sessionToken: string) {
   const session: StoredAdminSession = {
     grantedAt: Date.now(),
     expiresAt,
+    sessionToken,
   };
 
   window.localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(session));
@@ -143,6 +145,7 @@ export default function AdminAccessGate({ children }: { children: ReactNode }) {
     try {
       const { data, error: verifyError } = await supabase.functions.invoke<{
         ok: boolean;
+        sessionToken?: string;
         expiresAt?: string;
         error?: string;
       }>("admin-access-verify", {
@@ -155,11 +158,11 @@ export default function AdminAccessGate({ children }: { children: ReactNode }) {
         throw verifyError;
       }
 
-      if (!data?.ok || !data.expiresAt) {
+      if (!data?.ok || !data.expiresAt || !data.sessionToken) {
         throw new Error(data?.error ?? "Invalid admin access code.");
       }
 
-      saveAdminSession(data.expiresAt);
+      saveAdminSession(data.expiresAt, data.sessionToken);
       setAccessCode("");
       setHasAccess(true);
     } catch (verifyError) {
