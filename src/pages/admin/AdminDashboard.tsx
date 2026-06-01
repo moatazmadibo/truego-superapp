@@ -12,7 +12,7 @@ import {
 } from "../../services/rideApi";
 import { formatPiAmount } from "../../lib/piPricing";
 
-type AdminTab = "rides" | "drivers" | "monitor" | "payouts";
+type AdminTab = "rides" | "drivers" | "monitor" | "payouts" | "finance";
 
 type RidePaymentSnapshot = {
   payment_status?: "unpaid" | "approved" | "completed" | "cancelled" | "failed" | null;
@@ -66,6 +66,70 @@ type DriverPayoutRow = {
   payout_error: string | null;
   requested_at: string | null;
   processed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type PlatformFinanceSettings = {
+  id: string;
+  accounting_currency: "USD";
+  pi_usd_rate: number | string;
+  rate_source: string;
+  updated_by: string | null;
+  updated_at: string;
+  created_at: string;
+};
+
+type AccountingAccountRow = {
+  code: string;
+  name: string;
+  account_type: "asset" | "liability" | "revenue" | "expense" | "equity";
+  normal_balance: "debit" | "credit";
+  is_active: boolean;
+  created_at: string;
+};
+
+type AccountingJournalEntryRow = {
+  id: string;
+  entry_date: string;
+  source_type: "ride_payment" | "driver_payout" | "expense" | "refund" | "adjustment";
+  source_id: string;
+  description: string;
+  status: "draft" | "posted" | "reversed";
+  accounting_currency: "USD";
+  pi_usd_rate_snapshot: number | string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type AccountingJournalLineRow = {
+  id: string;
+  journal_entry_id: string;
+  account_code: string;
+  line_description: string | null;
+  debit_pi: number | string;
+  credit_pi: number | string;
+  debit_usd: number | string;
+  credit_usd: number | string;
+  created_at: string;
+};
+
+type BusinessExpenseRow = {
+  id: string;
+  expense_date: string;
+  expense_account_code: string;
+  category: string | null;
+  vendor: string | null;
+  description: string;
+  amount: number | string;
+  currency: "USD" | "PI";
+  pi_amount: number | string;
+  usd_amount: number | string;
+  pi_usd_rate_snapshot: number | string;
+  payment_method: string | null;
+  status: "draft" | "posted" | "cancelled";
+  created_by: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -156,6 +220,16 @@ function formatAdminDriverIdentity(ride: RideRow) {
 
 function formatPi(value: number) {
   return formatPiAmount(value);
+}
+
+
+function formatUsd(value: number) {
+  const safeValue = Number.isFinite(value) ? value : 0;
+
+  return `$${safeValue.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 8,
+  })}`;
 }
 
 
@@ -539,6 +613,22 @@ export default function AdminDashboard() {
   const [payoutActionLoading, setPayoutActionLoading] = useState("");
   const [payoutError, setPayoutError] = useState("");
   const [payoutMessage, setPayoutMessage] = useState("");
+  const [financeSettings, setFinanceSettings] = useState<PlatformFinanceSettings | null>(null);
+  const [piUsdRateInput, setPiUsdRateInput] = useState("0");
+  const [financeAccounts, setFinanceAccounts] = useState<AccountingAccountRow[]>([]);
+  const [financeEntries, setFinanceEntries] = useState<AccountingJournalEntryRow[]>([]);
+  const [financeLines, setFinanceLines] = useState<AccountingJournalLineRow[]>([]);
+  const [businessExpenses, setBusinessExpenses] = useState<BusinessExpenseRow[]>([]);
+  const [financeLoading, setFinanceLoading] = useState(false);
+  const [financeActionLoading, setFinanceActionLoading] = useState("");
+  const [financeError, setFinanceError] = useState("");
+  const [financeMessage, setFinanceMessage] = useState("");
+  const [expenseDescription, setExpenseDescription] = useState("");
+  const [expenseAmount, setExpenseAmount] = useState("");
+  const [expenseCurrency, setExpenseCurrency] = useState<"USD" | "PI">("USD");
+  const [expenseAccountCode, setExpenseAccountCode] = useState("5000");
+  const [expenseCategory, setExpenseCategory] = useState("");
+  const [expenseVendor, setExpenseVendor] = useState("");
   const [monitorMessages, setMonitorMessages] = useState<RideMessageRow[]>([]);
   const [monitorCallEvents, setMonitorCallEvents] = useState<RideCallEventRow[]>([]);
   const [monitorActivityLoading, setMonitorActivityLoading] = useState(false);
@@ -685,6 +775,206 @@ export default function AdminDashboard() {
     }
   }
 
+  async function loadFinanceDashboard() {
+    setFinanceLoading(true);
+    setFinanceError("");
+
+    try {
+      const [
+        settingsResult,
+        accountsResult,
+        entriesResult,
+        linesResult,
+        expensesResult,
+      ] = await Promise.all([
+        supabase.rpc("get_platform_finance_settings"),
+        supabase
+          .from("accounting_accounts")
+          .select("*")
+          .eq("is_active", true)
+          .order("code", { ascending: true }),
+        supabase
+          .from("accounting_journal_entries")
+          .select("*")
+          .order("entry_date", { ascending: false })
+          .limit(30),
+        supabase
+          .from("accounting_journal_lines")
+          .select("*")
+          .limit(1000),
+        supabase
+          .from("business_expenses")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(30),
+      ]);
+
+      if (settingsResult.error) throw settingsResult.error;
+      if (accountsResult.error) throw accountsResult.error;
+      if (entriesResult.error) throw entriesResult.error;
+      if (linesResult.error) throw linesResult.error;
+      if (expensesResult.error) throw expensesResult.error;
+
+      const nextSettings = settingsResult.data as PlatformFinanceSettings;
+      setFinanceSettings(nextSettings);
+      setPiUsdRateInput(String(dbNumber(nextSettings.pi_usd_rate)));
+
+      setFinanceAccounts((accountsResult.data ?? []) as unknown as AccountingAccountRow[]);
+      setFinanceEntries((entriesResult.data ?? []) as unknown as AccountingJournalEntryRow[]);
+      setFinanceLines((linesResult.data ?? []) as unknown as AccountingJournalLineRow[]);
+      setBusinessExpenses((expensesResult.data ?? []) as unknown as BusinessExpenseRow[]);
+    } catch (loadError) {
+      const message =
+        loadError instanceof Error
+          ? loadError.message
+          : "Failed to load finance dashboard.";
+      setFinanceError(message);
+    } finally {
+      setFinanceLoading(false);
+    }
+  }
+
+  async function saveFinanceSettings() {
+    setFinanceActionLoading("settings");
+    setFinanceError("");
+    setFinanceMessage("");
+
+    try {
+      const rate = Number(piUsdRateInput);
+
+      if (!Number.isFinite(rate) || rate < 0) {
+        throw new Error("Pi to USD rate must be zero or greater.");
+      }
+
+      const { data, error: saveError } = await supabase.rpc(
+        "update_platform_finance_settings",
+        {
+          p_pi_usd_rate: rate,
+          p_updated_by: "admin-dashboard",
+        }
+      );
+
+      if (saveError) throw saveError;
+
+      const savedSettings = data as PlatformFinanceSettings;
+      setFinanceSettings(savedSettings);
+      setPiUsdRateInput(String(dbNumber(savedSettings.pi_usd_rate)));
+      setFinanceMessage("Finance settings saved successfully.");
+      await loadFinanceDashboard();
+    } catch (saveError) {
+      const message =
+        saveError instanceof Error ? saveError.message : "Failed to save finance settings.";
+      setFinanceError(message);
+    } finally {
+      setFinanceActionLoading("");
+    }
+  }
+
+  async function postAccountingForCompletedPaidRides() {
+    setFinanceActionLoading("post-rides");
+    setFinanceError("");
+    setFinanceMessage("");
+
+    try {
+      const { data: paidRides, error: ridesError } = await supabase
+        .from("rides")
+        .select("*")
+        .eq("status", "completed")
+        .eq("payment_status", "completed")
+        .not("demo_driver_id", "is", null)
+        .order("payment_completed_at", { ascending: false })
+        .limit(50);
+
+      if (ridesError) throw ridesError;
+
+      let successCount = 0;
+      const failures: string[] = [];
+
+      for (const ride of (paidRides ?? []) as unknown as RideRow[]) {
+        const { error: postError } = await supabase.rpc(
+          "post_ride_payment_accounting",
+          {
+            p_ride_id: ride.id,
+          }
+        );
+
+        if (postError) {
+          failures.push(`${ride.id}: ${postError.message}`);
+        } else {
+          successCount += 1;
+        }
+      }
+
+      setFinanceMessage(
+        failures.length > 0
+          ? `Accounting posting finished: ${successCount} posted, ${failures.length} skipped/failed.`
+          : `Accounting posting finished: ${successCount} posted.`
+      );
+
+      if (failures.length > 0) {
+        setFinanceError(failures.slice(0, 4).join("\n"));
+      }
+
+      await loadFinanceDashboard();
+    } catch (postError) {
+      const message =
+        postError instanceof Error
+          ? postError.message
+          : "Failed to post accounting entries.";
+      setFinanceError(message);
+    } finally {
+      setFinanceActionLoading("");
+    }
+  }
+
+  async function createExpenseRecord() {
+    setFinanceActionLoading("expense");
+    setFinanceError("");
+    setFinanceMessage("");
+
+    try {
+      const amount = Number(expenseAmount);
+
+      if (!expenseDescription.trim()) {
+        throw new Error("Expense description is required.");
+      }
+
+      if (!Number.isFinite(amount) || amount <= 0) {
+        throw new Error("Expense amount must be greater than zero.");
+      }
+
+      const { error: expenseError } = await supabase.rpc(
+        "create_business_expense",
+        {
+          p_description: expenseDescription.trim(),
+          p_amount: amount,
+          p_currency: expenseCurrency,
+          p_expense_account_code: expenseAccountCode,
+          p_category: expenseCategory.trim() || null,
+          p_vendor: expenseVendor.trim() || null,
+          p_payment_method: null,
+          p_receipt_file_path: null,
+          p_created_by: "admin-dashboard",
+        }
+      );
+
+      if (expenseError) throw expenseError;
+
+      setExpenseDescription("");
+      setExpenseAmount("");
+      setExpenseCategory("");
+      setExpenseVendor("");
+      setFinanceMessage("Expense record created as draft.");
+      await loadFinanceDashboard();
+    } catch (expenseError) {
+      const message =
+        expenseError instanceof Error ? expenseError.message : "Failed to create expense.";
+      setFinanceError(message);
+    } finally {
+      setFinanceActionLoading("");
+    }
+  }
+
   async function loadDashboard() {
     try {
       setError(null);
@@ -807,6 +1097,13 @@ export default function AdminDashboard() {
   }, [activeTab]);
 
 
+  useEffect(() => {
+    if (activeTab === "finance") {
+      void loadFinanceDashboard();
+    }
+  }, [activeTab]);
+
+
   const activeMonitorRides = rides.filter((ride) =>
     [
       "collecting_offers",
@@ -832,6 +1129,33 @@ export default function AdminDashboard() {
 
     void loadMonitorActivity(monitorRide.id);
   }, [monitorRide?.id]);
+
+  const financeSummary = {
+    piWalletPi: financeLines
+      .filter((line) => line.account_code === "1000")
+      .reduce((sum, line) => sum + dbNumber(line.debit_pi) - dbNumber(line.credit_pi), 0),
+    piWalletUsd: financeLines
+      .filter((line) => line.account_code === "1000")
+      .reduce((sum, line) => sum + dbNumber(line.debit_usd) - dbNumber(line.credit_usd), 0),
+    commissionRevenuePi: financeLines
+      .filter((line) => line.account_code === "4000")
+      .reduce((sum, line) => sum + dbNumber(line.credit_pi) - dbNumber(line.debit_pi), 0),
+    commissionRevenueUsd: financeLines
+      .filter((line) => line.account_code === "4000")
+      .reduce((sum, line) => sum + dbNumber(line.credit_usd) - dbNumber(line.debit_usd), 0),
+    driverPayablesPi: financeLines
+      .filter((line) => line.account_code === "2000")
+      .reduce((sum, line) => sum + dbNumber(line.credit_pi) - dbNumber(line.debit_pi), 0),
+    driverPayablesUsd: financeLines
+      .filter((line) => line.account_code === "2000")
+      .reduce((sum, line) => sum + dbNumber(line.credit_usd) - dbNumber(line.debit_usd), 0),
+    expensesPi: financeLines
+      .filter((line) => line.account_code.startsWith("5"))
+      .reduce((sum, line) => sum + dbNumber(line.debit_pi) - dbNumber(line.credit_pi), 0),
+    expensesUsd: financeLines
+      .filter((line) => line.account_code.startsWith("5"))
+      .reduce((sum, line) => sum + dbNumber(line.debit_usd) - dbNumber(line.credit_usd), 0),
+  };
 
   return (
     <div style={pageStyle()}>      <h1 style={{ marginTop: 0, marginBottom: 0 }}>TrueGo Admin Dashboard</h1>
@@ -929,6 +1253,14 @@ export default function AdminDashboard() {
           style={tabButtonStyle(activeTab === "payouts")}
         >
           Payouts / Commission
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("finance")}
+          style={tabButtonStyle(activeTab === "finance")}
+        >
+          Finance / Accounting
         </button>
       </div>
 
@@ -1193,6 +1525,377 @@ export default function AdminDashboard() {
           )}
         </div>
       ) : null}
+
+      {activeTab === "finance" ? (
+        <div style={sectionStyle()}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              alignItems: "flex-start",
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <h2 style={{ marginTop: 0, marginBottom: 6 }}>Finance / Accounting</h2>
+              <p style={{ marginTop: 0, color: "#64748b", lineHeight: 1.6 }}>
+                Internal accounting ledger using Pi as operational currency and USD as secondary reporting currency.
+              </p>
+            </div>
+
+            <span style={badgeStyle("#111827")}>
+              Currency: {financeSettings?.accounting_currency ?? "USD"}
+            </span>
+          </div>
+
+          {financeError ? (
+            <div
+              style={{
+                marginTop: 12,
+                padding: 12,
+                borderRadius: 10,
+                background: "#fef2f2",
+                border: "1px solid #fecaca",
+                color: "#b91c1c",
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {financeError}
+            </div>
+          ) : null}
+
+          {financeMessage ? (
+            <div
+              style={{
+                marginTop: 12,
+                padding: 12,
+                borderRadius: 10,
+                background: "#ecfdf5",
+                border: "1px solid #bbf7d0",
+                color: "#047857",
+              }}
+            >
+              {financeMessage}
+            </div>
+          ) : null}
+
+          <div style={rideDetailGridStyle()}>
+            <div style={rideDetailItemStyle()}>
+              <strong>Manual Pi → USD rate</strong>
+              <input
+                value={piUsdRateInput}
+                onChange={(event) => setPiUsdRateInput(event.target.value)}
+                placeholder="Example: 1.25"
+                inputMode="decimal"
+                style={{
+                  width: "100%",
+                  marginTop: 8,
+                  padding: 11,
+                  borderRadius: 10,
+                  border: "1px solid #cbd5e1",
+                  font: "inherit",
+                  boxSizing: "border-box",
+                }}
+              />
+              <div style={{ marginTop: 6, color: "#64748b", fontSize: 12 }}>
+                Used only for accounting snapshots and reports.
+              </div>
+            </div>
+
+            <div style={rideDetailItemStyle()}>
+              <strong>Current finance settings</strong>
+              <div style={{ marginTop: 8 }}>
+                Pi/USD rate: {dbNumber(financeSettings?.pi_usd_rate).toLocaleString(undefined, {
+                  maximumFractionDigits: 8,
+                })}
+              </div>
+              <div>Source: {financeSettings?.rate_source ?? "manual"}</div>
+              <div>Updated: {formatDateTime(financeSettings?.updated_at)}</div>
+            </div>
+
+            <div style={rideDetailItemStyle()}>
+              <strong>Pi App Wallet balance</strong>
+              <div style={{ marginTop: 8 }}>{formatPi(financeSummary.piWalletPi)}</div>
+              <div>{formatUsd(financeSummary.piWalletUsd)}</div>
+            </div>
+
+            <div style={rideDetailItemStyle()}>
+              <strong>Commission revenue</strong>
+              <div style={{ marginTop: 8 }}>{formatPi(financeSummary.commissionRevenuePi)}</div>
+              <div>{formatUsd(financeSummary.commissionRevenueUsd)}</div>
+            </div>
+
+            <div style={rideDetailItemStyle()}>
+              <strong>Driver payables</strong>
+              <div style={{ marginTop: 8 }}>{formatPi(financeSummary.driverPayablesPi)}</div>
+              <div>{formatUsd(financeSummary.driverPayablesUsd)}</div>
+            </div>
+
+            <div style={rideDetailItemStyle()}>
+              <strong>Expenses</strong>
+              <div style={{ marginTop: 8 }}>{formatPi(financeSummary.expensesPi)}</div>
+              <div>{formatUsd(financeSummary.expensesUsd)}</div>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => {
+                void saveFinanceSettings();
+              }}
+              disabled={financeActionLoading !== ""}
+              style={tabButtonStyle(false)}
+            >
+              {financeActionLoading === "settings" ? "Saving..." : "Save finance settings"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                void postAccountingForCompletedPaidRides();
+              }}
+              disabled={financeActionLoading !== ""}
+              style={tabButtonStyle(false)}
+            >
+              {financeActionLoading === "post-rides"
+                ? "Posting..."
+                : "Post ride payment accounting"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                void loadFinanceDashboard();
+              }}
+              disabled={financeLoading}
+              style={tabButtonStyle(false)}
+            >
+              {financeLoading ? "Refreshing..." : "Refresh finance"}
+            </button>
+          </div>
+
+          <div style={{ marginTop: 18 }}>
+            <h3 style={{ marginBottom: 8 }}>Create business expense</h3>
+
+            <div style={rideDetailGridStyle()}>
+              <div style={rideDetailItemStyle()}>
+                <strong>Description</strong>
+                <input
+                  value={expenseDescription}
+                  onChange={(event) => setExpenseDescription(event.target.value)}
+                  placeholder="Example: Vercel hosting"
+                  style={{
+                    width: "100%",
+                    marginTop: 8,
+                    padding: 11,
+                    borderRadius: 10,
+                    border: "1px solid #cbd5e1",
+                    font: "inherit",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              <div style={rideDetailItemStyle()}>
+                <strong>Amount</strong>
+                <input
+                  value={expenseAmount}
+                  onChange={(event) => setExpenseAmount(event.target.value)}
+                  placeholder="Example: 20"
+                  inputMode="decimal"
+                  style={{
+                    width: "100%",
+                    marginTop: 8,
+                    padding: 11,
+                    borderRadius: 10,
+                    border: "1px solid #cbd5e1",
+                    font: "inherit",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              <div style={rideDetailItemStyle()}>
+                <strong>Currency</strong>
+                <select
+                  value={expenseCurrency}
+                  onChange={(event) => setExpenseCurrency(event.target.value as "USD" | "PI")}
+                  style={{
+                    width: "100%",
+                    marginTop: 8,
+                    padding: 11,
+                    borderRadius: 10,
+                    border: "1px solid #cbd5e1",
+                    font: "inherit",
+                  }}
+                >
+                  <option value="USD">USD</option>
+                  <option value="PI">PI</option>
+                </select>
+              </div>
+
+              <div style={rideDetailItemStyle()}>
+                <strong>Expense account</strong>
+                <select
+                  value={expenseAccountCode}
+                  onChange={(event) => setExpenseAccountCode(event.target.value)}
+                  style={{
+                    width: "100%",
+                    marginTop: 8,
+                    padding: 11,
+                    borderRadius: 10,
+                    border: "1px solid #cbd5e1",
+                    font: "inherit",
+                  }}
+                >
+                  {financeAccounts
+                    .filter((account) => account.account_type === "expense")
+                    .map((account) => (
+                      <option key={account.code} value={account.code}>
+                        {account.code} · {account.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div style={rideDetailItemStyle()}>
+                <strong>Category</strong>
+                <input
+                  value={expenseCategory}
+                  onChange={(event) => setExpenseCategory(event.target.value)}
+                  placeholder="Example: hosting"
+                  style={{
+                    width: "100%",
+                    marginTop: 8,
+                    padding: 11,
+                    borderRadius: 10,
+                    border: "1px solid #cbd5e1",
+                    font: "inherit",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              <div style={rideDetailItemStyle()}>
+                <strong>Vendor</strong>
+                <input
+                  value={expenseVendor}
+                  onChange={(event) => setExpenseVendor(event.target.value)}
+                  placeholder="Example: Vercel"
+                  style={{
+                    width: "100%",
+                    marginTop: 8,
+                    padding: 11,
+                    borderRadius: 10,
+                    border: "1px solid #cbd5e1",
+                    font: "inherit",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  void createExpenseRecord();
+                }}
+                disabled={financeActionLoading !== ""}
+                style={tabButtonStyle(false)}
+              >
+                {financeActionLoading === "expense" ? "Saving expense..." : "Create draft expense"}
+              </button>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 18 }}>
+            <h3 style={{ marginBottom: 8 }}>Chart of accounts</h3>
+
+            <div style={rideDetailGridStyle()}>
+              {financeAccounts.map((account) => (
+                <div key={account.code} style={rideDetailItemStyle()}>
+                  <strong>{account.code} · {account.name}</strong>
+                  <div style={{ marginTop: 6 }}>
+                    Type: {account.account_type} · Normal: {account.normal_balance}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 18 }}>
+            <h3 style={{ marginBottom: 8 }}>Latest journal entries</h3>
+
+            {financeEntries.length === 0 ? (
+              <p style={{ color: "#64748b" }}>No accounting journal entries yet.</p>
+            ) : null}
+
+            {financeEntries.map((entry) => (
+              <div key={entry.id} style={rideCardStyle()}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                  <div>
+                    <strong>{entry.description}</strong>
+                    <div style={monoTextStyle()}>Source: {entry.source_type} · {entry.source_id}</div>
+                  </div>
+                  <span style={badgeStyle(entry.status === "posted" ? "#16a34a" : "#64748b")}>
+                    {entry.status}
+                  </span>
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  Entry date: {formatDateTime(entry.entry_date)} · Rate: {dbNumber(entry.pi_usd_rate_snapshot)}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginTop: 18 }}>
+            <h3 style={{ marginBottom: 8 }}>Business expenses</h3>
+
+            {businessExpenses.length === 0 ? (
+              <p style={{ color: "#64748b" }}>No business expenses recorded yet.</p>
+            ) : null}
+
+            {businessExpenses.map((expense) => (
+              <div key={expense.id} style={rideCardStyle()}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                  <div>
+                    <strong>{expense.description}</strong>
+                    <div style={{ marginTop: 6 }}>
+                      {expense.vendor ?? "No vendor"} · {expense.category ?? "No category"}
+                    </div>
+                  </div>
+                  <span style={badgeStyle(expense.status === "draft" ? "#f59e0b" : "#16a34a")}>
+                    {expense.status}
+                  </span>
+                </div>
+
+                <div style={rideDetailGridStyle()}>
+                  <div style={rideDetailItemStyle()}>
+                    <strong>Original amount</strong>
+                    <div>{dbNumber(expense.amount)} {expense.currency}</div>
+                  </div>
+
+                  <div style={rideDetailItemStyle()}>
+                    <strong>Accounting snapshot</strong>
+                    <div>{formatPi(dbNumber(expense.pi_amount))}</div>
+                    <div>{formatUsd(dbNumber(expense.usd_amount))}</div>
+                  </div>
+
+                  <div style={rideDetailItemStyle()}>
+                    <strong>Account</strong>
+                    <div>{expense.expense_account_code}</div>
+                    <div>Date: {expense.expense_date}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
 
       {activeTab === "payouts" ? (
         <div style={sectionStyle()}>
