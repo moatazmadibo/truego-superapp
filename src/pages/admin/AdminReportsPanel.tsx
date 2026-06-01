@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { supabase } from "../../lib/supabase";
 import { formatPiAmount } from "../../lib/piPricing";
 
+type ReportTab = "overview" | "drivers" | "rides" | "payments" | "exceptions";
+
 type DriverReportFilter =
   | "all"
   | "verified"
@@ -14,13 +16,17 @@ type RideReportFilter =
   | "all"
   | "active"
   | "completed"
-  | "completed_paid"
-  | "completed_unpaid"
-  | "paid"
   | "no_driver_available"
   | "offers_expired"
-  | "cancelled"
-  | "exceptions";
+  | "cancelled";
+
+type PaymentReportFilter =
+  | "all"
+  | "paid"
+  | "completed_paid"
+  | "completed_unpaid"
+  | "payout_generated"
+  | "payout_pending";
 
 type DriverReportRow = {
   demo_driver_id: string;
@@ -98,7 +104,7 @@ function cardStyle(): CSSProperties {
 function gridStyle(): CSSProperties {
   return {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(165px, 1fr))",
     gap: 10,
     marginTop: 12,
   };
@@ -132,6 +138,7 @@ function activeButtonStyle(active: boolean): CSSProperties {
     ...buttonStyle(false),
     background: active ? "#111827" : "#ffffff",
     color: active ? "#ffffff" : "#111827",
+    boxShadow: active ? "0 8px 20px rgba(15, 23, 42, 0.18)" : undefined,
   };
 }
 
@@ -245,10 +252,12 @@ function isRideException(row: RideReportRow) {
 }
 
 export default function AdminReportsPanel() {
+  const [activeReportTab, setActiveReportTab] = useState<ReportTab>("overview");
   const [drivers, setDrivers] = useState<DriverReportRow[]>([]);
   const [rides, setRides] = useState<RideReportRow[]>([]);
   const [driverFilter, setDriverFilter] = useState<DriverReportFilter>("all");
   const [rideFilter, setRideFilter] = useState<RideReportFilter>("all");
+  const [paymentFilter, setPaymentFilter] = useState<PaymentReportFilter>("all");
   const [fromDate, setFromDate] = useState(() => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
@@ -291,7 +300,7 @@ export default function AdminReportsPanel() {
   const filteredDrivers = useMemo(() => {
     return drivers.filter((driver) => {
       if (driverFilter === "verified") return driver.readiness_status === "verified";
-      if (driverFilter === "not_verified") return driver.readiness_status === "not_verified";
+      if (driverFilter === "not_verified") return driver.readiness_status !== "verified";
       if (driverFilter === "needs_review") return driver.readiness_status === "needs_review";
       if (driverFilter === "pi_linked") return Boolean(driver.pi_uid);
       if (driverFilter === "missing_pi") return !driver.pi_uid;
@@ -302,17 +311,26 @@ export default function AdminReportsPanel() {
   const filteredRides = useMemo(() => {
     return rides.filter((ride) => {
       if (rideFilter === "completed") return ride.ride_status === "completed";
-      if (rideFilter === "paid") return ride.payment_status === "completed";
-      if (rideFilter === "completed_paid") return ride.report_bucket === "completed_paid";
-      if (rideFilter === "completed_unpaid") return ride.report_bucket === "completed_unpaid";
       if (rideFilter === "active") return ride.report_bucket === "active";
       if (rideFilter === "no_driver_available") return ride.report_bucket === "no_driver_available";
       if (rideFilter === "offers_expired") return ride.report_bucket === "offers_expired";
       if (rideFilter === "cancelled") return ride.report_bucket === "cancelled";
-      if (rideFilter === "exceptions") return isRideException(ride);
       return true;
     });
   }, [rideFilter, rides]);
+
+  const filteredPayments = useMemo(() => {
+    return rides.filter((ride) => {
+      if (paymentFilter === "paid") return ride.payment_status === "completed";
+      if (paymentFilter === "completed_paid") return ride.report_bucket === "completed_paid";
+      if (paymentFilter === "completed_unpaid") return ride.report_bucket === "completed_unpaid";
+      if (paymentFilter === "payout_generated") return ride.payout_status !== "not_generated";
+      if (paymentFilter === "payout_pending") return ride.payout_status === "pending";
+      return true;
+    });
+  }, [paymentFilter, rides]);
+
+  const exceptionRows = useMemo(() => rides.filter(isRideException), [rides]);
 
   const stats = useMemo(() => {
     return {
@@ -321,9 +339,13 @@ export default function AdminReportsPanel() {
       unverifiedDrivers: drivers.filter((driver) => driver.readiness_status !== "verified").length,
       piLinkedDrivers: drivers.filter((driver) => Boolean(driver.pi_uid)).length,
       totalRides: rides.length,
+      activeRides: rides.filter((ride) => ride.report_bucket === "active").length,
       completedRides: rides.filter((ride) => ride.ride_status === "completed").length,
       paidRides: rides.filter((ride) => ride.payment_status === "completed").length,
       completedUnpaid: rides.filter((ride) => ride.report_bucket === "completed_unpaid").length,
+      noDriver: rides.filter((ride) => ride.report_bucket === "no_driver_available").length,
+      offersExpired: rides.filter((ride) => ride.report_bucket === "offers_expired").length,
+      cancelled: rides.filter((ride) => ride.report_bucket === "cancelled").length,
       exceptions: rides.filter(isRideException).length,
       collectedPi: rides
         .filter((ride) => ride.payment_status === "completed")
@@ -370,12 +392,12 @@ export default function AdminReportsPanel() {
         <div>
           <h2 style={{ margin: 0 }}>Reports / التقارير</h2>
           <p style={{ margin: "6px 0 0", color: "#64748b", lineHeight: 1.6 }}>
-            Operational reports for drivers, rides, payments, exceptions, and verification readiness.
+            Separate operational reports for drivers, rides, payments, and exceptions.
           </p>
         </div>
 
         <button type="button" onClick={printReports} style={buttonStyle(false)} className="truego-no-print">
-          Print current reports
+          Print current report
         </button>
       </div>
 
@@ -425,168 +447,256 @@ export default function AdminReportsPanel() {
         </div>
       </div>
 
-      <div style={gridStyle()}>
-        <div style={itemStyle()}><strong>Total drivers</strong><div>{stats.totalDrivers}</div></div>
-        <div style={itemStyle()}><strong>Verified drivers</strong><div>{stats.verifiedDrivers}</div></div>
-        <div style={itemStyle()}><strong>Unverified drivers</strong><div>{stats.unverifiedDrivers}</div></div>
-        <div style={itemStyle()}><strong>Pi-linked drivers</strong><div>{stats.piLinkedDrivers}</div></div>
-        <div style={itemStyle()}><strong>Total rides</strong><div>{stats.totalRides}</div></div>
-        <div style={itemStyle()}><strong>Completed rides</strong><div>{stats.completedRides}</div></div>
-        <div style={itemStyle()}><strong>Paid rides</strong><div>{stats.paidRides}</div></div>
-        <div style={itemStyle()}><strong>Exceptions</strong><div>{stats.exceptions}</div></div>
-        <div style={itemStyle()}><strong>Collected Pi</strong><div>{formatPi(stats.collectedPi)}</div></div>
+      <div className="truego-no-print" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+        {[
+          ["overview", "Overview"],
+          ["drivers", "Driver reports"],
+          ["rides", "Ride operations"],
+          ["payments", "Payment reports"],
+          ["exceptions", "Exceptions"],
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setActiveReportTab(value as ReportTab)}
+            style={activeButtonStyle(activeReportTab === value)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      <div style={cardStyle()}>
-        <h3 style={{ marginTop: 0 }}>Driver verification report</h3>
+      {activeReportTab === "overview" ? (
+        <div style={cardStyle()}>
+          <h3 style={{ marginTop: 0 }}>Reports overview</h3>
 
-        <div className="truego-no-print" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-          {[
-            ["all", "All"],
-            ["verified", "Verified"],
-            ["not_verified", "Not verified"],
-            ["needs_review", "Needs review"],
-            ["pi_linked", "Pi linked"],
-            ["missing_pi", "Missing Pi"],
-          ].map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setDriverFilter(value as DriverReportFilter)}
-              style={activeButtonStyle(driverFilter === value)}
-            >
-              {label}
-            </button>
-          ))}
+          <div style={gridStyle()}>
+            <div style={itemStyle()}><strong>Total drivers</strong><div>{stats.totalDrivers}</div></div>
+            <div style={itemStyle()}><strong>Verified drivers</strong><div>{stats.verifiedDrivers}</div></div>
+            <div style={itemStyle()}><strong>Unverified drivers</strong><div>{stats.unverifiedDrivers}</div></div>
+            <div style={itemStyle()}><strong>Pi-linked drivers</strong><div>{stats.piLinkedDrivers}</div></div>
+            <div style={itemStyle()}><strong>Total rides</strong><div>{stats.totalRides}</div></div>
+            <div style={itemStyle()}><strong>Active rides</strong><div>{stats.activeRides}</div></div>
+            <div style={itemStyle()}><strong>Completed rides</strong><div>{stats.completedRides}</div></div>
+            <div style={itemStyle()}><strong>Paid rides</strong><div>{stats.paidRides}</div></div>
+            <div style={itemStyle()}><strong>Completed unpaid</strong><div>{stats.completedUnpaid}</div></div>
+            <div style={itemStyle()}><strong>No driver</strong><div>{stats.noDriver}</div></div>
+            <div style={itemStyle()}><strong>Offers expired</strong><div>{stats.offersExpired}</div></div>
+            <div style={itemStyle()}><strong>Cancelled</strong><div>{stats.cancelled}</div></div>
+            <div style={itemStyle()}><strong>Exceptions</strong><div>{stats.exceptions}</div></div>
+            <div style={itemStyle()}><strong>Collected Pi</strong><div>{formatPi(stats.collectedPi)}</div></div>
+          </div>
         </div>
+      ) : null}
 
-        <div style={{ overflowX: "auto" }}>
-          <table style={tableStyle()}>
-            <thead>
-              <tr>
-                <th style={thStyle()}>Driver</th>
-                <th style={thStyle()}>Pi</th>
-                <th style={thStyle()}>Contact</th>
-                <th style={thStyle()}>Status</th>
-                <th style={thStyle()}>Vehicle</th>
-                <th style={thStyle()}>Documents</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredDrivers.map((driver) => (
-                <tr key={driver.demo_driver_id}>
-                  <td style={tdStyle()}>
-                    <strong>{driver.display_name}</strong>
-                    <div style={monoStyle()}>{driver.demo_driver_id}</div>
-                  </td>
-                  <td style={tdStyle()}>
-                    {driver.pi_username ? `@${driver.pi_username}` : "No username"}
-                    <div style={monoStyle()}>{driver.pi_uid ?? "No Pi UID"}</div>
-                  </td>
-                  <td style={tdStyle()}>
-                    <div>Email: {driver.email_verified ? "Verified" : "Not verified"}</div>
-                    <div>Phone: {driver.phone_verified ? "Verified" : "Not verified"}</div>
-                  </td>
-                  <td style={tdStyle()}>
-                    <span style={badgeStyle(driverBadgeColor(driver))}>
-                      {formatDriverStatus(driver)}
-                    </span>
-                    <div style={{ marginTop: 6 }}>
-                      {driver.account_status ?? "pending"} / {driver.onboarding_status ?? "profile_required"}
-                    </div>
-                  </td>
-                  <td style={tdStyle()}>
-                    {[driver.vehicle_type, driver.vehicle_make, driver.vehicle_model, driver.vehicle_plate]
-                      .filter(Boolean)
-                      .join(" · ") || "Not completed"}
-                  </td>
-                  <td style={tdStyle()}>
-                    Total: {driver.documents_count}
-                    <div>Approved: {driver.approved_documents_count}</div>
-                    <div>Pending: {driver.pending_documents_count}</div>
-                  </td>
+      {activeReportTab === "drivers" ? (
+        <div style={cardStyle()}>
+          <h3 style={{ marginTop: 0 }}>Driver verification report</h3>
+
+          <div className="truego-no-print" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+            {[
+              ["all", "All drivers"],
+              ["verified", "Verified"],
+              ["not_verified", "Not verified"],
+              ["needs_review", "Needs review"],
+              ["pi_linked", "Pi linked"],
+              ["missing_pi", "Missing Pi"],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setDriverFilter(value as DriverReportFilter)}
+                style={activeButtonStyle(driverFilter === value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ overflowX: "auto" }}>
+            <table style={tableStyle()}>
+              <thead>
+                <tr>
+                  <th style={thStyle()}>Driver</th>
+                  <th style={thStyle()}>Pi</th>
+                  <th style={thStyle()}>Contact</th>
+                  <th style={thStyle()}>Status</th>
+                  <th style={thStyle()}>Vehicle</th>
+                  <th style={thStyle()}>Documents</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredDrivers.map((driver) => (
+                  <tr key={driver.demo_driver_id}>
+                    <td style={tdStyle()}>
+                      <strong>{driver.display_name}</strong>
+                      <div style={monoStyle()}>{driver.demo_driver_id}</div>
+                    </td>
+                    <td style={tdStyle()}>
+                      {driver.pi_username ? `@${driver.pi_username}` : "No username"}
+                      <div style={monoStyle()}>{driver.pi_uid ?? "No Pi UID"}</div>
+                    </td>
+                    <td style={tdStyle()}>
+                      <div>Email: {driver.email_verified ? "Verified" : "Not verified"}</div>
+                      <div>Phone: {driver.phone_verified ? "Verified" : "Not verified"}</div>
+                    </td>
+                    <td style={tdStyle()}>
+                      <span style={badgeStyle(driverBadgeColor(driver))}>
+                        {formatDriverStatus(driver)}
+                      </span>
+                      <div style={{ marginTop: 6 }}>
+                        {driver.account_status ?? "pending"} / {driver.onboarding_status ?? "profile_required"}
+                      </div>
+                    </td>
+                    <td style={tdStyle()}>
+                      {[driver.vehicle_type, driver.vehicle_make, driver.vehicle_model, driver.vehicle_plate]
+                        .filter(Boolean)
+                        .join(" · ") || "Not completed"}
+                    </td>
+                    <td style={tdStyle()}>
+                      Total: {driver.documents_count}
+                      <div>Approved: {driver.approved_documents_count}</div>
+                      <div>Pending: {driver.pending_documents_count}</div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      ) : null}
 
-      <div style={cardStyle()}>
-        <h3 style={{ marginTop: 0 }}>Ride operations / payments report</h3>
+      {activeReportTab === "rides" ? (
+        <div style={cardStyle()}>
+          <h3 style={{ marginTop: 0 }}>Ride operations report</h3>
 
-        <div className="truego-no-print" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-          {[
-            ["all", "All"],
-            ["active", "Active"],
-            ["completed", "Completed"],
-            ["completed_paid", "Completed paid"],
-            ["completed_unpaid", "Completed unpaid"],
-            ["paid", "Paid"],
-            ["no_driver_available", "No driver"],
-            ["offers_expired", "Offers expired"],
-            ["cancelled", "Cancelled"],
-            ["exceptions", "Exceptions"],
-          ].map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setRideFilter(value as RideReportFilter)}
-              style={activeButtonStyle(rideFilter === value)}
-            >
-              {label}
-            </button>
+          <div className="truego-no-print" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+            {[
+              ["all", "All rides"],
+              ["active", "Active"],
+              ["completed", "Completed"],
+              ["no_driver_available", "No driver"],
+              ["offers_expired", "Offers expired"],
+              ["cancelled", "Cancelled"],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setRideFilter(value as RideReportFilter)}
+                style={activeButtonStyle(rideFilter === value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <RideReportTable rows={filteredRides} />
+        </div>
+      ) : null}
+
+      {activeReportTab === "payments" ? (
+        <div style={cardStyle()}>
+          <h3 style={{ marginTop: 0 }}>Payment report</h3>
+
+          <div className="truego-no-print" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+            {[
+              ["all", "All payments"],
+              ["paid", "Paid rides"],
+              ["completed_paid", "Completed paid"],
+              ["completed_unpaid", "Completed unpaid"],
+              ["payout_generated", "Payout generated"],
+              ["payout_pending", "Payout pending"],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setPaymentFilter(value as PaymentReportFilter)}
+                style={activeButtonStyle(paymentFilter === value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <RideReportTable rows={filteredPayments} showPaymentFocus />
+        </div>
+      ) : null}
+
+      {activeReportTab === "exceptions" ? (
+        <div style={cardStyle()}>
+          <h3 style={{ marginTop: 0 }}>Exceptions report</h3>
+          <p style={{ marginTop: 0, color: "#64748b" }}>
+            Includes completed unpaid rides, cancelled rides, no-driver results, and expired offers.
+          </p>
+
+          <RideReportTable rows={exceptionRows} showPaymentFocus />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function RideReportTable({
+  rows,
+  showPaymentFocus = false,
+}: {
+  rows: RideReportRow[];
+  showPaymentFocus?: boolean;
+}) {
+  if (rows.length === 0) {
+    return <p style={{ color: "#64748b" }}>No records found for this report.</p>;
+  }
+
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={tableStyle()}>
+        <thead>
+          <tr>
+            <th style={thStyle()}>Ride</th>
+            <th style={thStyle()}>Route</th>
+            <th style={thStyle()}>Rider / Driver</th>
+            <th style={thStyle()}>Status</th>
+            <th style={thStyle()}>{showPaymentFocus ? "Payment / payout" : "Payment"}</th>
+            <th style={thStyle()}>Dates</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((ride) => (
+            <tr key={ride.ride_id}>
+              <td style={tdStyle()}>
+                <div style={monoStyle()}>{ride.ride_id}</div>
+                <div>{ride.vehicle_type ?? "Vehicle N/A"}</div>
+              </td>
+              <td style={tdStyle()}>
+                <strong>{ride.pickup_text}</strong>
+                <div>→ {ride.destination_text}</div>
+                <div>{dbNumber(ride.distance_km).toFixed(2)} km · {dbNumber(ride.duration_min)} min</div>
+              </td>
+              <td style={tdStyle()}>
+                <div>Rider: {ride.rider_name ?? "Unknown"}</div>
+                <div>Driver: {ride.driver_name ?? "Not assigned"}</div>
+              </td>
+              <td style={tdStyle()}>
+                <span style={badgeStyle(rideBadgeColor(ride))}>{ride.report_bucket}</span>
+                <div style={{ marginTop: 6 }}>{ride.ride_status}</div>
+              </td>
+              <td style={tdStyle()}>
+                <div>Status: {ride.payment_status}</div>
+                <div>Amount: {formatPi(ride.payment_amount_pi ?? ride.price_pi)}</div>
+                {showPaymentFocus ? <div>Payout: {ride.payout_status}</div> : null}
+                {showPaymentFocus ? <div>Driver payout: {formatPi(ride.driver_payout_pi)}</div> : null}
+                <div style={monoStyle()}>Payment ID: {ride.payment_id ?? "N/A"}</div>
+                <div style={monoStyle()}>TXID: {ride.payment_txid ?? "N/A"}</div>
+              </td>
+              <td style={tdStyle()}>
+                <div>Created: {formatDate(ride.created_at)}</div>
+                <div>Completed: {formatDate(ride.completed_at)}</div>
+                <div>Paid: {formatDate(ride.payment_completed_at)}</div>
+              </td>
+            </tr>
           ))}
-        </div>
-
-        <div style={{ overflowX: "auto" }}>
-          <table style={tableStyle()}>
-            <thead>
-              <tr>
-                <th style={thStyle()}>Ride</th>
-                <th style={thStyle()}>Route</th>
-                <th style={thStyle()}>Rider / Driver</th>
-                <th style={thStyle()}>Status</th>
-                <th style={thStyle()}>Payment</th>
-                <th style={thStyle()}>Dates</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRides.map((ride) => (
-                <tr key={ride.ride_id}>
-                  <td style={tdStyle()}>
-                    <div style={monoStyle()}>{ride.ride_id}</div>
-                    <div>{ride.vehicle_type ?? "Vehicle N/A"}</div>
-                  </td>
-                  <td style={tdStyle()}>
-                    <strong>{ride.pickup_text}</strong>
-                    <div>→ {ride.destination_text}</div>
-                    <div>{dbNumber(ride.distance_km).toFixed(2)} km · {dbNumber(ride.duration_min)} min</div>
-                  </td>
-                  <td style={tdStyle()}>
-                    <div>Rider: {ride.rider_name ?? "Unknown"}</div>
-                    <div>Driver: {ride.driver_name ?? "Not assigned"}</div>
-                  </td>
-                  <td style={tdStyle()}>
-                    <span style={badgeStyle(rideBadgeColor(ride))}>{ride.report_bucket}</span>
-                    <div style={{ marginTop: 6 }}>{ride.ride_status}</div>
-                  </td>
-                  <td style={tdStyle()}>
-                    <div>Status: {ride.payment_status}</div>
-                    <div>Amount: {formatPi(ride.payment_amount_pi ?? ride.price_pi)}</div>
-                    <div style={monoStyle()}>TXID: {ride.payment_txid ?? "N/A"}</div>
-                  </td>
-                  <td style={tdStyle()}>
-                    <div>Created: {formatDate(ride.created_at)}</div>
-                    <div>Completed: {formatDate(ride.completed_at)}</div>
-                    <div>Paid: {formatDate(ride.payment_completed_at)}</div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+        </tbody>
+      </table>
     </div>
   );
 }
