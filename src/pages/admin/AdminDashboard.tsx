@@ -1293,7 +1293,24 @@ export default function AdminDashboard() {
 
       if (updateError) throw updateError;
 
-      setPayoutMessage(`Driver payout status updated to ${nextStatus}.`);
+      if (nextStatus === "paid") {
+        const { error: accountingError } = await supabase.rpc(
+          "admin_post_driver_payout_accounting",
+          {
+            p_admin_session_token: requireAdminSessionToken(),
+            p_payout_id: selectedPayout.id,
+          }
+        );
+
+        if (accountingError) throw accountingError;
+
+        setPayoutMessage(
+          "Driver payout marked as paid and accounting entry posted."
+        );
+      } else {
+        setPayoutMessage(`Driver payout status updated to ${nextStatus}.`);
+      }
+
       await loadPayoutDashboard();
       await loadFinanceDashboard();
     } catch (updateError) {
