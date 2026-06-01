@@ -379,6 +379,7 @@ export default function AdminDriverVerificationPanel() {
   const [loading, setLoading] = useState(false);
   const [actionKey, setActionKey] = useState("");
   const [openKey, setOpenKey] = useState("");
+  const [documentActionKey, setDocumentActionKey] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -501,22 +502,87 @@ export default function AdminDriverVerificationPanel() {
     void loadRows();
   }, []);
 
-  async function openStoragePath(filePath: string, loadingKey: string) {
-    setOpenKey(loadingKey);
+  async function openStoragePath(filePath: string, key: string) {
+    setOpenKey(key);
     setError("");
 
-    const { data, error: signedUrlError } = await supabase.storage
-      .from("driver-documents")
-      .createSignedUrl(filePath, 3600);
+    try {
+      const { data, error: signedUrlError } = await supabase.functions.invoke<{
+        ok: boolean;
+        signedUrl?: string;
+        error?: string;
+      }>("admin-driver-document-url", {
+        body: {
+          sessionToken: requireAdminSessionToken(),
+          filePath,
+          recordId: key,
+        },
+      });
 
-    if (signedUrlError) {
-      setError(signedUrlError.message);
-    } else if (data?.signedUrl) {
+      if (signedUrlError) {
+        throw signedUrlError;
+      }
+
+      if (!data?.ok || !data.signedUrl) {
+        throw new Error(data?.error ?? "Failed to open driver document.");
+      }
+
       window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (signedUrlError) {
+      setError(getErrorMessage(signedUrlError, "Failed to open driver document."));
+    } finally {
+      setOpenKey("");
     }
-
-    setOpenKey("");
   }
+
+  async function reviewDriverDocument(
+    documentId: string,
+    nextStatus: DemoDriverDocumentRow["status"]
+  ) {
+    const actionKey = `${documentId}:${nextStatus}`;
+    setDocumentActionKey(actionKey);
+    setError("");
+
+    try {
+      const { data, error: reviewError } = await supabase.rpc(
+        "admin_review_demo_driver_document",
+        {
+          p_admin_session_token: requireAdminSessionToken(),
+          p_document_id: documentId,
+          p_status: nextStatus,
+          p_admin_notes: `Admin changed document status to ${nextStatus}.`,
+        }
+      );
+
+      if (reviewError) {
+        throw reviewError;
+      }
+
+      const updatedDocument = data as unknown as DemoDriverDocumentRow;
+
+      setDocumentsByDriver((previous) => {
+        const next: Record<string, DemoDriverDocumentRow[]> = {};
+
+        for (const [driverId, documents] of Object.entries(previous)) {
+          next[driverId] = documents.map((document) =>
+            document.id === documentId
+              ? {
+                  ...document,
+                  status: updatedDocument.status ?? nextStatus,
+                }
+              : document
+          );
+        }
+
+        return next;
+      });
+    } catch (reviewError) {
+      setError(getErrorMessage(reviewError, "Failed to review driver document."));
+    } finally {
+      setDocumentActionKey("");
+    }
+  }
+
 
   async function reviewDriver(row: DemoDriverVerificationRow, nextStatus: VerificationStatus) {
     setActionKey(`${row.demo_driver_id}:${nextStatus}`);
@@ -866,6 +932,42 @@ export default function AdminDriverVerificationPanel() {
                       >
                         {openKey === document.id ? "Opening..." : "Open document"}
                       </button>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 8,
+                          flexWrap: "wrap",
+                          marginTop: 8,
+                        }}
+                      >
+                        {([
+                          ["approved", "Approve document", "#16a34a"],
+                          ["needs_more_info", "Needs info", "#f59e0b"],
+                          ["rejected", "Reject document", "#dc2626"],
+                        ] as const).map(([status, label, color]) => {
+                          const actionKey = `${document.id}:${status}`;
+                          const disabled =
+                            documentActionKey !== "" || document.status === status;
+
+                          return (
+                            <button
+                              key={status}
+                              type="button"
+                              onClick={() => {
+                                void reviewDriverDocument(document.id, status);
+                              }}
+                              disabled={disabled}
+                              style={{
+                                ...buttonStyle(color, disabled),
+                                marginTop: 0,
+                              }}
+                            >
+                              {documentActionKey === actionKey ? "Saving..." : label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   );
                 })}
