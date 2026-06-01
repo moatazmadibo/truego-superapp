@@ -810,12 +810,18 @@ export default function AdminDashboard() {
         entriesResult,
         linesResult,
         expensesResult,
+        payoutsResult,
       ] = await Promise.all([
         supabase.rpc("get_platform_finance_settings"),
         supabase.rpc("get_accounting_accounts"),
         supabase.rpc("get_accounting_journal_entries"),
         supabase.rpc("get_accounting_journal_lines"),
         supabase.rpc("get_business_expenses"),
+        supabase
+          .from("driver_payouts")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(50),
       ]);
 
       if (settingsResult.error) throw settingsResult.error;
@@ -823,6 +829,7 @@ export default function AdminDashboard() {
       if (entriesResult.error) throw entriesResult.error;
       if (linesResult.error) throw linesResult.error;
       if (expensesResult.error) throw expensesResult.error;
+      if (payoutsResult.error) throw payoutsResult.error;
 
       const nextSettings = settingsResult.data as PlatformFinanceSettings;
       setFinanceSettings(nextSettings);
@@ -832,6 +839,7 @@ export default function AdminDashboard() {
       setFinanceEntries((entriesResult.data ?? []) as unknown as AccountingJournalEntryRow[]);
       setFinanceLines((linesResult.data ?? []) as unknown as AccountingJournalLineRow[]);
       setBusinessExpenses((expensesResult.data ?? []) as unknown as BusinessExpenseRow[]);
+      setPayoutRows((payoutsResult.data ?? []) as unknown as DriverPayoutRow[]);
     } catch (loadError) {
       const message =
         loadError instanceof Error
@@ -1711,6 +1719,127 @@ export default function AdminDashboard() {
             >
               {financeLoading ? "Refreshing..." : "Refresh finance"}
             </button>
+          </div>
+
+          <div style={{ marginTop: 18 }}>
+            <h3 style={{ marginBottom: 8 }}>Finance reports</h3>
+
+            <div style={rideDetailGridStyle()}>
+              <div
+                style={{
+                  ...rideDetailItemStyle(),
+                  background: "#f8fafc",
+                }}
+              >
+                <strong>Profit & Loss</strong>
+                <div style={{ marginTop: 8 }}>
+                  Revenue: {formatPi(financeSummary.commissionRevenuePi)} · {formatUsd(financeSummary.commissionRevenueUsd)}
+                </div>
+                <div>
+                  Expenses: {formatPi(financeSummary.expensesPi)} · {formatUsd(financeSummary.expensesUsd)}
+                </div>
+                <div style={{ marginTop: 8, fontWeight: 900 }}>
+                  Net profit / loss:{" "}
+                  {formatPi(financeSummary.commissionRevenuePi - financeSummary.expensesPi)} ·{" "}
+                  {formatUsd(financeSummary.commissionRevenueUsd - financeSummary.expensesUsd)}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  ...rideDetailItemStyle(),
+                  background: "#f8fafc",
+                }}
+              >
+                <strong>Wallet reconciliation</strong>
+                <div style={{ marginTop: 8 }}>
+                  Pi App Wallet ledger: {formatPi(financeSummary.piWalletPi)} · {formatUsd(financeSummary.piWalletUsd)}
+                </div>
+                <div>
+                  Driver payables: {formatPi(financeSummary.driverPayablesPi)} · {formatUsd(financeSummary.driverPayablesUsd)}
+                </div>
+                <div style={{ marginTop: 8, color: "#64748b", fontSize: 13 }}>
+                  Reconciliation compares posted accounting entries only. Actual blockchain wallet balance will be connected later.
+                </div>
+              </div>
+
+              <div
+                style={{
+                  ...rideDetailItemStyle(),
+                  background: "#f8fafc",
+                }}
+              >
+                <strong>Driver payout summary</strong>
+                <div style={{ marginTop: 8 }}>
+                  Pending payout records: {payoutRows.filter((row) => row.payout_status === "pending").length}
+                </div>
+                <div>
+                  Paid payout records: {payoutRows.filter((row) => row.payout_status === "paid").length}
+                </div>
+                <div>
+                  Pending amount:{" "}
+                  {formatPi(
+                    payoutRows
+                      .filter((row) => row.payout_status === "pending")
+                      .reduce((sum, row) => sum + dbNumber(row.driver_payout_pi), 0)
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <h4 style={{ marginBottom: 8 }}>Driver payables report</h4>
+
+              {payoutRows.length === 0 ? (
+                <p style={{ color: "#64748b" }}>
+                  No driver payout records yet. They will appear after completed paid rides are generated into payout records.
+                </p>
+              ) : null}
+
+              {payoutRows.slice(0, 10).map((payout) => (
+                <div key={payout.id} style={rideCardStyle()}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                    }}
+                  >
+                    <div>
+                      <strong>{payout.driver_name ?? "Unknown driver"}</strong>
+                      <div style={monoTextStyle()}>
+                        Pi: {payout.driver_pi_username ? `@${payout.driver_pi_username}` : "N/A"} · UID: {payout.driver_pi_uid ?? "N/A"}
+                      </div>
+                      <div style={monoTextStyle()}>Ride ID: {payout.ride_id}</div>
+                    </div>
+
+                    <span style={badgeStyle(payoutBadgeColor(payout.payout_status))}>
+                      {formatPayoutStatus(payout.payout_status)}
+                    </span>
+                  </div>
+
+                  <div style={rideDetailGridStyle()}>
+                    <div style={rideDetailItemStyle()}>
+                      <strong>Gross ride amount</strong>
+                      <div>{formatPi(dbNumber(payout.gross_amount_pi))}</div>
+                    </div>
+
+                    <div style={rideDetailItemStyle()}>
+                      <strong>TrueGo commission</strong>
+                      <div>{formatPercent(payout.commission_percent)}</div>
+                      <div>{formatPi(dbNumber(payout.app_commission_pi))}</div>
+                    </div>
+
+                    <div style={rideDetailItemStyle()}>
+                      <strong>Driver payable</strong>
+                      <div>{formatPi(dbNumber(payout.driver_payout_pi))}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div style={{ marginTop: 18 }}>
