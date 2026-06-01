@@ -1476,7 +1476,7 @@ export default function AdminDashboard() {
           onClick={() => setActiveTab("reports")}
           style={tabButtonStyle(activeTab === "reports")}
         >
-          Reports / التقارير
+          Reports
         </button>
       </div>
 

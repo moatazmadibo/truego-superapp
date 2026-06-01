@@ -201,6 +201,87 @@ function formatDate(value?: string | null) {
   return value ? new Date(value).toLocaleString() : "N/A";
 }
 
+function csvCell(value: unknown) {
+  const rawValue = value == null ? "" : String(value);
+  return `"${rawValue.replace(/"/g, '""')}"`;
+}
+
+function htmlEscape(value: unknown) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function downloadCsv(filename: string, rows: Array<Record<string, unknown>>) {
+  if (rows.length === 0) {
+    window.alert("No rows available to export.");
+    return;
+  }
+
+  const headers = Object.keys(rows[0]);
+  const csv = [
+    headers.map(csvCell).join(","),
+    ...rows.map((row) => headers.map((header) => csvCell(row[header])).join(",")),
+  ].join("\n");
+
+  const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function downloadExcel(filename: string, rows: Array<Record<string, unknown>>) {
+  if (rows.length === 0) {
+    window.alert("No rows available to export.");
+    return;
+  }
+
+  const headers = Object.keys(rows[0]);
+  const tableRows = [
+    `<tr>${headers.map((header) => `<th>${htmlEscape(header)}</th>`).join("")}</tr>`,
+    ...rows.map((row) =>
+      `<tr>${headers.map((header) => `<td>${htmlEscape(row[header])}</td>`).join("")}</tr>`
+    ),
+  ].join("");
+
+  const workbook = `
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          table { border-collapse: collapse; font-family: Arial, sans-serif; font-size: 12px; }
+          th { background: #f1f5f9; font-weight: bold; }
+          th, td { border: 1px solid #cbd5e1; padding: 6px; text-align: left; }
+        </style>
+      </head>
+      <body>
+        <table>${tableRows}</table>
+      </body>
+    </html>
+  `;
+
+  const blob = new Blob(["\ufeff" + workbook], {
+    type: "application/vnd.ms-excel;charset=utf-8;",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 function formatDriverStatus(row: DriverReportRow) {
   switch (row.readiness_status) {
     case "verified":
@@ -357,6 +438,98 @@ export default function AdminReportsPanel() {
     window.print();
   }
 
+  function getCurrentReportExportRows(): Array<Record<string, unknown>> {
+    if (activeReportTab === "overview") {
+      return [
+        { metric: "Total drivers", value: stats.totalDrivers },
+        { metric: "Verified drivers", value: stats.verifiedDrivers },
+        { metric: "Unverified drivers", value: stats.unverifiedDrivers },
+        { metric: "Pi-linked drivers", value: stats.piLinkedDrivers },
+        { metric: "Total rides", value: stats.totalRides },
+        { metric: "Active rides", value: stats.activeRides },
+        { metric: "Completed rides", value: stats.completedRides },
+        { metric: "Paid rides", value: stats.paidRides },
+        { metric: "Completed unpaid", value: stats.completedUnpaid },
+        { metric: "No driver", value: stats.noDriver },
+        { metric: "Offers expired", value: stats.offersExpired },
+        { metric: "Cancelled", value: stats.cancelled },
+        { metric: "Exceptions", value: stats.exceptions },
+        { metric: "Collected Pi", value: stats.collectedPi.toFixed(8) },
+      ];
+    }
+
+    if (activeReportTab === "drivers") {
+      return filteredDrivers.map((driver) => ({
+        driver_id: driver.demo_driver_id,
+        display_name: driver.display_name,
+        pi_username: driver.pi_username ?? "",
+        pi_uid: driver.pi_uid ?? "",
+        email: driver.email ?? "",
+        phone: driver.phone ?? "",
+        email_verified: driver.email_verified ? "yes" : "no",
+        phone_verified: driver.phone_verified ? "yes" : "no",
+        account_status: driver.account_status ?? "",
+        onboarding_status: driver.onboarding_status ?? "",
+        verification_status: driver.verification_status ?? "",
+        readiness_status: driver.readiness_status,
+        vehicle_type: driver.vehicle_type ?? "",
+        vehicle_make: driver.vehicle_make ?? "",
+        vehicle_model: driver.vehicle_model ?? "",
+        vehicle_plate: driver.vehicle_plate ?? "",
+        documents_count: driver.documents_count,
+        approved_documents_count: driver.approved_documents_count,
+        pending_documents_count: driver.pending_documents_count,
+      }));
+    }
+
+    const exportRideRows =
+      activeReportTab === "payments"
+        ? filteredPayments
+        : activeReportTab === "exceptions"
+          ? exceptionRows
+          : filteredRides;
+
+    return exportRideRows.map((ride) => ({
+      ride_id: ride.ride_id,
+      report_bucket: ride.report_bucket,
+      ride_status: ride.ride_status,
+      payment_status: ride.payment_status,
+      payout_status: ride.payout_status,
+      rider_name: ride.rider_name ?? "",
+      driver_name: ride.driver_name ?? "",
+      demo_driver_id: ride.demo_driver_id ?? "",
+      pickup_text: ride.pickup_text,
+      destination_text: ride.destination_text,
+      vehicle_type: ride.vehicle_type ?? "",
+      distance_km: ride.distance_km,
+      duration_min: ride.duration_min,
+      price_pi: ride.price_pi ?? "",
+      payment_amount_pi: ride.payment_amount_pi ?? "",
+      driver_payout_pi: ride.driver_payout_pi ?? "",
+      payment_id: ride.payment_id ?? "",
+      payment_txid: ride.payment_txid ?? "",
+      created_at: ride.created_at,
+      completed_at: ride.completed_at ?? "",
+      payment_completed_at: ride.payment_completed_at ?? "",
+    }));
+  }
+
+  function exportCurrentReportCsv() {
+    const dateTag = new Date().toISOString().slice(0, 10);
+    downloadCsv(
+      `truego-${activeReportTab}-report-${dateTag}.csv`,
+      getCurrentReportExportRows()
+    );
+  }
+
+  function exportCurrentReportExcel() {
+    const dateTag = new Date().toISOString().slice(0, 10);
+    downloadExcel(
+      `truego-${activeReportTab}-report-${dateTag}.xls`,
+      getCurrentReportExportRows()
+    );
+  }
+
   return (
     <div style={sectionStyle()} className="truego-admin-reports">
       <style>
@@ -396,9 +569,19 @@ export default function AdminReportsPanel() {
           </p>
         </div>
 
-        <button type="button" onClick={printReports} style={buttonStyle(false)} className="truego-no-print">
-          Print current report
-        </button>
+        <div className="truego-no-print" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button type="button" onClick={exportCurrentReportCsv} style={buttonStyle(false)}>
+            Export CSV
+          </button>
+
+          <button type="button" onClick={exportCurrentReportExcel} style={buttonStyle(false)}>
+            Export MS Excel
+          </button>
+
+          <button type="button" onClick={printReports} style={buttonStyle(false)}>
+            Print / Save PDF
+          </button>
+        </div>
       </div>
 
       {error ? (
