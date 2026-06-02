@@ -812,6 +812,110 @@ function activityBoxStyle(): React.CSSProperties {
 
 
 
+
+function AdminNavigationGroups({
+  activeTab,
+  setActiveTab,
+}: {
+  activeTab: AdminTab;
+  setActiveTab: (tab: AdminTab) => void;
+}) {
+  const groups: {
+    label: string;
+    primaryTab: AdminTab;
+    tabs: AdminTab[];
+    description: string;
+  }[] = [
+    {
+      label: "Core",
+      primaryTab: "rides",
+      tabs: ["rides", "drivers"],
+      description: "Rides and drivers",
+    },
+    {
+      label: "Operations",
+      primaryTab: "actions",
+      tabs: ["actions", "reports", "integrity"],
+      description: "Actions, reports, integrity",
+    },
+    {
+      label: "Finance",
+      primaryTab: "payouts",
+      tabs: ["payouts", "finance"],
+      description: "Payouts and accounting",
+    },
+    {
+      label: "Security",
+      primaryTab: "audit",
+      tabs: ["audit", "sessions"],
+      description: "Audit and sessions",
+    },
+    {
+      label: "Readiness",
+      primaryTab: "readiness",
+      tabs: ["health", "readiness"],
+      description: "Health and launch checks",
+    },
+  ];
+
+  return (
+    <section
+      style={{
+        marginTop: 12,
+        marginBottom: 12,
+        padding: 12,
+        borderRadius: 16,
+        background: "#0f172a",
+        color: "#ffffff",
+        boxShadow: "0 10px 30px rgba(15, 23, 42, 0.12)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}
+      >
+        <div>
+          <strong>Admin navigation</strong>
+          <div style={{ color: "#cbd5e1", fontSize: 13, marginTop: 4 }}>
+            Grouped shortcuts for faster operations.
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {groups.map((group) => {
+            const isActive = group.tabs.includes(activeTab);
+
+            return (
+              <button
+                key={group.label}
+                type="button"
+                onClick={() => setActiveTab(group.primaryTab)}
+                title={group.description}
+                style={{
+                  border: "1px solid " + (isActive ? "#ffffff" : "#334155"),
+                  borderRadius: 999,
+                  padding: "10px 14px",
+                  background: isActive ? "#ffffff" : "#1e293b",
+                  color: isActive ? "#0f172a" : "#ffffff",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                }}
+              >
+                {group.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function AdminQuickOperationsSummary({
   stats,
   activeTab,
@@ -1907,6 +2011,11 @@ export default function AdminDashboard() {
       >
       <AdminQuickOperationsSummary
         stats={stats}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+      />
+
+      <AdminNavigationGroups
         activeTab={activeTab}
         setActiveTab={setActiveTab}
       />
