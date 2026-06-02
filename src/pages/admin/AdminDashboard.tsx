@@ -810,6 +810,156 @@ function activityBoxStyle(): React.CSSProperties {
 }
 
 
+
+function AdminQuickOperationsSummary({
+  stats,
+  activeTab,
+  setActiveTab,
+}: {
+  stats: DashboardStats;
+  activeTab: AdminTab;
+  setActiveTab: (tab: AdminTab) => void;
+}) {
+  const statsRecord = stats as unknown as Record<string, unknown>;
+
+  function statValue(...keys: string[]) {
+    for (const key of keys) {
+      const value = statsRecord[key];
+
+      if (typeof value === "number") {
+        return value;
+      }
+
+      if (typeof value === "string") {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+    }
+
+    return 0;
+  }
+
+  const noDriverCount = statValue("noDriverAvailable", "no_driver_available");
+  const actionItems =
+    noDriverCount +
+    statValue("offersExpired", "offers_expired") +
+    statValue("failedPayments", "failed_payments", "failed");
+
+  const quickItems = [
+    {
+      label: "Action items",
+      value: actionItems,
+      tab: "actions" as AdminTab,
+      tone: actionItems > 0 ? "#f59e0b" : "#16a34a",
+    },
+    {
+      label: "Active rides",
+      value: statValue("activeRides", "active_rides", "active"),
+      tab: "live" as AdminTab,
+      tone: "#2563eb",
+    },
+    {
+      label: "Completed rides",
+      value: statValue("completedRides", "completed_rides", "completed"),
+      tab: "reports" as AdminTab,
+      tone: "#0f766e",
+    },
+    {
+      label: "Paid rides",
+      value: statValue("paidRides", "paid_rides", "paid"),
+      tab: "reports" as AdminTab,
+      tone: "#16a34a",
+    },
+    {
+      label: "No driver",
+      value: noDriverCount,
+      tab: "actions" as AdminTab,
+      tone: "#dc2626",
+    },
+  ];
+
+  return (
+    <section
+      style={{
+        marginTop: 14,
+        marginBottom: 12,
+        padding: 14,
+        borderRadius: 16,
+        background: "#ffffff",
+        border: "1px solid #e5e7eb",
+        boxShadow: "0 10px 30px rgba(15, 23, 42, 0.06)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}
+      >
+        <div>
+          <h2 style={{ margin: 0 }}>Quick Operations Summary</h2>
+          <p style={{ margin: "6px 0 0", color: "#64748b", lineHeight: 1.6 }}>
+            Fast operational view for rides, payments, and admin action items.
+          </p>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {([
+            ["actions", "Actions"],
+            ["live", "Live"],
+            ["reports", "Reports"],
+            ["readiness", "Readiness"],
+          ] as [AdminTab, string][]).map(([tab, label]) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              style={tabButtonStyle(activeTab === tab)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+          gap: 10,
+          marginTop: 14,
+        }}
+      >
+        {quickItems.map((item) => (
+          <button
+            key={item.label}
+            type="button"
+            onClick={() => setActiveTab(item.tab)}
+            style={{
+              textAlign: "left",
+              padding: 14,
+              borderRadius: 14,
+              background: "#f8fafc",
+              border: "1px solid #e5e7eb",
+              cursor: "pointer",
+            }}
+          >
+            <div style={{ color: "#64748b", fontSize: 12, fontWeight: 800 }}>
+              {item.label}
+            </div>
+            <div style={{ marginTop: 6, fontSize: 24, fontWeight: 950, color: item.tone }}>
+              {item.value}
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<AdminTab>("rides");
   const [selectedMonitorRideId, setSelectedMonitorRideId] = useState("");
@@ -1751,6 +1901,12 @@ export default function AdminDashboard() {
           marginBottom: 16,
         }}
       >
+      <AdminQuickOperationsSummary
+        stats={stats}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+      />
+
         <button
           type="button"
           onClick={() => setActiveTab("rides")}
