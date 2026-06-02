@@ -118,6 +118,31 @@ type AccountingJournalLineRow = {
   created_at: string;
 };
 
+type PayoutEligibilitySummaryRow = {
+  payout_readiness: string;
+  total: number | string;
+};
+
+type PayoutEligibilityRideRow = {
+  ride_id: string;
+  ride_status: string;
+  payment_status: string;
+  driver_name: string | null;
+  demo_driver_id: string | null;
+  price_pi: number | string | null;
+  payment_amount_pi: number | string | null;
+  payment_id: string | null;
+  payment_txid: string | null;
+  payment_completed_at: string | null;
+  matched_driver_id: string | null;
+  matched_driver_name: string | null;
+  matched_driver_pi_uid: string | null;
+  matched_driver_pi_username: string | null;
+  account_status: string | null;
+  onboarding_status: string | null;
+  payout_readiness: string;
+};
+
 type BusinessExpenseRow = {
   id: string;
   expense_date: string;
@@ -556,6 +581,44 @@ function payoutBadgeColor(status: DriverPayoutRow["payout_status"]) {
   }
 }
 
+function formatPayoutReadiness(value: string) {
+  switch (value) {
+    case "eligible":
+      return "Eligible";
+    case "already_has_payout":
+      return "Already has payout";
+    case "ride_not_completed":
+      return "Ride not completed";
+    case "payment_not_completed":
+      return "Payment not completed";
+    case "missing_amount":
+      return "Missing amount";
+    case "driver_not_matched":
+      return "Driver not matched";
+    case "driver_missing_pi_uid":
+      return "Driver missing Pi UID";
+    case "driver_missing_pi_username":
+      return "Driver missing Pi username";
+    default:
+      return value;
+  }
+}
+
+function payoutReadinessColor(value: string) {
+  switch (value) {
+    case "eligible":
+      return "#16a34a";
+    case "already_has_payout":
+      return "#2563eb";
+    case "driver_missing_pi_uid":
+    case "driver_missing_pi_username":
+    case "driver_not_matched":
+      return "#f59e0b";
+    default:
+      return "#64748b";
+  }
+}
+
 function formatPayoutStatus(status: DriverPayoutRow["payout_status"]) {
   switch (status) {
     case "pending":
@@ -710,6 +773,10 @@ export default function AdminDashboard() {
   const [payoutActionLoading, setPayoutActionLoading] = useState("");
   const [payoutError, setPayoutError] = useState("");
   const [payoutMessage, setPayoutMessage] = useState("");
+  const [payoutEligibilitySummary, setPayoutEligibilitySummary] = useState<PayoutEligibilitySummaryRow[]>([]);
+  const [payoutEligibilityRows, setPayoutEligibilityRows] = useState<PayoutEligibilityRideRow[]>([]);
+  const [payoutEligibilityLoading, setPayoutEligibilityLoading] = useState(false);
+
   const [manualPayoutId, setManualPayoutId] = useState("");
   const [financeSettings, setFinanceSettings] = useState<PlatformFinanceSettings | null>(null);
   const [piUsdRateInput, setPiUsdRateInput] = useState("0");
@@ -832,6 +899,41 @@ export default function AdminDashboard() {
       setPayoutError(message);
     } finally {
       setPayoutActionLoading("");
+    }
+  }
+
+  async function loadPayoutEligibilityDiagnostics() {
+    setPayoutEligibilityLoading(true);
+    setPayoutError("");
+
+    try {
+      const [summaryResult, rowsResult] = await Promise.all([
+        supabase.rpc("admin_get_payout_eligibility_summary", {
+          p_admin_session_token: requireAdminSessionToken(),
+        }),
+        supabase.rpc("admin_get_payout_eligibility_rows", {
+          p_admin_session_token: requireAdminSessionToken(),
+          p_limit: 50,
+        }),
+      ]);
+
+      if (summaryResult.error) throw summaryResult.error;
+      if (rowsResult.error) throw rowsResult.error;
+
+      setPayoutEligibilitySummary(
+        (summaryResult.data ?? []) as unknown as PayoutEligibilitySummaryRow[]
+      );
+      setPayoutEligibilityRows(
+        (rowsResult.data ?? []) as unknown as PayoutEligibilityRideRow[]
+      );
+    } catch (diagnosticError) {
+      const message = getErrorMessage(
+        diagnosticError,
+        "Failed to load payout eligibility diagnostics."
+      );
+      setPayoutError(message);
+    } finally {
+      setPayoutEligibilityLoading(false);
     }
   }
 
@@ -3091,6 +3193,126 @@ export default function AdminDashboard() {
 
           <div style={{ marginTop: 16 }}>
             <div
+            style={{
+              marginTop: 18,
+              padding: 14,
+              borderRadius: 14,
+              background: "#ffffff",
+              border: "1px solid #e5e7eb",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 12,
+                flexWrap: "wrap",
+                alignItems: "center",
+              }}
+            >
+              <div>
+                <h3 style={{ marginTop: 0, marginBottom: 6 }}>
+                  Payout eligibility diagnostics
+                </h3>
+                <p style={{ margin: 0, color: "#64748b", lineHeight: 1.6 }}>
+                  Diagnose why completed paid rides are eligible or skipped for driver payout records.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  void loadPayoutEligibilityDiagnostics();
+                }}
+                disabled={payoutEligibilityLoading}
+                style={tabButtonStyle(false)}
+              >
+                {payoutEligibilityLoading ? "Loading diagnostics..." : "Load diagnostics"}
+              </button>
+            </div>
+
+            {payoutEligibilitySummary.length > 0 ? (
+              <div style={rideDetailGridStyle()}>
+                {payoutEligibilitySummary.map((row) => (
+                  <div key={row.payout_readiness} style={rideDetailItemStyle()}>
+                    <strong>{formatPayoutReadiness(row.payout_readiness)}</strong>
+                    <div
+                      style={{
+                        marginTop: 6,
+                        color: payoutReadinessColor(row.payout_readiness),
+                        fontWeight: 900,
+                      }}
+                    >
+                      {row.total}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ color: "#64748b" }}>
+                No diagnostics loaded yet. Click Load diagnostics.
+              </p>
+            )}
+
+            {payoutEligibilityRows.length > 0 ? (
+              <div style={{ marginTop: 14 }}>
+                <h4 style={{ marginBottom: 8 }}>Latest paid ride diagnostics</h4>
+
+                {payoutEligibilityRows.slice(0, 12).map((ride) => (
+                  <div key={ride.ride_id} style={rideCardStyle()}>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <div>
+                        <strong>{ride.matched_driver_name ?? ride.driver_name ?? "Unknown driver"}</strong>
+                        <div style={monoTextStyle()}>Ride: {ride.ride_id}</div>
+                      </div>
+
+                      <span style={badgeStyle(payoutReadinessColor(ride.payout_readiness))}>
+                        {formatPayoutReadiness(ride.payout_readiness)}
+                      </span>
+                    </div>
+
+                    <div style={rideDetailGridStyle()}>
+                      <div style={rideDetailItemStyle()}>
+                        <strong>Ride / payment</strong>
+                        <div>Ride: {ride.ride_status}</div>
+                        <div>Payment: {ride.payment_status}</div>
+                        <div>Amount: {formatPi(dbNumber(ride.payment_amount_pi ?? ride.price_pi))}</div>
+                      </div>
+
+                      <div style={rideDetailItemStyle()}>
+                        <strong>Driver match</strong>
+                        <div>{ride.matched_driver_name ?? "Not matched"}</div>
+                        <div style={monoTextStyle()}>
+                          {ride.matched_driver_id ?? "No matched driver id"}
+                        </div>
+                      </div>
+
+                      <div style={rideDetailItemStyle()}>
+                        <strong>Pi account</strong>
+                        <div>
+                          {ride.matched_driver_pi_username
+                            ? `@${ride.matched_driver_pi_username}`
+                            : "No Pi username"}
+                        </div>
+                        <div style={monoTextStyle()}>
+                          {ride.matched_driver_pi_uid ?? "No Pi UID"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <div
             style={{
               marginTop: 18,
               padding: 14,
