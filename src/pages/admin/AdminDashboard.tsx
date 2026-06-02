@@ -581,6 +581,51 @@ function payoutBadgeColor(status: DriverPayoutRow["payout_status"]) {
   }
 }
 
+const PAYOUT_READINESS_ORDER = [
+  "eligible",
+  "already_has_payout",
+  "ride_not_completed",
+  "payment_not_completed",
+  "missing_amount",
+  "driver_not_matched",
+  "driver_missing_pi_uid",
+  "driver_missing_pi_username",
+] as const;
+
+function normalizePayoutEligibilitySummary(
+  rows: PayoutEligibilitySummaryRow[]
+): PayoutEligibilitySummaryRow[] {
+  const totals = new Map<string, number>();
+
+  for (const row of rows) {
+    totals.set(row.payout_readiness, Number(row.total ?? 0));
+  }
+
+  return PAYOUT_READINESS_ORDER.map((key) => ({
+    payout_readiness: key,
+    total: totals.get(key) ?? 0,
+  }));
+}
+
+function payoutDiagnosticBadgeStyle(color: string): React.CSSProperties {
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    textAlign: "center",
+    minWidth: 126,
+    minHeight: 34,
+    padding: "0 14px",
+    borderRadius: 999,
+    background: color,
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: 900,
+    lineHeight: 1,
+    whiteSpace: "nowrap",
+  };
+}
+
 function formatPayoutReadiness(value: string) {
   switch (value) {
     case "eligible":
@@ -921,7 +966,9 @@ export default function AdminDashboard() {
       if (rowsResult.error) throw rowsResult.error;
 
       setPayoutEligibilitySummary(
-        (summaryResult.data ?? []) as unknown as PayoutEligibilitySummaryRow[]
+        normalizePayoutEligibilitySummary(
+          (summaryResult.data ?? []) as unknown as PayoutEligibilitySummaryRow[]
+        )
       );
       setPayoutEligibilityRows(
         (rowsResult.data ?? []) as unknown as PayoutEligibilityRideRow[]
@@ -3234,13 +3281,23 @@ export default function AdminDashboard() {
             {payoutEligibilitySummary.length > 0 ? (
               <div style={rideDetailGridStyle()}>
                 {payoutEligibilitySummary.map((row) => (
-                  <div key={row.payout_readiness} style={rideDetailItemStyle()}>
-                    <strong>{formatPayoutReadiness(row.payout_readiness)}</strong>
+                  <div
+                    key={row.payout_readiness}
+                    style={{
+                      padding: 12,
+                      borderRadius: 12,
+                      border: "1px solid #e5e7eb",
+                      background: "#f8fafc",
+                    }}
+                  >
+                    <div style={{ fontWeight: 900, marginBottom: 8 }}>
+                      {formatPayoutReadiness(row.payout_readiness)}
+                    </div>
                     <div
                       style={{
-                        marginTop: 6,
                         color: payoutReadinessColor(row.payout_readiness),
                         fontWeight: 900,
+                        fontSize: 22,
                       }}
                     >
                       {row.total}
@@ -3273,7 +3330,7 @@ export default function AdminDashboard() {
                         <div style={monoTextStyle()}>Ride: {ride.ride_id}</div>
                       </div>
 
-                      <span style={badgeStyle(payoutReadinessColor(ride.payout_readiness))}>
+                      <span style={payoutDiagnosticBadgeStyle(payoutReadinessColor(ride.payout_readiness))}>
                         {formatPayoutReadiness(ride.payout_readiness)}
                       </span>
                     </div>
