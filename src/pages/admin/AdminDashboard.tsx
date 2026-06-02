@@ -1693,8 +1693,8 @@ export default function AdminDashboard() {
 
       <div style={adminNoticeStyle()}>
         <strong>Operations overview:</strong> ride and payment monitoring is
-        separated from driver verification. Use <strong>Rides & Payments</strong>{" "}
-        for trip and Pi payment review, and <strong>Driver Verification</strong>{" "}
+        separated from driver verification. Use <strong>Rides</strong>{" "}
+        for trip and Pi payment review, and <strong>Drivers</strong>{" "}
         for document approval.
       </div>
 
@@ -1756,7 +1756,7 @@ export default function AdminDashboard() {
           onClick={() => setActiveTab("rides")}
           style={tabButtonStyle(activeTab === "rides")}
         >
-          Rides & Payments
+          Rides
         </button>
 
         <button
@@ -1764,7 +1764,7 @@ export default function AdminDashboard() {
           onClick={() => setActiveTab("drivers")}
           style={tabButtonStyle(activeTab === "drivers")}
         >
-          Driver Verification
+          Drivers
         </button>
 
         <button
@@ -1772,7 +1772,7 @@ export default function AdminDashboard() {
           onClick={() => setActiveTab("monitor")}
           style={tabButtonStyle(activeTab === "monitor")}
         >
-          Live Ride Monitor
+          Live
         </button>
 
         <button
@@ -1780,7 +1780,7 @@ export default function AdminDashboard() {
           onClick={() => setActiveTab("payouts")}
           style={tabButtonStyle(activeTab === "payouts")}
         >
-          Payouts / Commission
+          Payouts
         </button>
 
         <button
@@ -1788,7 +1788,7 @@ export default function AdminDashboard() {
           onClick={() => setActiveTab("finance")}
           style={tabButtonStyle(activeTab === "finance")}
         >
-          Finance / Accounting
+          Finance
         </button>
 
         <button
@@ -1804,7 +1804,7 @@ export default function AdminDashboard() {
           onClick={() => setActiveTab("audit")}
           style={tabButtonStyle(activeTab === "audit")}
         >
-          Audit Log
+          Audit
         </button>
 
         <button
@@ -1812,7 +1812,7 @@ export default function AdminDashboard() {
           onClick={() => setActiveTab("health")}
           style={tabButtonStyle(activeTab === "health")}
         >
-          System Health
+          Health
         </button>
 
         <button
@@ -1828,7 +1828,7 @@ export default function AdminDashboard() {
           onClick={() => setActiveTab("actions")}
           style={tabButtonStyle(activeTab === "actions")}
         >
-          Action Center
+          Actions
         </button>
 
         <button
@@ -1866,7 +1866,7 @@ export default function AdminDashboard() {
             }}
           >
             <div>
-              <h2 style={{ marginTop: 0, marginBottom: 6 }}>Live Ride Monitor</h2>
+              <h2 style={{ marginTop: 0, marginBottom: 6 }}>Live</h2>
               <p style={{ marginTop: 0, color: "#64748b", lineHeight: 1.6 }}>
                 Select an active or recent ride and monitor pickup, destination,
                 selected driver, route, status, and payment state on the unified TrueGo map.
@@ -2126,7 +2126,7 @@ export default function AdminDashboard() {
             }}
           >
             <div>
-              <h2 style={{ marginTop: 0, marginBottom: 6 }}>Finance / Accounting</h2>
+              <h2 style={{ marginTop: 0, marginBottom: 6 }}>Finance</h2>
               <p style={{ marginTop: 0, color: "#64748b", lineHeight: 1.6 }}>
                 Internal accounting ledger using Pi as operational currency and USD as secondary reporting currency.
               </p>
@@ -3130,7 +3130,7 @@ export default function AdminDashboard() {
             }}
           >
             <div>
-              <h2 style={{ marginTop: 0, marginBottom: 6 }}>Payouts / Commission</h2>
+              <h2 style={{ marginTop: 0, marginBottom: 6 }}>Payouts</h2>
               <p style={{ marginTop: 0, color: "#64748b", lineHeight: 1.6 }}>
                 Configure TrueGo commission manually and create pending driver payout records from completed paid rides.
                 This stage does not send Pi to drivers yet.
@@ -3675,7 +3675,7 @@ export default function AdminDashboard() {
           }}
         >
           <div>
-            <h2 style={{ marginTop: 0, marginBottom: 6 }}>Rides & Payments</h2>
+            <h2 style={{ marginTop: 0, marginBottom: 6 }}>Rides</h2>
             <p style={{ marginTop: 0, color: "#64748b", lineHeight: 1.6 }}>
               Review recent rides, dispatch status, fare, Pi payment state,
               payment ID, and transaction hash.
