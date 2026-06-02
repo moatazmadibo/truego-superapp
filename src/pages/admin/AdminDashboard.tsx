@@ -143,6 +143,17 @@ type PayoutEligibilityRideRow = {
   payout_readiness: string;
 };
 
+type PayoutEligibilityFilter =
+  | "all"
+  | "eligible"
+  | "already_has_payout"
+  | "ride_not_completed"
+  | "payment_not_completed"
+  | "missing_amount"
+  | "driver_not_matched"
+  | "driver_missing_pi_uid"
+  | "driver_missing_pi_username";
+
 type BusinessExpenseRow = {
   id: string;
   expense_date: string;
@@ -821,6 +832,8 @@ export default function AdminDashboard() {
   const [payoutEligibilitySummary, setPayoutEligibilitySummary] = useState<PayoutEligibilitySummaryRow[]>([]);
   const [payoutEligibilityRows, setPayoutEligibilityRows] = useState<PayoutEligibilityRideRow[]>([]);
   const [payoutEligibilityLoading, setPayoutEligibilityLoading] = useState(false);
+  const [payoutEligibilityFilter, setPayoutEligibilityFilter] =
+    useState<PayoutEligibilityFilter>("all");
 
   const [manualPayoutId, setManualPayoutId] = useState("");
   const [financeSettings, setFinanceSettings] = useState<PlatformFinanceSettings | null>(null);
@@ -1654,6 +1667,13 @@ export default function AdminDashboard() {
       .filter((line) => line.account_code.startsWith("5"))
       .reduce((sum, line) => sum + dbNumber(line.debit_usd) - dbNumber(line.credit_usd), 0),
   };
+
+  const filteredPayoutEligibilityRows =
+    payoutEligibilityFilter === "all"
+      ? payoutEligibilityRows
+      : payoutEligibilityRows.filter(
+          (row) => row.payout_readiness === payoutEligibilityFilter
+        );
 
   const selectedManualPayout =
     payoutRows.find((row: DriverPayoutRow) => row.id === manualPayoutId) ??
@@ -3313,9 +3333,58 @@ export default function AdminDashboard() {
 
             {payoutEligibilityRows.length > 0 ? (
               <div style={{ marginTop: 14 }}>
-                <h4 style={{ marginBottom: 8 }}>Latest paid ride diagnostics</h4>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                    marginTop: 14,
+                    marginBottom: 10,
+                  }}
+                >
+                  <h4 style={{ margin: 0 }}>Latest paid ride diagnostics</h4>
 
-                {payoutEligibilityRows.slice(0, 12).map((ride) => (
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    {(["all", ...PAYOUT_READINESS_ORDER] as PayoutEligibilityFilter[]).map(
+                      (filter) => {
+                        const count =
+                          filter === "all"
+                            ? payoutEligibilityRows.length
+                            : payoutEligibilityRows.filter(
+                                (row) => row.payout_readiness === filter
+                              ).length;
+
+                        return (
+                          <button
+                            key={filter}
+                            type="button"
+                            onClick={() => setPayoutEligibilityFilter(filter)}
+                            style={tabButtonStyle(payoutEligibilityFilter === filter)}
+                          >
+                            {filter === "all"
+                              ? `All (${count})`
+                              : `${formatPayoutReadiness(filter)} (${count})`}
+                          </button>
+                        );
+                      }
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ color: "#64748b", fontSize: 13, marginBottom: 10 }}>
+                  Filter diagnostics: showing {filteredPayoutEligibilityRows.length} of{" "}
+                  {payoutEligibilityRows.length} paid rides.
+                </div>
+
+                {filteredPayoutEligibilityRows.slice(0, 20).map((ride) => (
                   <div key={ride.ride_id} style={rideCardStyle()}>
                     <div
                       style={{
