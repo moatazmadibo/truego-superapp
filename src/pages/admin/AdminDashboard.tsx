@@ -6,6 +6,7 @@ import { requireAdminSessionToken } from "../../components/admin/adminSession";
 import AdminAuditPanel from "./AdminAuditPanel";
 import AdminSystemHealthPanel from "./AdminSystemHealthPanel";
 import AdminReadinessPanel from "./AdminReadinessPanel";
+import AdminActionCenterPanel from "./AdminActionCenterPanel";
 import TrueGoLiveMapCard from "../../components/TrueGoLiveMapCard";
 import {
   listRecentRides,
@@ -17,7 +18,7 @@ import {
 } from "../../services/rideApi";
 import { formatPiAmount } from "../../lib/piPricing";
 
-type AdminTab = "rides" | "drivers" | "monitor" | "payouts" | "finance" | "reports" | "audit" | "health" | "readiness";
+type AdminTab = "rides" | "drivers" | "monitor" | "payouts" | "finance" | "reports" | "audit" | "health" | "readiness" | "actions";
 
 type RidePaymentSnapshot = {
   payment_status?: "unpaid" | "approved" | "completed" | "cancelled" | "failed" | null;
@@ -1820,6 +1821,14 @@ export default function AdminDashboard() {
         >
           Readiness
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("actions")}
+          style={tabButtonStyle(activeTab === "actions")}
+        >
+          Action Center
+        </button>
       </div>
 
       {activeTab === "drivers" ? <AdminDriverVerificationPanel /> : null}
@@ -1831,6 +1840,8 @@ export default function AdminDashboard() {
       {activeTab === "health" ? <AdminSystemHealthPanel /> : null}
 
       {activeTab === "readiness" ? <AdminReadinessPanel /> : null}
+
+      {activeTab === "actions" ? <AdminActionCenterPanel /> : null}
 
       {activeTab === "monitor" ? (
         <div style={sectionStyle()}>
