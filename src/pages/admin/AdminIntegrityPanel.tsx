@@ -106,6 +106,29 @@ function formatDate(value: unknown) {
   return value ? new Date(String(value)).toLocaleString() : "N/A";
 }
 
+function integrityRecommendation(key: string) {
+  switch (key) {
+    case "paid_without_txid":
+      return "Check Pi payment completion records. A completed payment should normally have TXID or payment reference.";
+    case "completed_not_paid":
+      return "Usually old/test rides or completed rides where the rider did not finish Pi payment. Do not repair automatically; review before action.";
+    case "approved_drivers_missing_documents":
+      return "Ask the driver to upload missing documents, then review documents from Driver Verification.";
+    case "payout_paid_without_accounting":
+      return "Safe repair available: use Post accounting to create the missing accounting entry.";
+    case "payout_paid_without_reference":
+      return "Add or verify manual TXID/reference before considering payout fully settled.";
+    case "payout_missing_driver_pi_account":
+      return "Driver payout needs real Pi UID/username. Bind the driver profile to a real Pi account before payout.";
+    default:
+      return "Review the related records before taking action.";
+  }
+}
+
+function formatIntegrityKey(key: string) {
+  return key.replace(/_/g, " ");
+}
+
 function IntegrityList({
   title,
   count,
@@ -255,14 +278,24 @@ export default function AdminIntegrityPanel() {
       </div>
 
       <div style={gridStyle()}>
-        {Object.entries(summary).map(([key, value]) => (
-          <div key={key} style={itemStyle()}>
-            <strong>{key.replace(/_/g, " ")}</strong>
-            <div style={{ marginTop: 6, fontSize: 22, fontWeight: 900 }}>
-              {dbNumber(value)}
+        {Object.entries(summary).map(([key, value]) => {
+          const count = dbNumber(value);
+
+          return (
+            <div key={key} style={itemStyle()}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                <strong>{formatIntegrityKey(key)}</strong>
+                <span style={badgeStyle(count)}>{count > 0 ? "Review" : "OK"}</span>
+              </div>
+              <div style={{ marginTop: 6, fontSize: 22, fontWeight: 900 }}>
+                {count}
+              </div>
+              <p style={{ marginBottom: 0, color: "#64748b", lineHeight: 1.5 }}>
+                {integrityRecommendation(key)}
+              </p>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
