@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { supabase } from "../../lib/supabase";
+import { requireAdminSessionToken } from "../../components/admin/adminSession";
 import { formatPiAmount } from "../../lib/piPricing";
 
 type ReportTab = "overview" | "drivers" | "rides" | "payments" | "exceptions";
@@ -353,8 +354,11 @@ export default function AdminReportsPanel() {
 
     try {
       const [driverResult, rideResult] = await Promise.all([
-        supabase.rpc("get_admin_driver_report"),
-        supabase.rpc("get_admin_ride_report", {
+        supabase.rpc("admin_get_admin_driver_report", {
+          p_admin_session_token: requireAdminSessionToken(),
+        }),
+        supabase.rpc("admin_get_admin_ride_report", {
+          p_admin_session_token: requireAdminSessionToken(),
           p_from_date: fromDate || null,
           p_to_date: toDate || null,
         }),

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { supabase } from "../../lib/supabase";
+import { requireAdminSessionToken } from "../../components/admin/adminSession";
 
 type AuditLogRow = {
   id: string;
@@ -110,7 +111,8 @@ export default function AdminAuditPanel() {
     setError("");
 
     try {
-      const { data, error: auditError } = await supabase.rpc("get_admin_audit_logs", {
+      const { data, error: auditError } = await supabase.rpc("admin_get_admin_audit_logs", {
+        p_admin_session_token: requireAdminSessionToken(),
         p_limit: 150,
         p_table_name: tableName || null,
         p_from_date: fromDate || null,
