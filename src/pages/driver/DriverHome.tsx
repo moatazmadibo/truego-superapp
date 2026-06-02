@@ -3,6 +3,7 @@ import RideTimeline from "../../components/RideTimeline";
 import DriverVerificationCard from "./DriverVerificationCard";
 import DriverContactProfileCard from "./DriverContactProfileCard";
 import DriverVehicleProfileCard from "./DriverVehicleProfileCard";
+import DriverPayoutWalletCard from "./DriverPayoutWalletCard";
 import DriverLiveLocationTracker from "./DriverLiveLocationTracker";
 import TrueGoLiveMapCard from "../../components/TrueGoLiveMapCard";
 import RideCommunicationCard from "../../components/RideCommunicationCard";
@@ -710,6 +711,7 @@ const selectedDriver = useMemo(() => {
 <>
   <DriverContactProfileCard driver={selectedDriver} />
   <DriverVehicleProfileCard driver={selectedDriver} />
+  <DriverPayoutWalletCard driver={selectedDriver} />
   <DriverVerificationCard driver={selectedDriver} />
 </>
         ) : (
