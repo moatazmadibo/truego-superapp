@@ -196,6 +196,40 @@ export default function AdminIntegrityPanel() {
     }
   }
 
+  async function repairPayoutDriverPiAccounts() {
+    setRepairLoadingId("repair-payout-pi-accounts");
+    setError("");
+    setMessage("");
+
+    try {
+      const { data, error: repairError } = await supabase.rpc(
+        "admin_repair_payout_driver_pi_accounts",
+        {
+          p_admin_session_token: requireAdminSessionToken(),
+        }
+      );
+
+      if (repairError) throw repairError;
+
+      const result = data as { updated_count?: number } | null;
+      setMessage(
+        `Payout driver Pi account repair completed. Updated records: ${
+          result?.updated_count ?? 0
+        }.`
+      );
+
+      await loadIntegrity();
+    } catch (repairError) {
+      const message =
+        repairError instanceof Error
+          ? repairError.message
+          : "Failed to repair payout driver Pi accounts.";
+      setError(message);
+    } finally {
+      setRepairLoadingId("");
+    }
+  }
+
   async function postDriverPayoutAccountingRepair(payoutId: string) {
     setRepairLoadingId(payoutId);
     setError("");
@@ -276,6 +310,36 @@ export default function AdminIntegrityPanel() {
           Total issue count: <strong>{totalIssues}</strong>
         </div>
       </div>
+
+      {dbNumber(summary.payout_missing_driver_pi_account) > 0 ? (
+        <div
+          style={{
+            marginTop: 14,
+            padding: 14,
+            borderRadius: 14,
+            background: "#eff6ff",
+            border: "1px solid #bfdbfe",
+          }}
+        >
+          <strong>Safe repair available</strong>
+          <p style={{ marginTop: 6, color: "#334155", lineHeight: 1.6 }}>
+            Some payout records are missing driver Pi account fields. This repair will copy Pi UID / username from the linked driver profile only when those values already exist.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => {
+              void repairPayoutDriverPiAccounts();
+            }}
+            disabled={repairLoadingId !== ""}
+            style={buttonStyle(repairLoadingId !== "")}
+          >
+            {repairLoadingId === "repair-payout-pi-accounts"
+              ? "Repairing..."
+              : "Repair payout Pi accounts"}
+          </button>
+        </div>
+      ) : null}
 
       <div style={gridStyle()}>
         {Object.entries(summary).map(([key, value]) => {
