@@ -144,11 +144,14 @@ function IntegrityList({
 export default function AdminIntegrityPanel() {
   const [data, setData] = useState<IntegrityData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [repairLoadingId, setRepairLoadingId] = useState("");
+  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   async function loadIntegrity() {
     setLoading(true);
     setError("");
+    setMessage("");
 
     try {
       const { data: result, error: integrityError } = await supabase.rpc(
@@ -167,6 +170,35 @@ export default function AdminIntegrityPanel() {
       setError(message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function postDriverPayoutAccountingRepair(payoutId: string) {
+    setRepairLoadingId(payoutId);
+    setError("");
+    setMessage("");
+
+    try {
+      const { error: repairError } = await supabase.rpc(
+        "admin_post_driver_payout_accounting",
+        {
+          p_admin_session_token: requireAdminSessionToken(),
+          p_payout_id: payoutId,
+        }
+      );
+
+      if (repairError) throw repairError;
+
+      setMessage("Driver payout accounting entry posted successfully.");
+      await loadIntegrity();
+    } catch (repairError) {
+      const message =
+        repairError instanceof Error
+          ? repairError.message
+          : "Failed to post driver payout accounting.";
+      setError(message);
+    } finally {
+      setRepairLoadingId("");
     }
   }
 
@@ -194,6 +226,12 @@ export default function AdminIntegrityPanel() {
           {loading ? "Checking..." : "Refresh integrity"}
         </button>
       </div>
+
+      {message ? (
+        <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#ecfdf5", border: "1px solid #bbf7d0", color: "#047857" }}>
+          {message}
+        </div>
+      ) : null}
 
       {error ? (
         <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c" }}>
@@ -286,6 +324,19 @@ export default function AdminIntegrityPanel() {
               <div style={monoStyle()}>Payout ID: {textValue(row.id)}</div>
               <div>Amount: {formatPiAmount(dbNumber(row.driver_payout_pi))}</div>
               <div>Processed: {formatDate(row.processed_at)}</div>
+
+              {typeof row.id === "string" ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void postDriverPayoutAccountingRepair(row.id as string);
+                  }}
+                  disabled={repairLoadingId !== ""}
+                  style={{ ...buttonStyle(repairLoadingId !== ""), marginTop: 10 }}
+                >
+                  {repairLoadingId === row.id ? "Posting..." : "Post accounting"}
+                </button>
+              ) : null}
             </>
           )}
         />
