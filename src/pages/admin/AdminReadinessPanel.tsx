@@ -194,6 +194,7 @@ export default function AdminReadinessPanel() {
 
   const checks = useMemo<CheckItem[]>(() => {
     const adminProtectedActions = dbNumber(snapshot?.security?.protected_admin_actions);
+    const adminAccessEvents = dbNumber(snapshot?.security?.admin_access_events);
     const completedPayments = dbNumber(snapshot?.payments?.payments_completed);
     const approvedDrivers = dbNumber(snapshot?.drivers?.drivers_approved);
     const piLinkedDrivers = dbNumber(snapshot?.drivers?.drivers_pi_linked);
@@ -280,14 +281,20 @@ export default function AdminReadinessPanel() {
         status: import.meta.env.VITE_SUPABASE_ANON_KEY ? "ready" : "blocked",
       },
       {
-        title: "Supabase TRUEGO_ADMIN_ACCESS_CODE",
-        detail: "Manual check: secret must exist in Supabase Edge Functions.",
-        status: "manual",
+        title: "Admin access secret",
+        detail:
+          adminAccessEvents > 0
+            ? `${adminAccessEvents} admin access event(s) confirmed. Supabase secret is working.`
+            : "No admin access event recorded yet. Confirm TRUEGO_ADMIN_ACCESS_CODE in Supabase secrets.",
+        status: adminAccessEvents > 0 ? "ready" : "manual",
       },
       {
         title: "Pi payment server secrets",
-        detail: "Manual check: Pi API/payment secrets must remain configured in Supabase.",
-        status: "manual",
+        detail:
+          completedPayments > 0
+            ? `${completedPayments} completed Pi payment(s) confirmed. Payment secrets are working.`
+            : "No completed Pi payment in this readiness window. Confirm Pi API/payment secrets in Supabase.",
+        status: completedPayments > 0 ? "ready" : "manual",
       },
     ];
   }, [snapshot]);
