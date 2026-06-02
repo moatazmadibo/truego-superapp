@@ -8,6 +8,7 @@ import AdminSystemHealthPanel from "./AdminSystemHealthPanel";
 import AdminReadinessPanel from "./AdminReadinessPanel";
 import AdminActionCenterPanel from "./AdminActionCenterPanel";
 import AdminSessionsPanel from "./AdminSessionsPanel";
+import AdminIntegrityPanel from "./AdminIntegrityPanel";
 import TrueGoLiveMapCard from "../../components/TrueGoLiveMapCard";
 import {
   listRecentRides,
@@ -19,7 +20,7 @@ import {
 } from "../../services/rideApi";
 import { formatPiAmount } from "../../lib/piPricing";
 
-type AdminTab = "rides" | "drivers" | "monitor" | "payouts" | "finance" | "reports" | "audit" | "health" | "readiness" | "actions" | "sessions";
+type AdminTab = "rides" | "drivers" | "monitor" | "payouts" | "finance" | "reports" | "audit" | "health" | "readiness" | "actions" | "sessions" | "integrity";
 
 type RidePaymentSnapshot = {
   payment_status?: "unpaid" | "approved" | "completed" | "cancelled" | "failed" | null;
@@ -855,7 +856,7 @@ function AdminQuickOperationsSummary({
     {
       label: "Active rides",
       value: statValue("activeRides", "active_rides", "active"),
-      tab: "live" as AdminTab,
+      tab: "rides" as AdminTab,
       tone: "#2563eb",
     },
     {
@@ -876,6 +877,14 @@ function AdminQuickOperationsSummary({
       tab: "actions" as AdminTab,
       tone: "#dc2626",
     },
+  ];
+
+  const quickTabs: [AdminTab, string][] = [
+    ["actions", "Actions"],
+    ["rides", "Rides"],
+    ["reports", "Reports"],
+    ["readiness", "Readiness"],
+    ["integrity", "Integrity"],
   ];
 
   return (
@@ -907,12 +916,7 @@ function AdminQuickOperationsSummary({
         </div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {([
-            ["actions", "Actions"],
-            ["live", "Live"],
-            ["reports", "Reports"],
-            ["readiness", "Readiness"],
-          ] as [AdminTab, string][]).map(([tab, label]) => (
+          {quickTabs.map(([tab, label]) => (
             <button
               key={tab}
               type="button"
@@ -2009,6 +2013,8 @@ export default function AdminDashboard() {
       {activeTab === "actions" ? <AdminActionCenterPanel /> : null}
 
       {activeTab === "sessions" ? <AdminSessionsPanel /> : null}
+
+      {activeTab === "integrity" ? <AdminIntegrityPanel /> : null}
 
       {activeTab === "monitor" ? (
         <div style={sectionStyle()}>
