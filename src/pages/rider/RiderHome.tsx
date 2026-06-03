@@ -247,18 +247,7 @@ function saveRecentRoute(pickup: string, destination: string) {
 }
 
 export default function RiderHome() {
-  const [riderDrawerFocus, setRiderDrawerFocus] = useState<"history" | null>(null);
 
-  function openRiderHistoryFromDrawer() {
-    setRiderDrawerFocus("history");
-
-    window.setTimeout(() => {
-      document.getElementById("rider-history-focus")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 250);
-  }
 
   const navigate = useNavigate();
 const [pickup, setPickup] = useState("");
@@ -295,28 +284,30 @@ function handleFindRide() {
   return (
     <main style={pageStyle}>
       <section style={cardStyle}>
-            <AppSideDrawer
+<PiSessionBanner appLabel="TrueGo Rider" />
+      <div id="rider-history">
+        <RiderRideHistoryCard />
+      </div>
+
+      <RiderSafetyCard />
+
+      <RiderSettingsCard />
+
+      <AppSideDrawer
         title="TrueGo Rider"
-        subtitle="Pi rider account"
         appLabel="Rider"
-        avatarText="RI"
+        avatarText="RD"
         items={[
           { label: "Request ride", icon: "🚕", href: "#request-ride" },
-          { label: "Ride history", icon: "🕘", href: "#rider-history-focus", onSelect: openRiderHistoryFromDrawer },
+          { label: "Ride history", icon: "🕘", href: "#rider-history" },
           { label: "Safety", icon: "🛡️", href: "#rider-safety" },
+          { label: "Settings", icon: "⚙️", href: "#rider-settings" },
           { label: "Support", icon: "💬", href: "https://t.me/truego_community", external: true },
           { label: "Official Channel", icon: "📢", href: "https://t.me/truego_official", external: true },
         ]}
       />
-<PiSessionBanner appLabel="TrueGo Rider" />
 
-      {riderDrawerFocus === "history" ? (
-        <div id="rider-history-focus">
-          <div id="rider-history"><div id="rider-history"><RiderRideHistoryCard /></div></div>
-      <RiderSafetyCard />
-      <RiderSettingsCard />
-        </div>
-      ) : null}
+
 
         <div id="request-ride" style={badgeStyle}>TrueGo Rider</div>
 

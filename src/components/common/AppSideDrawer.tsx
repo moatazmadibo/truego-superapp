@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 
 export type AppDrawerItem = {
   label: string;
@@ -6,6 +6,11 @@ export type AppDrawerItem = {
   href: string;
   external?: boolean;
   onSelect?: () => void;
+};
+
+type PiSessionSummary = {
+  username: string;
+  uid: string;
 };
 
 function menuButtonStyle(): CSSProperties {
@@ -86,15 +91,78 @@ function avatarStyle(): CSSProperties {
   };
 }
 
+function shortenUid(uid: string) {
+  return uid.length > 14 ? `${uid.slice(0, 8)}…${uid.slice(-6)}` : uid;
+}
+
+function pickString(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return "";
+}
+
+function findPiSessionSummary(): PiSessionSummary | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index);
+      if (!key) continue;
+
+      const raw = window.localStorage.getItem(key);
+      if (!raw) continue;
+
+      const parsed = JSON.parse(raw) as unknown;
+      const candidates: Record<string, unknown>[] = [];
+
+      if (parsed && typeof parsed === "object") {
+        candidates.push(parsed as Record<string, unknown>);
+
+        const user = (parsed as Record<string, unknown>).user;
+        if (user && typeof user === "object") {
+          candidates.push(user as Record<string, unknown>);
+        }
+
+        const piUser = (parsed as Record<string, unknown>).piUser;
+        if (piUser && typeof piUser === "object") {
+          candidates.push(piUser as Record<string, unknown>);
+        }
+      }
+
+      for (const candidate of candidates) {
+        const username = pickString(candidate, ["username", "pi_username", "piUsername"]);
+        const uid = pickString(candidate, ["uid", "pi_uid", "piUid", "user_uid"]);
+
+        if (username || uid) {
+          return { username, uid };
+        }
+      }
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
 function scrollToHash(hash: string) {
   if (!hash.startsWith("#")) return;
 
-  window.setTimeout(() => {
-    document.querySelector(hash)?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
-  }, 280);
+  const delays = [80, 260, 600, 1000];
+
+  delays.forEach((delay) => {
+    window.setTimeout(() => {
+      document.querySelector(hash)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, delay);
+  });
 }
 
 export default function AppSideDrawer({
@@ -114,6 +182,15 @@ export default function AppSideDrawer({
 }) {
   const [open, setOpen] = useState(false);
 
+  const piSummary = useMemo(() => findPiSessionSummary(), [open]);
+
+  const resolvedSubtitle =
+    subtitle && subtitle !== "Pi rider account"
+      ? subtitle
+      : piSummary?.username || piSummary?.uid
+        ? `${piSummary.username ? `@${piSummary.username}` : "Pi user"}${piSummary.uid ? ` · UID ${shortenUid(piSummary.uid)}` : ""}`
+        : subtitle;
+
   function closeDrawer() {
     setOpen(false);
   }
@@ -126,23 +203,13 @@ export default function AppSideDrawer({
 
   return (
     <>
-      <button
-        type="button"
-        aria-label="Open menu"
-        onClick={() => setOpen(true)}
-        style={menuButtonStyle()}
-      >
+      <button type="button" aria-label="Open menu" onClick={() => setOpen(true)} style={menuButtonStyle()}>
         ☰
       </button>
 
       {open ? (
         <>
-          <button
-            type="button"
-            aria-label="Close menu"
-            onClick={closeDrawer}
-            style={overlayStyle()}
-          />
+          <button type="button" aria-label="Close menu" onClick={closeDrawer} style={overlayStyle()} />
 
           <aside style={drawerStyle()}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
@@ -161,9 +228,9 @@ export default function AppSideDrawer({
 
                 <div style={{ fontSize: 22, fontWeight: 950 }}>{title}</div>
 
-                {subtitle ? (
+                {resolvedSubtitle ? (
                   <div style={{ color: "#64748b", marginTop: 4, lineHeight: 1.5 }}>
-                    {subtitle}
+                    {resolvedSubtitle}
                   </div>
                 ) : null}
 
