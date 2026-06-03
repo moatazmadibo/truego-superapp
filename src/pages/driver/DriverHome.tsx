@@ -5,6 +5,7 @@ import DriverContactProfileCard from "./DriverContactProfileCard";
 import DriverVehicleProfileCard from "./DriverVehicleProfileCard";
 import DriverPayoutWalletCard from "./DriverPayoutWalletCard";
 import DriverRideHistoryCard from "./DriverRideHistoryCard";
+import DriverSettingsCard from "./DriverSettingsCard";
 import DriverLiveLocationTracker from "./DriverLiveLocationTracker";
 import TrueGoLiveMapCard from "../../components/TrueGoLiveMapCard";
 import RideCommunicationCard from "../../components/RideCommunicationCard";
@@ -575,6 +576,7 @@ const selectedDriver = useMemo(() => {
           { label: "Operations history", icon: "🕘", href: "#driver-history-focus", onSelect: openDriverHistoryFromDrawer },
           { label: "Payout wallet", icon: "💼", href: "#driver-payout-wallet", onSelect: () => openDriverMenuSection("driver-payout-wallet") },
           { label: "Verification", icon: "✅", href: "#driver-verification", onSelect: () => openDriverMenuSection("driver-verification") },
+          { label: "Settings", icon: "⚙️", href: "#driver-settings", onSelect: () => setActiveTab("verification") },
           { label: "Support", icon: "💬", href: "https://t.me/truego_community", external: true },
           { label: "Official Channel", icon: "📢", href: "https://t.me/truego_official", external: true },
         ]}
@@ -821,6 +823,7 @@ const selectedDriver = useMemo(() => {
   <DriverVehicleProfileCard driver={selectedDriver} />
   <div id="driver-payout-wallet"><DriverPayoutWalletCard driver={selectedDriver} /></div>
   <div id="driver-verification"><DriverVerificationCard driver={selectedDriver} /></div>
+  <div id="driver-settings"><DriverSettingsCard /></div>
 </>
         ) : (
           <div style={sectionStyle()}>
