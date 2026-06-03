@@ -161,6 +161,7 @@ function detailMiniCardStyle(): React.CSSProperties {
 
 export default function DriverHome() {
   const [activeTab, setActiveTab] = useState<DriverTab>("operations");
+  const [driverMenuTarget, setDriverMenuTarget] = useState<string | null>(null);
   const [selectedDriverId, setSelectedDriverId] = useState("");
   const [drivers, setDrivers] = useState<DemoDriverRow[]>([]);
   const [rides, setRides] = useState<RideRow[]>([]);
@@ -218,6 +219,30 @@ export default function DriverHome() {
 const selectedDriver = useMemo(() => {
     return drivers.find((driver) => driver.id === selectedDriverId) ?? null;
   }, [drivers, selectedDriverId]);
+
+  function openDriverMenuSection(targetId: string) {
+    setActiveTab("verification");
+    setDriverMenuTarget(targetId);
+  }
+
+  useEffect(() => {
+    if (activeTab !== "verification" || !driverMenuTarget) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      document.getElementById(driverMenuTarget)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+      setDriverMenuTarget(null);
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [activeTab, driverMenuTarget, selectedDriver?.id]);
+
 
   const selectedDriverIsFreshOnline = useMemo(() => {
     if (!selectedDriver) {
@@ -484,10 +509,10 @@ const selectedDriver = useMemo(() => {
         subtitle={selectedDriver?.pi_username ? `@${selectedDriver.pi_username}` : "Pi driver account"}
         appLabel="Driver"
         items={[
-          { label: "Driver profile", icon: "👤", href: "#driver-profile", onSelect: () => setActiveTab("verification") },
-          { label: "Operations history", icon: "🕘", href: "#driver-history", onSelect: () => setActiveTab("verification") },
-          { label: "Payout wallet", icon: "💼", href: "#driver-payout-wallet", onSelect: () => setActiveTab("verification") },
-          { label: "Verification", icon: "✅", href: "#driver-verification", onSelect: () => setActiveTab("verification") },
+          { label: "Driver profile", icon: "👤", href: "#driver-profile", onSelect: () => openDriverMenuSection("driver-profile") },
+          { label: "Operations history", icon: "🕘", href: "#driver-history", onSelect: () => openDriverMenuSection("driver-history") },
+          { label: "Payout wallet", icon: "💼", href: "#driver-payout-wallet", onSelect: () => openDriverMenuSection("driver-payout-wallet") },
+          { label: "Verification", icon: "✅", href: "#driver-verification", onSelect: () => openDriverMenuSection("driver-verification") },
           { label: "Support", icon: "💬", href: "https://t.me/truego_community", external: true },
           { label: "Official Channel", icon: "📢", href: "https://t.me/truego_official", external: true },
         ]}
