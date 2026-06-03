@@ -15,6 +15,7 @@ type DriverTab = "operations" | "verification";
 import StatusBadge from "../../components/StatusBadge";
 import { formatPiAmount } from "../../lib/piPricing";
 import type { Ride } from "../../types/ride";
+import AppSideDrawer from "../../components/common/AppSideDrawer";
 import {
   acceptDemoRide,
   completeDemoRide,
@@ -709,10 +710,23 @@ const selectedDriver = useMemo(() => {
       {activeTab === "verification" ? (
         !loading && selectedDriver ? (
 <>
-  <DriverContactProfileCard driver={selectedDriver} />
+  <AppSideDrawer
+    title={selectedDriver?.display_name ?? "TrueGo Driver"}
+    subtitle={selectedDriver?.pi_username ? `@${selectedDriver.pi_username}` : "Pi driver account"}
+    appLabel="Driver"
+    items={[
+      { label: "Driver profile", icon: "👤", href: "#driver-profile" },
+      { label: "Operations history", icon: "🕘", href: "#driver-history" },
+      { label: "Payout wallet", icon: "💼", href: "#driver-payout-wallet" },
+      { label: "Verification", icon: "✅", href: "#driver-verification" },
+      { label: "Support", icon: "💬", href: "https://t.me/truego_community", external: true },
+      { label: "Official Channel", icon: "📢", href: "https://t.me/truego_official", external: true },
+    ]}
+  />
+  <div id="driver-profile"><DriverContactProfileCard driver={selectedDriver} /></div>
   <DriverVehicleProfileCard driver={selectedDriver} />
-  <DriverPayoutWalletCard driver={selectedDriver} />
-  <DriverVerificationCard driver={selectedDriver} />
+  <div id="driver-payout-wallet"><DriverPayoutWalletCard driver={selectedDriver} /></div>
+  <div id="driver-verification"><DriverVerificationCard driver={selectedDriver} /></div>
 </>
         ) : (
           <div style={sectionStyle()}>

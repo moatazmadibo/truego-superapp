@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import PiSessionBanner from "../../components/PiSessionBanner";
 import { getStoredPiSession } from "../../lib/pi";
 import MapLocationPicker from "../../components/MapLocationPicker";
+import AppSideDrawer from "../../components/common/AppSideDrawer";
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
@@ -278,9 +279,21 @@ function handleFindRide() {
   return (
     <main style={pageStyle}>
       <section style={cardStyle}>
+      <AppSideDrawer
+        title="TrueGo Rider"
+        subtitle="Pi rider account"
+        appLabel="Rider"
+        items={[
+          { label: "Request ride", icon: "🚕", href: "#request-ride" },
+          { label: "Ride history", icon: "🕘", href: "#rider-history" },
+          { label: "Safety", icon: "🛡️", href: "#rider-safety" },
+          { label: "Support", icon: "💬", href: "https://t.me/truego_community", external: true },
+          { label: "Official Channel", icon: "📢", href: "https://t.me/truego_official", external: true },
+        ]}
+      />
       <PiSessionBanner appLabel="TrueGo Rider" />
 
-        <div style={badgeStyle}>TrueGo Rider</div>
+        <div id="request-ride" style={badgeStyle}>TrueGo Rider</div>
 
         <h1 style={titleStyle}>Book your ride with TrueGo</h1>
 
