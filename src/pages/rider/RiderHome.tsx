@@ -5,6 +5,7 @@ import { getStoredPiSession } from "../../lib/pi";
 import MapLocationPicker from "../../components/MapLocationPicker";
 import AppSideDrawer from "../../components/common/AppSideDrawer";
 import RiderRideHistoryCard from "./RiderRideHistoryCard";
+import RiderSafetyCard from "./RiderSafetyCard";
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
@@ -310,7 +311,8 @@ function handleFindRide() {
 
       {riderDrawerFocus === "history" ? (
         <div id="rider-history-focus">
-          <RiderRideHistoryCard />
+          <div id="rider-history"><RiderRideHistoryCard /></div>
+      <RiderSafetyCard />
         </div>
       ) : null}
 
