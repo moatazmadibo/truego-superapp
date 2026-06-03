@@ -4,6 +4,7 @@ import PiSessionBanner from "../../components/PiSessionBanner";
 import { getStoredPiSession } from "../../lib/pi";
 import MapLocationPicker from "../../components/MapLocationPicker";
 import AppSideDrawer from "../../components/common/AppSideDrawer";
+import RiderRideHistoryCard from "./RiderRideHistoryCard";
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
@@ -244,6 +245,19 @@ function saveRecentRoute(pickup: string, destination: string) {
 }
 
 export default function RiderHome() {
+  const [riderDrawerFocus, setRiderDrawerFocus] = useState<"history" | null>(null);
+
+  function openRiderHistoryFromDrawer() {
+    setRiderDrawerFocus("history");
+
+    window.setTimeout(() => {
+      document.getElementById("rider-history-focus")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 250);
+  }
+
   const navigate = useNavigate();
 const [pickup, setPickup] = useState("");
 const [destination, setDestination] = useState("");
@@ -279,19 +293,26 @@ function handleFindRide() {
   return (
     <main style={pageStyle}>
       <section style={cardStyle}>
-      <AppSideDrawer
+            <AppSideDrawer
         title="TrueGo Rider"
         subtitle="Pi rider account"
         appLabel="Rider"
+        avatarText="RI"
         items={[
           { label: "Request ride", icon: "🚕", href: "#request-ride" },
-          { label: "Ride history", icon: "🕘", href: "#rider-history" },
+          { label: "Ride history", icon: "🕘", href: "#rider-history-focus", onSelect: openRiderHistoryFromDrawer },
           { label: "Safety", icon: "🛡️", href: "#rider-safety" },
           { label: "Support", icon: "💬", href: "https://t.me/truego_community", external: true },
           { label: "Official Channel", icon: "📢", href: "https://t.me/truego_official", external: true },
         ]}
       />
-      <PiSessionBanner appLabel="TrueGo Rider" />
+<PiSessionBanner appLabel="TrueGo Rider" />
+
+      {riderDrawerFocus === "history" ? (
+        <div id="rider-history-focus">
+          <RiderRideHistoryCard />
+        </div>
+      ) : null}
 
         <div id="request-ride" style={badgeStyle}>TrueGo Rider</div>
 

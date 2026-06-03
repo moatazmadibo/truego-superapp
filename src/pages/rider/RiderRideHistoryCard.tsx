@@ -186,9 +186,9 @@ export default function RiderRideHistoryCard() {
         </button>
       </div>
 
-      {!riderUid ? (
+      {!riderUid && !loading ? (
         <div style={{ marginTop: 12, color: "#64748b" }}>
-          Login with Pi to view your ride history.
+          No previous rides yet. Your completed and requested rides will appear here.
         </div>
       ) : null}
 
