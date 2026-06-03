@@ -6,6 +6,7 @@ import MapLocationPicker from "../../components/MapLocationPicker";
 import AppSideDrawer from "../../components/common/AppSideDrawer";
 import RiderRideHistoryCard from "./RiderRideHistoryCard";
 import RiderSafetyCard from "./RiderSafetyCard";
+import RiderSettingsCard from "./RiderSettingsCard";
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
@@ -311,8 +312,9 @@ function handleFindRide() {
 
       {riderDrawerFocus === "history" ? (
         <div id="rider-history-focus">
-          <div id="rider-history"><RiderRideHistoryCard /></div>
+          <div id="rider-history"><div id="rider-history"><RiderRideHistoryCard /></div></div>
       <RiderSafetyCard />
+      <RiderSettingsCard />
         </div>
       ) : null}
 
