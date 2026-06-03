@@ -4,6 +4,7 @@ import DriverVerificationCard from "./DriverVerificationCard";
 import DriverContactProfileCard from "./DriverContactProfileCard";
 import DriverVehicleProfileCard from "./DriverVehicleProfileCard";
 import DriverPayoutWalletCard from "./DriverPayoutWalletCard";
+import DriverRideHistoryCard from "./DriverRideHistoryCard";
 import DriverLiveLocationTracker from "./DriverLiveLocationTracker";
 import TrueGoLiveMapCard from "../../components/TrueGoLiveMapCard";
 import RideCommunicationCard from "../../components/RideCommunicationCard";
@@ -16,6 +17,7 @@ import StatusBadge from "../../components/StatusBadge";
 import { formatPiAmount } from "../../lib/piPricing";
 import type { Ride } from "../../types/ride";
 import AppSideDrawer from "../../components/common/AppSideDrawer";
+import { supabase } from "../../lib/supabase";
 import {
   acceptDemoRide,
   completeDemoRide,
@@ -161,6 +163,8 @@ function detailMiniCardStyle(): React.CSSProperties {
 
 export default function DriverHome() {
   const [activeTab, setActiveTab] = useState<DriverTab>("operations");
+  const [driverDrawerFocus, setDriverDrawerFocus] = useState<"history" | null>(null);
+  const [drawerProfilePhotoUrl, setDrawerProfilePhotoUrl] = useState("");
   const [driverMenuTarget, setDriverMenuTarget] = useState<string | null>(null);
   const [selectedDriverId, setSelectedDriverId] = useState("");
   const [drivers, setDrivers] = useState<DemoDriverRow[]>([]);
@@ -219,6 +223,63 @@ export default function DriverHome() {
 const selectedDriver = useMemo(() => {
     return drivers.find((driver) => driver.id === selectedDriverId) ?? null;
   }, [drivers, selectedDriverId]);
+
+  useEffect(() => {
+    if (!selectedDriver?.id) {
+      setDrawerProfilePhotoUrl("");
+      return;
+    }
+
+    let cancelled = false;
+
+    void supabase
+      .from("demo_drivers")
+      .select("profile_photo_path")
+      .eq("id", selectedDriver.id)
+      .maybeSingle()
+      .then(async ({ data }) => {
+        const profilePhotoPath =
+          typeof data?.profile_photo_path === "string"
+            ? data.profile_photo_path.trim()
+            : "";
+
+        if (!profilePhotoPath) {
+          if (!cancelled) setDrawerProfilePhotoUrl("");
+          return;
+        }
+
+        if (profilePhotoPath.startsWith("http://") || profilePhotoPath.startsWith("https://")) {
+          if (!cancelled) setDrawerProfilePhotoUrl(profilePhotoPath);
+          return;
+        }
+
+        const { data: signedData } = await supabase.storage
+          .from("driver-documents")
+          .createSignedUrl(profilePhotoPath, 600);
+
+        if (!cancelled) {
+          setDrawerProfilePhotoUrl(signedData?.signedUrl ?? "");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDriver?.id]);
+
+  function openDriverHistoryFromDrawer() {
+    setActiveTab("operations");
+    setDriverDrawerFocus("history");
+
+    window.setTimeout(() => {
+      document.getElementById("driver-history-focus")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 300);
+  }
+
+
 
   function openDriverMenuSection(targetId: string) {
     setActiveTab("verification");
@@ -508,15 +569,22 @@ const selectedDriver = useMemo(() => {
         title={selectedDriver?.display_name ?? "TrueGo Driver"}
         subtitle={selectedDriver?.pi_username ? `@${selectedDriver.pi_username}` : "Pi driver account"}
         appLabel="Driver"
+        avatarUrl={drawerProfilePhotoUrl}
         items={[
           { label: "Driver profile", icon: "👤", href: "#driver-profile", onSelect: () => openDriverMenuSection("driver-profile") },
-          { label: "Operations history", icon: "🕘", href: "#driver-history", onSelect: () => openDriverMenuSection("driver-history") },
+          { label: "Operations history", icon: "🕘", href: "#driver-history-focus", onSelect: openDriverHistoryFromDrawer },
           { label: "Payout wallet", icon: "💼", href: "#driver-payout-wallet", onSelect: () => openDriverMenuSection("driver-payout-wallet") },
           { label: "Verification", icon: "✅", href: "#driver-verification", onSelect: () => openDriverMenuSection("driver-verification") },
           { label: "Support", icon: "💬", href: "https://t.me/truego_community", external: true },
           { label: "Official Channel", icon: "📢", href: "https://t.me/truego_official", external: true },
         ]}
       />
+
+      {driverDrawerFocus === "history" && selectedDriver ? (
+        <div id="driver-history-focus">
+          <DriverRideHistoryCard driver={selectedDriver} />
+        </div>
+      ) : null}
 
 
       <div
