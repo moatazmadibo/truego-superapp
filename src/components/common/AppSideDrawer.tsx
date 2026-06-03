@@ -5,6 +5,7 @@ export type AppDrawerItem = {
   icon: string;
   href: string;
   external?: boolean;
+  onSelect?: () => void;
 };
 
 function menuButtonStyle(): CSSProperties {
@@ -31,6 +32,7 @@ function overlayStyle(): CSSProperties {
     inset: 0,
     zIndex: 1001,
     background: "rgba(15, 23, 42, 0.48)",
+    border: 0,
   };
 }
 
@@ -68,6 +70,17 @@ function drawerItemStyle(): CSSProperties {
   };
 }
 
+function scrollToHash(hash: string) {
+  if (!hash.startsWith("#")) return;
+
+  window.setTimeout(() => {
+    document.querySelector(hash)?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }, 120);
+}
+
 export default function AppSideDrawer({
   title,
   subtitle,
@@ -83,6 +96,12 @@ export default function AppSideDrawer({
 
   function closeDrawer() {
     setOpen(false);
+  }
+
+  function handleSelect(item: AppDrawerItem) {
+    item.onSelect?.();
+    closeDrawer();
+    scrollToHash(item.href);
   }
 
   return (
@@ -126,11 +145,13 @@ export default function AppSideDrawer({
                 </div>
 
                 <div style={{ fontSize: 22, fontWeight: 950 }}>{title}</div>
+
                 {subtitle ? (
                   <div style={{ color: "#64748b", marginTop: 4, lineHeight: 1.5 }}>
                     {subtitle}
                   </div>
                 ) : null}
+
                 <div style={{ color: "#7c3aed", marginTop: 6, fontWeight: 900 }}>
                   {appLabel}
                 </div>
@@ -157,26 +178,52 @@ export default function AppSideDrawer({
             <div style={{ height: 1, background: "#e5e7eb", margin: "18px 0" }} />
 
             <nav style={{ display: "grid", gap: 4 }}>
-              {items.map((item) =>
-                item.external ? (
+              {items.map((item) => {
+                if (item.onSelect) {
+                  return (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => handleSelect(item)}
+                      style={drawerItemStyle()}
+                    >
+                      <span style={{ width: 28, textAlign: "center" }}>{item.icon}</span>
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                }
+
+                if (item.external) {
+                  return (
+                    <a
+                      key={item.label}
+                      href={item.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={closeDrawer}
+                      style={drawerItemStyle()}
+                    >
+                      <span style={{ width: 28, textAlign: "center" }}>{item.icon}</span>
+                      <span>{item.label}</span>
+                    </a>
+                  );
+                }
+
+                return (
                   <a
                     key={item.label}
                     href={item.href}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={closeDrawer}
+                    onClick={() => {
+                      closeDrawer();
+                      scrollToHash(item.href);
+                    }}
                     style={drawerItemStyle()}
                   >
                     <span style={{ width: 28, textAlign: "center" }}>{item.icon}</span>
                     <span>{item.label}</span>
                   </a>
-                ) : (
-                  <a key={item.label} href={item.href} onClick={closeDrawer} style={drawerItemStyle()}>
-                    <span style={{ width: 28, textAlign: "center" }}>{item.icon}</span>
-                    <span>{item.label}</span>
-                  </a>
-                )
-              )}
+                );
+              })}
             </nav>
 
             <div

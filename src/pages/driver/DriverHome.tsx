@@ -479,6 +479,20 @@ const selectedDriver = useMemo(() => {
     <div style={cardStyle()}>
       <h1 style={{ marginTop: 0, marginBottom: 16 }}>TrueGo Driver</h1>
       <PiSessionBanner appLabel="TrueGo Driver" />
+      <AppSideDrawer
+        title={selectedDriver?.display_name ?? "TrueGo Driver"}
+        subtitle={selectedDriver?.pi_username ? `@${selectedDriver.pi_username}` : "Pi driver account"}
+        appLabel="Driver"
+        items={[
+          { label: "Driver profile", icon: "👤", href: "#driver-profile", onSelect: () => setActiveTab("verification") },
+          { label: "Operations history", icon: "🕘", href: "#driver-history", onSelect: () => setActiveTab("verification") },
+          { label: "Payout wallet", icon: "💼", href: "#driver-payout-wallet", onSelect: () => setActiveTab("verification") },
+          { label: "Verification", icon: "✅", href: "#driver-verification", onSelect: () => setActiveTab("verification") },
+          { label: "Support", icon: "💬", href: "https://t.me/truego_community", external: true },
+          { label: "Official Channel", icon: "📢", href: "https://t.me/truego_official", external: true },
+        ]}
+      />
+
 
       <div
         style={{
@@ -710,19 +724,6 @@ const selectedDriver = useMemo(() => {
       {activeTab === "verification" ? (
         !loading && selectedDriver ? (
 <>
-  <AppSideDrawer
-    title={selectedDriver?.display_name ?? "TrueGo Driver"}
-    subtitle={selectedDriver?.pi_username ? `@${selectedDriver.pi_username}` : "Pi driver account"}
-    appLabel="Driver"
-    items={[
-      { label: "Driver profile", icon: "👤", href: "#driver-profile" },
-      { label: "Operations history", icon: "🕘", href: "#driver-history" },
-      { label: "Payout wallet", icon: "💼", href: "#driver-payout-wallet" },
-      { label: "Verification", icon: "✅", href: "#driver-verification" },
-      { label: "Support", icon: "💬", href: "https://t.me/truego_community", external: true },
-      { label: "Official Channel", icon: "📢", href: "https://t.me/truego_official", external: true },
-    ]}
-  />
   <div id="driver-profile"><DriverContactProfileCard driver={selectedDriver} /></div>
   <DriverVehicleProfileCard driver={selectedDriver} />
   <div id="driver-payout-wallet"><DriverPayoutWalletCard driver={selectedDriver} /></div>
