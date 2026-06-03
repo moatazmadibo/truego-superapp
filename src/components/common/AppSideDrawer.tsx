@@ -70,6 +70,22 @@ function drawerItemStyle(): CSSProperties {
   };
 }
 
+function avatarStyle(): CSSProperties {
+  return {
+    width: 72,
+    height: 72,
+    borderRadius: 999,
+    background: "linear-gradient(135deg, #2563eb, #22c55e, #7c3aed)",
+    color: "#ffffff",
+    display: "grid",
+    placeItems: "center",
+    fontSize: 22,
+    fontWeight: 950,
+    marginBottom: 12,
+    overflow: "hidden",
+  };
+}
+
 function scrollToHash(hash: string) {
   if (!hash.startsWith("#")) return;
 
@@ -78,18 +94,22 @@ function scrollToHash(hash: string) {
       behavior: "smooth",
       block: "start",
     });
-  }, 120);
+  }, 280);
 }
 
 export default function AppSideDrawer({
   title,
   subtitle,
   appLabel,
+  avatarUrl,
+  avatarText = "TG",
   items,
 }: {
   title: string;
   subtitle?: string;
   appLabel: string;
+  avatarUrl?: string;
+  avatarText?: string;
   items: AppDrawerItem[];
 }) {
   const [open, setOpen] = useState(false);
@@ -98,7 +118,7 @@ export default function AppSideDrawer({
     setOpen(false);
   }
 
-  function handleSelect(item: AppDrawerItem) {
+  function handleInternalItem(item: AppDrawerItem) {
     item.onSelect?.();
     closeDrawer();
     scrollToHash(item.href);
@@ -127,21 +147,16 @@ export default function AppSideDrawer({
           <aside style={drawerStyle()}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
               <div>
-                <div
-                  style={{
-                    width: 62,
-                    height: 62,
-                    borderRadius: 999,
-                    background: "linear-gradient(135deg, #2563eb, #22c55e, #7c3aed)",
-                    color: "#ffffff",
-                    display: "grid",
-                    placeItems: "center",
-                    fontSize: 24,
-                    fontWeight: 950,
-                    marginBottom: 12,
-                  }}
-                >
-                  TG
+                <div style={avatarStyle()}>
+                  {avatarUrl ? (
+                    <img
+                      src={avatarUrl}
+                      alt={`${title} profile`}
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    />
+                  ) : (
+                    avatarText.slice(0, 2).toUpperCase()
+                  )}
                 </div>
 
                 <div style={{ fontSize: 22, fontWeight: 950 }}>{title}</div>
@@ -179,20 +194,6 @@ export default function AppSideDrawer({
 
             <nav style={{ display: "grid", gap: 4 }}>
               {items.map((item) => {
-                if (item.onSelect) {
-                  return (
-                    <button
-                      key={item.label}
-                      type="button"
-                      onClick={() => handleSelect(item)}
-                      style={drawerItemStyle()}
-                    >
-                      <span style={{ width: 28, textAlign: "center" }}>{item.icon}</span>
-                      <span>{item.label}</span>
-                    </button>
-                  );
-                }
-
                 if (item.external) {
                   return (
                     <a
@@ -210,18 +211,15 @@ export default function AppSideDrawer({
                 }
 
                 return (
-                  <a
+                  <button
                     key={item.label}
-                    href={item.href}
-                    onClick={() => {
-                      closeDrawer();
-                      scrollToHash(item.href);
-                    }}
+                    type="button"
+                    onClick={() => handleInternalItem(item)}
                     style={drawerItemStyle()}
                   >
                     <span style={{ width: 28, textAlign: "center" }}>{item.icon}</span>
                     <span>{item.label}</span>
-                  </a>
+                  </button>
                 );
               })}
             </nav>
