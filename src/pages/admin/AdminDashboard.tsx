@@ -9,6 +9,7 @@ import AdminReadinessPanel from "./AdminReadinessPanel";
 import AdminActionCenterPanel from "./AdminActionCenterPanel";
 import AdminSessionsPanel from "./AdminSessionsPanel";
 import AdminIntegrityPanel from "./AdminIntegrityPanel";
+import AdminDriverWalletsPanel from "./AdminDriverWalletsPanel";
 import TrueGoLiveMapCard from "../../components/TrueGoLiveMapCard";
 import {
   listRecentRides,
@@ -20,7 +21,7 @@ import {
 } from "../../services/rideApi";
 import { formatPiAmount } from "../../lib/piPricing";
 
-type AdminTab = "rides" | "drivers" | "monitor" | "payouts" | "finance" | "reports" | "audit" | "health" | "readiness" | "actions" | "sessions" | "integrity";
+type AdminTab = "rides" | "drivers" | "monitor" | "payouts" | "finance" | "reports" | "audit" | "health" | "readiness" | "actions" | "sessions" | "integrity" | "wallets";
 
 type RidePaymentSnapshot = {
   payment_status?: "unpaid" | "approved" | "completed" | "cancelled" | "failed" | null;
@@ -2052,6 +2053,13 @@ export default function AdminDashboard() {
         >
           Payouts
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("wallets")}
+          style={tabButtonStyle(activeTab === "wallets")}
+        >
+          Wallets
+        </button>
 
         <button
           type="button"
@@ -2113,6 +2121,8 @@ export default function AdminDashboard() {
       {activeTab === "drivers" ? <AdminDriverVerificationPanel /> : null}
 
       {activeTab === "reports" ? <AdminReportsPanel /> : null}
+
+      {activeTab === "wallets" ? <AdminDriverWalletsPanel /> : null}
 
       {activeTab === "audit" ? <AdminAuditPanel /> : null}
 
