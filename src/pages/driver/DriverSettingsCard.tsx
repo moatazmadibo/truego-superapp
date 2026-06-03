@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
+import { TRUEGO_APP_VERSION } from "../../lib/truegoAppVersion";
 
-const APP_VERSION = "Testnet v0.1.0";
+
 
 function cardStyle(): CSSProperties {
   return {
@@ -100,7 +101,7 @@ export default function DriverSettingsCard() {
           <span style={iconStyle()}>📱</span>
           <div>
             <strong>App version</strong>
-            <div style={{ color: "#64748b" }}>{APP_VERSION}</div>
+            <div style={{ color: "#64748b" }}>{TRUEGO_APP_VERSION}</div>
           </div>
         </div>
       </div>
