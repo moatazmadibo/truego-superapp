@@ -9,6 +9,14 @@ type VerificationStatus =
   | "rejected"
   | "needs_more_info";
 
+type VerificationFilter =
+  | "all"
+  | "submitted"
+  | "ready"
+  | "approved"
+  | "email_verified"
+  | "needs_more_info";
+
 type DocumentType =
   | "national_id"
   | "national_id_front"
@@ -28,6 +36,9 @@ type DemoDriverVerificationRow = {
   submitted_at: string | null;
   verified_at: string | null;
   updated_at: string | null;
+  email_verified_at?: string | null;
+  account_status?: string | null;
+  onboarding_status?: string | null;
 };
 
 type DemoDriverDocumentRow = {
@@ -128,6 +139,17 @@ function statStyle(): React.CSSProperties {
     borderRadius: 12,
     background: "#f8fafc",
     border: "1px solid #e5e7eb",
+  };
+}
+
+function statButtonStyle(active: boolean): React.CSSProperties {
+  return {
+    ...statStyle(),
+    textAlign: "left",
+    cursor: "pointer",
+    background: active ? "#eff6ff" : "#f8fafc",
+    border: active ? "1px solid #2563eb" : "1px solid #e5e7eb",
+    color: "#111827",
   };
 }
 
@@ -372,6 +394,7 @@ function getDriverReadiness(driver?: DemoDriverOperationalRow) {
 }
 
 export default function AdminDriverVerificationPanel() {
+  const [verificationFilter, setVerificationFilter] = useState<VerificationFilter>("all");
   const [rows, setRows] = useState<DemoDriverVerificationRow[]>([]);
   const [documentsByDriver, setDocumentsByDriver] = useState<Record<string, DemoDriverDocumentRow[]>>({});
   const [driversById, setDriversById] = useState<Record<string, DemoDriverOperationalRow>>({});
@@ -398,6 +421,56 @@ export default function AdminDriverVerificationPanel() {
 
     return { total, approved, submitted, needsMoreInfo, readyForApproval, emailVerified };
   }, [documentsByDriver, driversById, rows]);
+
+  const filterLabel = {
+    all: "Total",
+    submitted: "Submitted",
+    ready: "Ready",
+    approved: "Approved",
+    email_verified: "Email verified",
+    needs_more_info: "Needs info",
+  }[verificationFilter];
+
+  const filteredRows = useMemo(() => {
+    return rows.filter((row) => {
+      if (verificationFilter === "all") return true;
+
+      if (verificationFilter === "submitted") {
+        return row.verification_status === "submitted";
+      }
+
+      if (verificationFilter === "approved") {
+        return (
+          row.verification_status === "approved" ||
+          row.account_status === "approved"
+        );
+      }
+
+      if (verificationFilter === "email_verified") {
+        return Boolean(row.email_verified_at);
+      }
+
+      if (verificationFilter === "needs_more_info") {
+        return (
+          row.verification_status === "needs_more_info" ||
+          row.account_status === "needs_more_info"
+        );
+      }
+
+      if (verificationFilter === "ready") {
+        return (
+          row.account_status === "ready" ||
+          row.account_status === "ready_for_approval" ||
+          row.onboarding_status === "ready" ||
+          row.onboarding_status === "complete" ||
+          row.verification_status === "submitted"
+        );
+      }
+
+      return true;
+    });
+  }, [rows, verificationFilter]);
+
 
   async function loadRows() {
     setLoading(true);
@@ -644,13 +717,28 @@ export default function AdminDriverVerificationPanel() {
           marginTop: 14,
         }}
       >
-        <div style={statStyle()}><strong>Total</strong><div>{stats.total}</div></div>
-        <div style={statStyle()}><strong>Submitted</strong><div>{stats.submitted}</div></div>
-        <div style={statStyle()}><strong>Ready</strong><div>{stats.readyForApproval}</div></div>
-        <div style={statStyle()}><strong>Approved</strong><div>{stats.approved}</div></div>
-        <div style={statStyle()}><strong>Email verified</strong><div>{stats.emailVerified}</div></div>
-        <div style={statStyle()}><strong>Needs info</strong><div>{stats.needsMoreInfo}</div></div>
+        <button type="button" onClick={() => setVerificationFilter("all")} style={statButtonStyle(verificationFilter === "all")}><strong>Total</strong><div>{stats.total}</div></button>
+        <button type="button" onClick={() => setVerificationFilter("submitted")} style={statButtonStyle(verificationFilter === "submitted")}><strong>Submitted</strong><div>{stats.submitted}</div></button>
+        <button type="button" onClick={() => setVerificationFilter("ready")} style={statButtonStyle(verificationFilter === "ready")}><strong>Ready</strong><div>{stats.readyForApproval}</div></button>
+        <button type="button" onClick={() => setVerificationFilter("approved")} style={statButtonStyle(verificationFilter === "approved")}><strong>Approved</strong><div>{stats.approved}</div></button>
+        <button type="button" onClick={() => setVerificationFilter("email_verified")} style={statButtonStyle(verificationFilter === "email_verified")}><strong>Email verified</strong><div>{stats.emailVerified}</div></button>
+        <button type="button" onClick={() => setVerificationFilter("needs_more_info")} style={statButtonStyle(verificationFilter === "needs_more_info")}><strong>Needs info</strong><div>{stats.needsMoreInfo}</div></button>
       </div>
+
+      <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <span style={{ color: "#64748b" }}>
+          Showing filter: <strong>{filterLabel}</strong> · {filteredRows.length} driver(s)
+        </span>
+        {verificationFilter !== "all" ? (
+          <button
+            type="button"
+            onClick={() => setVerificationFilter("all")}
+            style={secondaryButtonStyle()}
+          >
+            Clear filter
+          </button>
+        ) : null}
+
 
       {error ? (
         <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c" }}>
@@ -667,8 +755,9 @@ export default function AdminDriverVerificationPanel() {
       {!loading && rows.length === 0 ? (
         <p style={{ color: "#64748b" }}>No driver verification requests yet.</p>
       ) : null}
+      </div>
 
-      {rows.map((row) => {
+      {filteredRows.map((row) => {
         const driver = driversById[row.demo_driver_id];
         const readiness = getDriverReadiness(driver);
         const isActionLoading = actionKey.startsWith(`${row.demo_driver_id}:`);
