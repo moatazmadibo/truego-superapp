@@ -407,8 +407,49 @@ export default function AdminDriverVerificationPanel() {
   const [message, setMessage] = useState("");
 
   function isReadyForApprovalRow(row: DemoDriverVerificationRow) {
+    const driver = driversById[row.demo_driver_id];
     const docs = documentsByDriver[row.demo_driver_id] ?? [];
-    return getDocumentReviewState(docs).canApprove;
+
+    const isSubmittedForReview = row.verification_status === "submitted";
+    const isNotAlreadyApproved = row.verification_status !== "approved";
+    const isNotNeedsInfo = row.verification_status !== "needs_more_info";
+    const isNotRejected = row.verification_status !== "rejected";
+
+    const emailReady = Boolean(driver?.email_verified_at);
+
+    const vehicleProfileComplete = Boolean(
+      driver?.vehicle_type &&
+        driver.vehicle_make &&
+        driver.vehicle_model &&
+        driver.vehicle_color &&
+        driver.vehicle_plate
+    );
+
+    const requiredDocumentsUploaded = REQUIRED_DOCUMENTS.every((requiredDocument) =>
+      docs.some(
+        (document) =>
+          document.document_type === requiredDocument.type &&
+          Boolean(document.file_path) &&
+          document.status !== "rejected" &&
+          document.status !== "needs_more_info"
+      )
+    );
+
+    const hasBlockedDocument = docs.some(
+      (document) =>
+        document.status === "rejected" || document.status === "needs_more_info"
+    );
+
+    return (
+      isSubmittedForReview &&
+      isNotAlreadyApproved &&
+      isNotNeedsInfo &&
+      isNotRejected &&
+      emailReady &&
+      vehicleProfileComplete &&
+      requiredDocumentsUploaded &&
+      !hasBlockedDocument
+    );
   }
 
   function isEmailVerifiedRow(row: DemoDriverVerificationRow) {
