@@ -7,6 +7,7 @@ import AppSideDrawer from "../../components/common/AppSideDrawer";
 import RiderRideHistoryCard from "./RiderRideHistoryCard";
 import RiderSafetyCard from "./RiderSafetyCard";
 import RiderSettingsCard from "./RiderSettingsCard";
+import AppNotificationBell from "../../components/common/AppNotificationBell";
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
@@ -285,6 +286,19 @@ function handleFindRide() {
     <main style={pageStyle}>
       <section style={cardStyle}>
 <PiSessionBanner appLabel="TrueGo Rider" />
+      <AppNotificationBell
+        targetApp="rider"
+        reminders={[
+          {
+            dedupeKey: "request-next-ride",
+            title: "Request your next ride",
+            body: "Open TrueGo Rider, compare driver offers, track your trip, and pay with Pi after completion.",
+            type: "rider_engagement",
+            actionUrl: "#request-ride",
+          },
+        ]}
+      />
+
       <div id="rider-history">
         <RiderRideHistoryCard />
       </div>

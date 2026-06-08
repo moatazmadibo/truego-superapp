@@ -19,6 +19,7 @@ import { formatPiAmount } from "../../lib/piPricing";
 import type { Ride } from "../../types/ride";
 import AppSideDrawer from "../../components/common/AppSideDrawer";
 import { supabase } from "../../lib/supabase";
+import AppNotificationBell from "../../components/common/AppNotificationBell";
 import {
   acceptDemoRide,
   completeDemoRide,
@@ -566,6 +567,49 @@ const selectedDriver = useMemo(() => {
     <div style={cardStyle()}>
       <h1 style={{ marginTop: 0, marginBottom: 16 }}>TrueGo Driver</h1>
       <PiSessionBanner appLabel="TrueGo Driver" />
+      <AppNotificationBell
+        targetApp="driver"
+        piUid={selectedDriver?.pi_uid}
+        piUsername={selectedDriver?.pi_username}
+        demoDriverId={selectedDriver?.id}
+        onNavigate={(actionUrl) => {
+          if (actionUrl.startsWith("#driver-")) {
+            setActiveTab("verification");
+            window.setTimeout(() => {
+              document.querySelector(actionUrl)?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+              });
+            }, 200);
+          }
+        }}
+        reminders={[
+          ...(selectedDriver && selectedDriver.account_status !== "approved"
+            ? [
+                {
+                  dedupeKey: "complete-driver-verification",
+                  title: "Complete your driver verification",
+                  body: "Please complete your contact profile, vehicle details, documents, and payout wallet address to become ready for approval.",
+                  type: "driver_onboarding",
+                  actionUrl: "#driver-verification",
+                },
+              ]
+            : []),
+          ...(selectedDriver &&
+          !(selectedDriver as { payout_wallet_address?: string | null }).payout_wallet_address
+            ? [
+                {
+                  dedupeKey: "add-payout-wallet",
+                  title: "Add your payout wallet",
+                  body: "Add your Pi Wallet public address from Pi Wallet → Receive so Admin can send your driver payout manually.",
+                  type: "driver_payout_wallet",
+                  actionUrl: "#driver-payout-wallet",
+                },
+              ]
+            : []),
+        ]}
+      />
+
       <AppSideDrawer
         title={selectedDriver?.display_name ?? "TrueGo Driver"}
         subtitle={selectedDriver?.pi_username ? `@${selectedDriver.pi_username}` : "Pi driver account"}
