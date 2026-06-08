@@ -415,9 +415,10 @@ export default function AdminDriverVerificationPanel() {
       const docs = documentsByDriver[row.demo_driver_id] ?? [];
       return getDocumentReviewState(docs).canApprove;
     }).length;
-    const emailVerified = rows.filter(
-      (row) => Boolean(driversById[row.demo_driver_id]?.email_verified_at)
-    ).length;
+    const emailVerified = rows.filter((row) => {
+      const driver = driversById[row.demo_driver_id];
+      return Boolean(driver?.email_verified_at || row.email_verified_at);
+    }).length;
 
     return { total, approved, submitted, needsMoreInfo, readyForApproval, emailVerified };
   }, [documentsByDriver, driversById, rows]);
