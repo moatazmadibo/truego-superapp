@@ -406,19 +406,23 @@ export default function AdminDriverVerificationPanel() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
+  function isReadyForApprovalRow(row: DemoDriverVerificationRow) {
+    const docs = documentsByDriver[row.demo_driver_id] ?? [];
+    return getDocumentReviewState(docs).canApprove;
+  }
+
+  function isEmailVerifiedRow(row: DemoDriverVerificationRow) {
+    const driver = driversById[row.demo_driver_id];
+    return Boolean(driver?.email_verified_at || row.email_verified_at);
+  }
+
   const stats = useMemo(() => {
     const total = rows.length;
     const approved = rows.filter((row) => row.verification_status === "approved").length;
     const submitted = rows.filter((row) => row.verification_status === "submitted").length;
     const needsMoreInfo = rows.filter((row) => row.verification_status === "needs_more_info").length;
-    const readyForApproval = rows.filter((row) => {
-      const docs = documentsByDriver[row.demo_driver_id] ?? [];
-      return getDocumentReviewState(docs).canApprove;
-    }).length;
-    const emailVerified = rows.filter((row) => {
-      const driver = driversById[row.demo_driver_id];
-      return Boolean(driver?.email_verified_at || row.email_verified_at);
-    }).length;
+    const readyForApproval = rows.filter(isReadyForApprovalRow).length;
+    const emailVerified = rows.filter(isEmailVerifiedRow).length;
 
     return { total, approved, submitted, needsMoreInfo, readyForApproval, emailVerified };
   }, [documentsByDriver, driversById, rows]);
@@ -435,43 +439,15 @@ export default function AdminDriverVerificationPanel() {
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
       if (verificationFilter === "all") return true;
-
-      if (verificationFilter === "submitted") {
-        return row.verification_status === "submitted";
-      }
-
-      if (verificationFilter === "approved") {
-        return (
-          row.verification_status === "approved" ||
-          row.account_status === "approved"
-        );
-      }
-
-      if (verificationFilter === "email_verified") {
-        return Boolean(row.email_verified_at);
-      }
-
-      if (verificationFilter === "needs_more_info") {
-        return (
-          row.verification_status === "needs_more_info" ||
-          row.account_status === "needs_more_info"
-        );
-      }
-
-      if (verificationFilter === "ready") {
-        return (
-          row.account_status === "ready" ||
-          row.account_status === "ready_for_approval" ||
-          row.onboarding_status === "ready" ||
-          row.onboarding_status === "complete" ||
-          row.verification_status === "submitted"
-        );
-      }
+      if (verificationFilter === "submitted") return row.verification_status === "submitted";
+      if (verificationFilter === "ready") return isReadyForApprovalRow(row);
+      if (verificationFilter === "approved") return row.verification_status === "approved";
+      if (verificationFilter === "email_verified") return isEmailVerifiedRow(row);
+      if (verificationFilter === "needs_more_info") return row.verification_status === "needs_more_info";
 
       return true;
     });
-  }, [rows, verificationFilter]);
-
+  }, [documentsByDriver, driversById, rows, verificationFilter]);
 
   async function loadRows() {
     setLoading(true);
