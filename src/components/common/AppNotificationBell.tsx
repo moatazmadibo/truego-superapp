@@ -150,6 +150,19 @@ export default function AppNotificationBell({
   const identityKey =
     resolvedDemoDriverId || resolvedUid || resolvedUsername || "unknown";
 
+  async function registerCurrentUser() {
+    if (!resolvedDemoDriverId && !resolvedUid && !resolvedUsername) {
+      return;
+    }
+
+    await supabase.rpc("register_app_user_profile", {
+      p_target_app: targetApp,
+      p_pi_uid: resolvedUid || null,
+      p_pi_username: resolvedUsername || null,
+      p_demo_driver_id: resolvedDemoDriverId || null,
+    });
+  }
+
   async function loadNotifications() {
     if (!resolvedDemoDriverId && !resolvedUid && !resolvedUsername) {
       setNotifications([]);
@@ -214,7 +227,9 @@ export default function AppNotificationBell({
   }
 
   useEffect(() => {
-    void loadNotifications();
+    void registerCurrentUser().then(() => {
+      void loadNotifications();
+    });
   }, [targetApp, resolvedUid, resolvedUsername, resolvedDemoDriverId]);
 
   useEffect(() => {

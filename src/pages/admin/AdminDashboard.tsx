@@ -20,8 +20,9 @@ import {
   type RideRow,
 } from "../../services/rideApi";
 import { formatPiAmount } from "../../lib/piPricing";
+import AdminNotificationsPanel from "./AdminNotificationsPanel";
 
-type AdminTab = "rides" | "drivers" | "monitor" | "payouts" | "finance" | "reports" | "audit" | "health" | "readiness" | "actions" | "sessions" | "integrity" | "wallets";
+type AdminTab = "rides" | "drivers" | "monitor" | "payouts" | "finance" | "reports" | "audit" | "health" | "readiness" | "actions" | "sessions" | "integrity" | "wallets" | "notifications";
 
 type RidePaymentSnapshot = {
   payment_status?: "unpaid" | "approved" | "completed" | "cancelled" | "failed" | null;
@@ -2116,6 +2117,13 @@ export default function AdminDashboard() {
         >
           Sessions
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("notifications")}
+          style={tabButtonStyle(activeTab === "notifications")}
+        >
+          Notifications
+        </button>
       </div>
 
       {activeTab === "drivers" ? <AdminDriverVerificationPanel /> : null}
@@ -2133,6 +2141,8 @@ export default function AdminDashboard() {
       {activeTab === "actions" ? <AdminActionCenterPanel /> : null}
 
       {activeTab === "sessions" ? <AdminSessionsPanel /> : null}
+
+      {activeTab === "notifications" ? <AdminNotificationsPanel /> : null}
 
       {activeTab === "integrity" ? <AdminIntegrityPanel /> : null}
 
